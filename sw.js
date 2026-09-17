@@ -1,10 +1,10 @@
-// SW.js — Scramjet service worker for Veil
+// sw.js — Scramjet service worker for Veil
 importScripts("./scramjet/scramjet.all.js");
 
 const { ScramjetServiceWorker } = $scramjetLoadWorker();
 const scramjet = new ScramjetServiceWorker();
 
-const BASE = self.location.pathname.replace(/SW\.js$/i, "");
+const BASE = self.location.pathname.replace(/sw\.js$/i, "");
 const PROXY_PREFIX = BASE + "service/";
 const ORIGIN = self.location.origin;
 
@@ -17,8 +17,9 @@ function isStaticAsset(path) {
   if (path.startsWith(BASE + "baremux/")) return true;
   if (path.startsWith(BASE + "epoxy/")) return true;
   if (path.startsWith(BASE + "libcurl/")) return true;
-  if (path.startsWith(BASE + "scram/")) return true;
-  if (path.endsWith(".map")) return true;
+  if (path.startsWith(BASE + "scramjet/")) return true;
+  if (path.startsWith(BASE + "image/")) return true;
+  if (path.endsWith(".map") || path.endsWith(".png") || path.endsWith(".svg") || path.endsWith(".wasm")) return true;
   return false;
 }
 

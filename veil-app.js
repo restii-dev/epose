@@ -6,18 +6,21 @@ const REPO_PATH = (() => {
   const last = p.lastIndexOf("/");
   return p.slice(0, last + 1);
 })();
+const IMG = REPO_PATH + "image/";
+const FAVI = IMG + "favi.png";
 const SCRAMJET_PREFIX = REPO_PATH + "service/";
 const SCRAMJET_FILES = {
   all: REPO_PATH + "scramjet/scramjet.all.js",
   sync: REPO_PATH + "scramjet/scramjet.sync.js",
-  wasm: REPO_PATH + "scramjet/scramjet.wasm.wasm",
-  config: REPO_PATH + "scramjet/scramjet.config.js"
+  wasm: REPO_PATH + "scramjet/scramjet.wasm.wasm"
 };
 const BAREMUX_SCRIPT = REPO_PATH + "baremux/index.js";
 const BAREMUX_WORKER = REPO_PATH + "baremux/worker.js";
+const EPOXY_MODULE = REPO_PATH + "epoxy/index.mjs";
+const LIBCURL_MODULE = REPO_PATH + "libcurl/indexmjs.mjs";
 const WISP_URL = "wss://wisp-backend-weyl.onrender.com";
-const DESIGN_W = 1280;
-const DESIGN_H = 800;
+const MAX_TABS = 20;
+
 
 let engineReady = false;
 let engineController = null;
@@ -43,15 +46,13 @@ async function initEngine() {
         await loadScript(SCRAMJET_FILES.all);
       }
       if (!("serviceWorker" in navigator)) throw new Error("Service workers unavailable.");
-      await navigator.serviceWorker.register(REPO_PATH + "SW.js", { scope: SCRAMJET_PREFIX });
+      await navigator.serviceWorker.register(REPO_PATH + "sw.js", { scope: SCRAMJET_PREFIX });
 
       if (!window.BareMux) throw new Error("BareMux did not load.");
       const mux = new BareMux.BareMuxConnection(BAREMUX_WORKER);
-      try {
-        await mux.setTransport(REPO_PATH + "epoxy/index.mjs", [{ wisp: WISP_URL }]);
-      } catch {
-        await mux.setTransport(BAREMUX_WORKER, [{ wisp: WISP_URL }]);
-      }
+      const transport = (settings.transport === "libcurl") ? LIBCURL_MODULE : EPOXY_MODULE;
+      await mux.setTransport(transport, [{ wisp: WISP_URL }]);
+
 
       if (typeof window.$scramjetLoadController === "function") {
         const loaded = window.$scramjetLoadController();
@@ -67,11 +68,13 @@ async function initEngine() {
       }
 
       engineReady = true;
-      status.textContent = "Ready • Wisp connected";
+      status.textContent = "Ready • " + (settings.transport === "libcurl" ? "Libcurl" : "Epoxy") + " • Wisp connected";
+
       return true;
     } catch (error) {
       console.error(error);
-      status.textContent = "Engine error • " + (error.message || "check scram/baremux files");
+      status.textContent = "Engine error • " + (error.message || "check scramjet/baremux files");
+
       return false;
     }
   })();
@@ -79,10 +82,15 @@ async function initEngine() {
 }
 
 const THEMES = {
+  matte: {
+    bg: "#101010", bg2: "#151515", bg3: "#1b1b1b", panel: "#181818", panel2: "#202020",
+    border: "#2b2b2b", text: "#f2f2f2", muted: "#888888", accent: "#ffffff", accentText: "#111111", newtab: "#101010"
+  },
   ember: {
     bg: "#1a0a0a", bg2: "#220e0e", bg3: "#3a1212", panel: "#2a1010", panel2: "#401818",
     border: "#5a2020", text: "#ffeaea", muted: "#b88888", accent: "#ff4d4d", accentText: "#1a0505", newtab: "#1a0a0a"
   },
+
   sunlight: {
     bg: "#191108", bg2: "#211609", bg3: "#32200c", panel: "#281a0a", panel2: "#3a250e",
     border: "#513716", text: "#fff8eb", muted: "#bca783", accent: "#ffb84d", accentText: "#241303", newtab: "#191108"
@@ -105,13 +113,15 @@ const THEMES = {
   }
 };
 
-const DEFAULT_SETTINGS = { theme: "ember", ...THEMES.ember, backgroundUrl: "" };
+const DEFAULT_SETTINGS = { theme: "matte", transport: "epoxy", ...THEMES.matte, backgroundUrl: "" };
+
 const DEFAULT_PANIC = { key: "", code: "", url: "https://classroom.google.com" };
 
 let settings = { ...DEFAULT_SETTINGS };
 let panic = { ...DEFAULT_PANIC };
 let bookmarks = [];
-let cloak = { title: "Veil", icon: "" };
+let cloak = { title: "Veil", icon: "image/favi.png" };
+
 let tabs = [];
 let activeTabId = null;
 let tabCounter = 0;
@@ -168,20 +178,6 @@ function loadSavedData() {
   } catch (e) { console.warn("load failed", e); }
 }
 
-function applyScale() {
-  const root = document.getElementById("scale-root");
-  if (!root) return;
-  const sw = window.innerWidth / DESIGN_W;
-  const sh = window.innerHeight / DESIGN_H;
-  const scale = Math.min(sw, sh);
-  root.style.transform = "scale(" + scale + ")";
-  const ox = (window.innerWidth - DESIGN_W * scale) / 2;
-  const oy = (window.innerHeight - DESIGN_H * scale) / 2;
-  root.style.left = Math.max(0, ox) + "px";
-  root.style.top = Math.max(0, oy) + "px";
-}
-window.addEventListener("resize", applyScale);
-
 function applyCSSVariables() {
   const root = document.documentElement;
   ["bg", "bg2", "bg3", "panel", "panel2", "border", "text", "muted", "accent", "accentText", "newtab"]
@@ -196,17 +192,13 @@ function applyNewTabBackground() {
 }
 
 function tabIcon() {
-  return '<svg viewBox="0 0 100 100" fill="none" aria-hidden="true"><path d="M50 14L81 27V47C81 69 68 84 50 91C32 84 19 69 19 47V27L50 14Z" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/></svg>';
+  return '<img src="' + FAVI + '" alt="">';
 }
 
-const QUICK_ICONS = {
-  x: '<svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
-  discord: '<svg viewBox="0 0 24 24"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>',
-  reddit: '<svg viewBox="0 0 24 24"><path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.01 1.614a3.111 3.111 0 0 1 .042.52c0 2.672-3.123 4.844-6.972 4.844-3.849 0-6.972-2.172-6.972-4.844 0-.183.015-.366.043-.534A1.748 1.748 0 0 1 4.028 12c0-.968.786-1.754 1.754-1.754.463 0 .898.196 1.207.49 1.207-.883 2.878-1.43 4.744-1.487l.885-4.182a.342.342 0 0 1 .14-.197.35.35 0 0 1 .238-.042l2.914.614a1.25 1.25 0 0 1 1.146-.743zM9.25 12.25c-.69 0-1.25.56-1.25 1.25s.56 1.25 1.25 1.25 1.25-.56 1.25-1.25-.56-1.25-1.25-1.25zm5.5 0c-.69 0-1.25.56-1.25 1.25s.56 1.25 1.25 1.25 1.25-.56 1.25-1.25-.56-1.25-1.25-1.25z"/></svg>',
-  geforce: '<svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>',
-  games: '<svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>',
-  utils: '<svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>'
-};
+function imgIcon(name) {
+  return '<img src="' + IMG + name + '" alt="">';
+}
+
 
 function normalizeUrl(input) {
   let value = String(input || "").trim();
@@ -220,7 +212,8 @@ function normalizeUrl(input) {
 async function createEngineFrame(page, wrapper) {
   if (!engineReady) await initEngine();
   if (!engineReady) {
-    wrapper.innerHTML = '<div class="engine-error"><div class="engine-error-box"><h2>Browser engine unavailable</h2><p>Make sure <b>scram/</b>, <b>baremux/</b>, and <b>SW.js</b> are deployed.</p><button data-retry-engine>Retry</button></div></div>';
+    wrapper.innerHTML = '<div class="engine-error"><div class="engine-error-box"><h2>Browser engine unavailable</h2><p>Make sure <b>scramjet/</b>, <b>baremux/</b>, and <b>sw.js</b> are deployed.</p><button data-retry-engine>Retry</button></div></div>';
+
     wrapper.querySelector("[data-retry-engine]").onclick = () => { engineInitPromise = null; renderViewport(); };
     return;
   }
@@ -279,22 +272,25 @@ function renderTabs() {
 function homepageHTML(pageId) {
   return (
     '<div class="newtab-page"><div class="newtab-overlay"><div class="newtab-center">' +
-    '<div class="veil-mark">' + tabIcon() + '</div>' +
+    '<div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div>' +
     '<div class="newtab-title">Veil</div>' +
-    '<div class="search-box"><input class="newtab-search" data-page="' + pageId + '" placeholder="Browse the web freely…" autocomplete="off" spellcheck="false"></div>' +
+    '<div class="search-box"><span class="home-search-icon"></span><input class="newtab-search" data-page="' + pageId + '" placeholder="Browse the web freely…" autocomplete="off" spellcheck="false"></div>' +
     '<div class="quick-links">' +
-    '<button class="quick-link" title="X" data-url="https://x.com">' + QUICK_ICONS.x + '</button>' +
-    '<button class="quick-link" title="Discord" data-url="https://discord.com/">' + QUICK_ICONS.discord + '</button>' +
-    '<button class="quick-link" title="Reddit" data-url="https://www.reddit.com/">' + QUICK_ICONS.reddit + '</button>' +
-    '<button class="quick-link" title="GeForce NOW" data-url="https://play.geforcenow.com/mall">' + QUICK_ICONS.geforce + '</button>' +
-    '<button class="quick-link soon" title="Games (soon)" data-soon="1">' + QUICK_ICONS.games + '</button>' +
-    '<button class="quick-link soon" title="Utilities (soon)" data-soon="1">' + QUICK_ICONS.utils + '</button>' +
+    '<button class="quick-link" title="X" data-url="https://x.com">' + imgIcon("x.svg") + '</button>' +
+    '<button class="quick-link" title="Discord" data-url="https://discord.com/">' + imgIcon("discord.svg") + '</button>' +
+    '<button class="quick-link" title="Reddit" data-url="https://www.reddit.com/">' + imgIcon("reddit.svg") + '</button>' +
+    '<button class="quick-link" title="GeForce NOW" data-url="https://play.geforcenow.com/mall">' + imgIcon("nvidia.svg") + '</button>' +
+    '</div>' +
+    '<div class="quick-links row2">' +
+    '<button class="quick-link soon" title="Games (soon)" data-soon="1"><svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg></button>' +
+    '<button class="quick-link soon" title="Utilities (soon)" data-soon="1"><svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg></button>' +
     '</div>' +
     '<button class="launch-btn" id="launchOptionsBtn" type="button">Launch Options…</button>' +
     '</div></div>' +
     '<div class="time-bar" id="timeBar">Time Remaining: — (auth coming soon)</div></div>'
   );
 }
+
 
 function renderViewport() {
   const viewport = document.getElementById("viewport");
@@ -341,13 +337,9 @@ function renderToolbar() {
   document.getElementById("backBtn").disabled = !page || page.historyIndex <= 0;
   document.getElementById("forwardBtn").disabled = !page || page.historyIndex >= page.history.length - 1;
   const b = document.getElementById("bookmarkBtn");
-  if (page && page.url && isBookmarked(page.url)) {
-    b.classList.add("saved");
-    b.textContent = "★";
-  } else {
-    b.classList.remove("saved");
-    b.textContent = "☆";
-  }
+  if (page && page.url && isBookmarked(page.url)) b.classList.add("saved");
+  else b.classList.remove("saved");
+
 }
 
 function render() {
@@ -415,6 +407,7 @@ function reload() {
 }
 function createTab(newTab) {
   if (newTab === undefined) newTab = true;
+  if (tabs.length >= MAX_TABS) return;
   const tab = {
     id: uid(), title: newTab ? "New Tab" : "Veil", url: "",
     history: [], historyIndex: -1, newTab: newTab, engineFrame: null
@@ -423,6 +416,7 @@ function createTab(newTab) {
   activeTabId = tab.id;
   render();
 }
+
 function closeTab(id) {
   const index = tabs.findIndex(t => t.id === id);
   if (index < 0) return;
@@ -511,15 +505,27 @@ function highlightTheme() {
   document.querySelectorAll("[data-theme]").forEach(b => {
     b.classList.toggle("active", b.dataset.theme === settings.theme);
   });
+  const customCard = document.getElementById("customThemeCard");
+  if (customCard) customCard.classList.toggle("active", settings.theme === "custom");
+  const editor = document.getElementById("customColorCard");
+  if (editor) editor.classList.toggle("open", settings.theme === "custom" || editor.classList.contains("force-open"));
+  const ep = document.getElementById("transportEpoxy");
+  const lc = document.getElementById("transportLibcurl");
+  if (ep) ep.classList.toggle("active", settings.transport !== "libcurl");
+  if (lc) lc.classList.toggle("active", settings.transport === "libcurl");
 }
 
 function applyTheme(name) {
   if (!THEMES[name]) return;
-  settings = Object.assign({}, settings, THEMES[name], { theme: name });
+  const transport = settings.transport || "epoxy";
+  settings = Object.assign({}, settings, THEMES[name], { theme: name, transport: transport });
+  const editor = document.getElementById("customColorCard");
+  if (editor) editor.classList.remove("open", "force-open");
   applyCSSVariables();
   save();
   render();
 }
+
 function applyCustomColors() {
   settings.bg = document.getElementById("colorBg").value;
   settings.panel = document.getElementById("colorPanel").value;
@@ -527,10 +533,14 @@ function applyCustomColors() {
   settings.text = document.getElementById("colorText").value;
   settings.theme = "custom";
   settings.newtab = settings.bg;
+  settings.bg2 = settings.bg;
+  settings.bg3 = settings.panel;
+  settings.panel2 = settings.panel;
   applyCSSVariables();
   save();
   render();
 }
+
 function applyBackground() {
   settings.backgroundUrl = document.getElementById("backgroundUrl").value.trim();
   save();
@@ -538,22 +548,35 @@ function applyBackground() {
 }
 function applyCloak() {
   cloak.title = document.getElementById("cloakTitle").value.trim() || "Veil";
-  cloak.icon = document.getElementById("cloakIcon").value.trim();
+  cloak.icon = document.getElementById("cloakIcon").value.trim() || FAVI;
   document.title = cloak.title;
-  if (cloak.icon) document.getElementById("favicon").href = cloak.icon;
+  document.getElementById("favicon").href = cloak.icon;
   save();
 }
+
 function resetSettings() {
   settings = Object.assign({}, DEFAULT_SETTINGS);
   panic = Object.assign({}, DEFAULT_PANIC);
-  cloak = { title: "Veil", icon: "" };
+  cloak = { title: "Veil", icon: FAVI };
   document.title = "Veil";
-  document.getElementById("favicon").href =
-    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23101010'/%3E%3Cpath d='M50 15L80 28V48C80 69 67 84 50 90C33 84 20 69 20 48V28L50 15Z' fill='none' stroke='%23fff' stroke-width='7'/%3E%3C/svg%3E";
+  document.getElementById("favicon").href = FAVI;
   applyCSSVariables();
   save();
   render();
 }
+
+async function setTransport(kind) {
+  settings.transport = kind === "libcurl" ? "libcurl" : "epoxy";
+  save();
+  highlightTheme();
+  engineReady = false;
+  engineController = null;
+  engineInitPromise = null;
+  const status = document.getElementById("engineStatus");
+  if (status) status.textContent = "Switching transport…";
+  await initEngine();
+}
+
 
 function isTypingTarget(el) {
   if (!el) return false;
@@ -612,7 +635,10 @@ document.getElementById("backBtn").onclick = goBack;
 document.getElementById("forwardBtn").onclick = goForward;
 document.getElementById("refreshBtn").onclick = reload;
 document.getElementById("homeBtn").onclick = goHome;
+document.getElementById("bookmarksOpenBtn").onclick = () => openPanel("bookmarksPanel");
+document.getElementById("settingsOpenBtn").onclick = () => openPanel("settingsPanel");
 document.getElementById("bookmarkBtn").onclick = toggleBookmark;
+
 document.getElementById("address").addEventListener("keydown", e => {
   if (e.key === "Enter") navigate(e.target.value);
 });
@@ -636,8 +662,17 @@ document.getElementById("launchSame").onclick = () => {
 document.getElementById("backdrop").onclick = closePanels;
 document.querySelectorAll("[data-close-panel]").forEach(b => b.onclick = closePanels);
 document.querySelectorAll("[data-theme]").forEach(b => b.onclick = () => applyTheme(b.dataset.theme));
+document.getElementById("customThemeCard").onclick = () => {
+  const editor = document.getElementById("customColorCard");
+  editor.classList.toggle("open");
+  editor.classList.toggle("force-open", editor.classList.contains("open"));
+  document.getElementById("customThemeCard").classList.add("active");
+};
 document.getElementById("applyColors").onclick = applyCustomColors;
+document.getElementById("transportEpoxy").onclick = () => setTransport("epoxy");
+document.getElementById("transportLibcurl").onclick = () => setTransport("libcurl");
 document.getElementById("applyBackground").onclick = applyBackground;
+
 document.getElementById("applyCloak").onclick = applyCloak;
 document.getElementById("resetSettings").onclick = resetSettings;
 document.addEventListener("click", e => {
@@ -675,8 +710,9 @@ function showCookieConsent() {
     overlay.remove();
     applyCSSVariables();
     document.title = cloak.title || "Veil";
-    if (cloak.icon) document.getElementById("favicon").href = cloak.icon;
+    document.getElementById("favicon").href = cloak.icon || FAVI;
     render();
+
   };
   document.getElementById("cookieNo").onclick = () => {
     COOKIE.consent = false;
@@ -686,15 +722,15 @@ function showCookieConsent() {
 }
 
 (async function init() {
-  applyScale();
   const consent = COOKIE.get("veil_cookie_consent");
   if (consent === "yes") {
     COOKIE.consent = true;
     loadSavedData();
   }
+  if (!cloak.icon) cloak.icon = FAVI;
   applyCSSVariables();
   document.title = cloak.title || "Veil";
-  if (cloak.icon) document.getElementById("favicon").href = cloak.icon;
+  document.getElementById("favicon").href = cloak.icon || FAVI;
   createTab(true);
   initEngine();
   if (consent !== "yes") showCookieConsent();

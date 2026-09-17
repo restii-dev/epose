@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Veil</title>
-<link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23101010'/%3E%3Cpath d='M50 15L80 28V48C80 69 67 84 50 90C33 84 20 69 20 48V28L50 15Z' fill='none' stroke='%23fff' stroke-width='7'/%3E%3C/svg%3E">
+<link id="favicon" rel="icon" href="image/favi.png">
 <style>
 :root{
  --bg:#101010;--bg2:#151515;--bg3:#1b1b1b;--panel:#181818;--panel2:#202020;
@@ -15,59 +15,63 @@
 html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text)}
 body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{outline:0}
-#scale-root{width:1280px;height:800px;transform-origin:top left;position:absolute;left:0;top:0}
+
 #browser{display:flex;flex-direction:column;width:100%;height:100%;background:var(--bg)}
 .chrome{flex:0 0 auto;background:var(--bg2);border-bottom:1px solid var(--border);position:relative;z-index:100}
 .tabs-row{height:42px;display:flex;align-items:flex-end;padding:0 7px;gap:4px;overflow:hidden}
-.tabs{height:100%;display:flex;align-items:flex-end;gap:4px;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
-.tabs::-webkit-scrollbar{display:none}
-.tab{height:36px;min-width:145px;max-width:235px;flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:0 7px 0 10px;border-radius:9px 9px 0 0;background:transparent;color:var(--muted);cursor:pointer;user-select:none}
+.tabs{height:100%;display:flex;align-items:flex-end;gap:4px;flex:1;min-width:0;overflow:hidden}
+.tab{height:36px;flex:1 1 0;min-width:72px;max-width:220px;display:flex;align-items:center;gap:8px;padding:0 7px 0 10px;border-radius:9px 9px 0 0;background:transparent;color:var(--muted);cursor:pointer;user-select:none;overflow:hidden}
 .tab:hover{background:var(--bg3);color:var(--text)}
 .tab.active{background:var(--panel);color:var(--text)}
-.tab-icon{width:16px;height:16px;flex:0 0 16px;display:flex;align-items:center;justify-content:center}
-.tab-icon svg{width:14px;height:14px;display:block}
+.tab-icon{width:16px;height:16px;flex:0 0 16px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.tab-icon img{width:16px;height:16px;border-radius:3px;object-fit:cover;display:block}
 .tab-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
 .tab-close{width:21px;height:21px;flex:0 0 21px;border-radius:5px;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px}
 .tab-close:hover{background:var(--panel2);color:var(--text)}
 .new-tab{width:32px;height:32px;flex:0 0 32px;margin-bottom:2px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:21px}
 .new-tab:hover{background:var(--panel2);color:var(--text)}
+
 .toolbar{height:52px;display:flex;align-items:center;gap:6px;padding:6px 9px;background:var(--panel)}
 .nav-buttons{display:flex;gap:2px;flex:0 0 auto}
-.tool-btn,.menu-btn{background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center}
-.tool-btn{width:35px;height:35px;border-radius:8px;font-size:18px}
-.tool-btn:hover,.menu-btn:hover{background:var(--panel2);color:var(--text)}
+.tool-btn,.menu-btn,.address-bookmark{background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.tool-btn,.menu-btn{width:35px;height:35px;border-radius:8px}
+.tool-btn:hover,.menu-btn:hover,.address-bookmark:hover{background:var(--panel2);color:var(--text)}
 .tool-btn:disabled{opacity:.28;cursor:default}
+.icon{width:18px;height:18px;display:block;background:currentColor;-webkit-mask:var(--i) center / contain no-repeat;mask:var(--i) center / contain no-repeat}
 .address-wrap{flex:1;min-width:0;height:35px;display:flex;align-items:center;border-radius:18px;background:var(--bg2);border:1px solid var(--border);padding:0 7px 0 13px}
 .address-wrap:focus-within{border-color:#444;background:var(--bg3)}
-.address-icon{color:var(--muted);margin-right:8px;font-size:14px}
+.address-icon{width:16px;height:16px;margin-right:8px;flex:0 0 16px;background:var(--muted);-webkit-mask:url("image/search.svg") center / contain no-repeat;mask:url("image/search.svg") center / contain no-repeat}
 #address{flex:1;min-width:0;border:0;background:transparent;color:var(--text);font-size:13px}
 #address::placeholder{color:#666}
-.address-bookmark{width:29px;height:29px;border-radius:50%;background:transparent;color:var(--muted);cursor:pointer;font-size:16px}
-.address-bookmark:hover{background:var(--panel2);color:var(--text)}
+.address-bookmark{width:29px;height:29px;border-radius:50%}
 .address-bookmark.saved{color:var(--accent)}
-.menu-btn{width:36px;height:36px;border-radius:9px;font-size:20px}
 .viewport{position:relative;flex:1;min-height:0;width:100%;background:var(--bg);overflow:hidden}
 .page{position:absolute;inset:0;display:none;background:var(--bg)}
 .page.active{display:block}
 .engine-frame{width:100%;height:100%;display:block;border:0;background:#fff}
+
 .newtab-page{width:100%;height:100%;overflow:auto;background-color:var(--newtab);background-size:cover;background-position:center;position:relative}
 .newtab-overlay{width:100%;min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px 80px}
 .newtab-center{width:min(700px,100%);text-align:center}
-.veil-mark{width:86px;height:86px;margin:0 auto 18px;border-radius:50%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(0,0,0,.35)}
-.veil-mark svg{width:48px;height:48px}
+.veil-mark{width:86px;height:86px;margin:0 auto 18px;border-radius:50%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.35)}
+.veil-mark img{width:58px;height:58px;object-fit:contain}
 .newtab-title{font-size:clamp(42px,7vw,64px);font-weight:700;letter-spacing:-2.5px;line-height:1;margin-bottom:22px}
-.search-box{width:min(520px,100%);height:48px;margin:0 auto;border-radius:12px;background:rgba(255,255,255,.92);border:1px solid rgba(0,0,0,.08);display:flex;align-items:center;padding:0 16px;box-shadow:0 4px 24px rgba(0,0,0,.2)}
+.search-box{width:min(520px,100%);height:48px;margin:0 auto;border-radius:12px;background:rgba(255,255,255,.92);border:1px solid rgba(0,0,0,.08);display:flex;align-items:center;padding:0 16px;box-shadow:0 4px 24px rgba(0,0,0,.2);gap:10px}
+.search-box .home-search-icon{width:18px;height:18px;flex:0 0 18px;background:#999;-webkit-mask:url("image/search.svg") center / contain no-repeat;mask:url("image/search.svg") center / contain no-repeat}
 .search-box input{flex:1;border:0;background:transparent;color:#111;font-size:14px}
 .search-box input::placeholder{color:#999}
-.quick-links{display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin-top:28px;max-width:360px;margin-left:auto;margin-right:auto}
+.quick-links{display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin-top:28px}
+.quick-links.row2{margin-top:12px}
 .quick-link{width:52px;height:52px;border-radius:14px;border:1px solid var(--border);background:rgba(30,30,30,.85);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s,background .15s,border-color .15s}
 .quick-link:hover{transform:translateY(-2px);background:var(--panel2);border-color:#555}
-.quick-link svg{width:24px;height:24px;fill:currentColor}
+.quick-link img{width:24px;height:24px;object-fit:contain;display:block;filter:invert(1)}
 .quick-link.soon{opacity:.45;cursor:default}
 .quick-link.soon:hover{transform:none}
+.quick-link svg{width:22px;height:22px;fill:currentColor}
 .launch-btn{margin-top:28px;height:40px;padding:0 22px;border-radius:10px;background:rgba(40,40,40,.7);border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:13px}
 .launch-btn:hover{color:var(--text);background:var(--panel2)}
 .time-bar{position:absolute;left:0;right:0;bottom:0;height:36px;padding:0 14px;display:flex;align-items:center;background:rgba(0,0,0,.35);border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
+
 .menu{position:fixed;top:94px;right:10px;width:245px;background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:7px;z-index:1000;display:none}
 .menu.open{display:block}
 .menu-item{width:100%;height:38px;padding:0 11px;border-radius:8px;background:transparent;color:var(--text);display:flex;align-items:center;gap:11px;cursor:pointer;text-align:left;font-size:13px}
@@ -92,14 +96,19 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
 .preset-name{font-size:12px;margin-bottom:9px}
 .preset-preview{display:flex;gap:5px}
 .preset-dot{width:14px;height:14px;border-radius:50%;display:inline-block}
+.custom-card{display:none;margin-top:12px;padding:14px;border:1px solid var(--border);background:var(--bg2);border-radius:12px}
+.custom-card.open{display:block}
 .input-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
 .input-label{width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)}
 .text-input{flex:1;min-width:0;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 10px;font-size:12px}
-.color-input{width:45px;height:36px;padding:3px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);cursor:pointer}
+.color-input{width:45px;height:36px;padding:3px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:pointer}
 .primary-btn{width:100%;height:38px;border-radius:9px;background:var(--accent);color:var(--accentText);cursor:pointer;font-size:12px;font-weight:600;margin-top:4px}
 .primary-btn:hover{opacity:.9}
 .secondary-btn{width:100%;height:38px;border-radius:9px;background:var(--bg2);border:1px solid var(--border);color:var(--text);cursor:pointer;font-size:12px;margin-top:6px}
 .hint{font-size:11px;color:var(--muted);line-height:1.5;margin-top:6px}
+.transport-row{display:flex;gap:8px}
+.transport-btn{flex:1;height:38px;border-radius:9px;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;font-size:12px}
+.transport-btn.active{border-color:var(--accent);background:var(--panel2)}
 .bookmark-row{display:flex;align-items:center;gap:9px;padding:10px;border:1px solid var(--border);background:var(--bg2);border-radius:9px;margin-bottom:8px}
 .bookmark-main{min-width:0;flex:1;cursor:pointer}
 .bookmark-title{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -107,7 +116,7 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
 .bookmark-delete{width:28px;height:28px;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer}
 .bookmark-delete:hover{background:var(--panel2);color:var(--danger)}
 .empty{padding:30px 10px;text-align:center;color:var(--muted);font-size:12px}
-.status{padding:10px 12px;border:1px solid var(--border);background:var(--bg2);border-radius:9px;color:var(--muted);font-size:11px;line-height:1.5}
+.status{padding:10px 12px;border:1px solid var(--border);background:var(--bg2);border-radius:9px;color:var(--muted);font-size:11px;line-height:1.5;margin-top:10px}
 .cookie-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:3000;display:flex;align-items:center;justify-content:center;padding:20px}
 .cookie-box{width:min(430px,100%);background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:28px}
 .cookie-box h2{font-size:20px}
@@ -125,10 +134,13 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
 .launch-menu.open{display:block}
 .launch-menu button{width:100%;height:40px;border-radius:9px;background:transparent;color:var(--text);cursor:pointer;text-align:left;padding:0 12px;font-size:13px}
 .launch-menu button:hover{background:var(--panel2)}
+@media(max-width:700px){
+  .tab{min-width:56px;padding-left:6px}
+  .tab-title{font-size:11px}
+}
 </style>
 </head>
 <body>
-<div id="scale-root">
 <div id="browser">
   <header class="chrome">
     <div class="tabs-row">
@@ -137,22 +149,24 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
     </div>
     <div class="toolbar">
       <div class="nav-buttons">
-        <button class="tool-btn" id="backBtn" title="Back">‹</button>
-        <button class="tool-btn" id="forwardBtn" title="Forward">›</button>
-        <button class="tool-btn" id="refreshBtn" title="Refresh">↻</button>
+        <button class="tool-btn" id="backBtn" title="Back"><span class="icon" style="--i:url('image/backward.svg')"></span></button>
+        <button class="tool-btn" id="forwardBtn" title="Forward"><span class="icon" style="--i:url('image/forward.svg')"></span></button>
+        <button class="tool-btn" id="refreshBtn" title="Refresh"><span class="icon" style="--i:url('image/refresh.svg')"></span></button>
       </div>
       <div class="address-wrap">
-        <span class="address-icon">⌕</span>
+        <span class="address-icon"></span>
         <input id="address" type="text" autocomplete="off" spellcheck="false" placeholder="Search or enter address">
-        <button class="address-bookmark" id="bookmarkBtn" title="Bookmark">☆</button>
+        <button class="address-bookmark" id="bookmarkBtn" title="Bookmark this page"><span class="icon" style="--i:url('image/bookmarks.svg')"></span></button>
       </div>
-      <button class="menu-btn" id="homeBtn" title="Home">⌂</button>
+      <button class="menu-btn" id="homeBtn" title="Home"><span class="icon" style="--i:url('image/home.svg')"></span></button>
+      <button class="menu-btn" id="bookmarksOpenBtn" title="Bookmarks"><span class="icon" style="--i:url('image/bookmarks.svg')"></span></button>
+      <button class="menu-btn" id="settingsOpenBtn" title="Settings"><span class="icon" style="--i:url('image/settings.svg')"></span></button>
       <button class="menu-btn" id="menuBtn" title="Menu">⋮</button>
     </div>
   </header>
   <main class="viewport" id="viewport"></main>
 </div>
-</div>
+
 <div class="menu" id="mainMenu">
   <button class="menu-item" id="menuNewTab"><span class="menu-icon">＋</span>New tab</button>
   <button class="menu-item" id="menuBookmark"><span class="menu-icon">☆</span>Bookmark this page</button>
@@ -167,33 +181,38 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
   <button type="button" id="launchSame">Continue in this tab</button>
 </div>
 <div class="backdrop" id="backdrop"></div>
+
 <aside class="panel" id="settingsPanel">
   <div class="panel-header"><h2>Settings</h2><button class="close-panel" data-close-panel>×</button></div>
   <div class="panel-body">
     <section class="setting-section">
       <div class="setting-title">Themes</div>
       <div class="preset-grid">
+        <button class="preset" data-theme="matte"><div class="preset-name">Matte</div><div class="preset-preview"><i class="preset-dot" style="background:#101010"></i><i class="preset-dot" style="background:#1b1b1b"></i><i class="preset-dot" style="background:#ffffff"></i></div></button>
         <button class="preset" data-theme="ember"><div class="preset-name">Ember</div><div class="preset-preview"><i class="preset-dot" style="background:#1a0a0a"></i><i class="preset-dot" style="background:#3a1212"></i><i class="preset-dot" style="background:#ff4d4d"></i></div></button>
         <button class="preset" data-theme="sunlight"><div class="preset-name">Sunlight</div><div class="preset-preview"><i class="preset-dot" style="background:#191108"></i><i class="preset-dot" style="background:#32200c"></i><i class="preset-dot" style="background:#ffb84d"></i></div></button>
         <button class="preset" data-theme="forest"><div class="preset-name">Forest</div><div class="preset-preview"><i class="preset-dot" style="background:#0b140e"></i><i class="preset-dot" style="background:#17291b"></i><i class="preset-dot" style="background:#73c982"></i></div></button>
         <button class="preset" data-theme="moonlight"><div class="preset-name">Moonlight</div><div class="preset-preview"><i class="preset-dot" style="background:#080b12"></i><i class="preset-dot" style="background:#121827"></i><i class="preset-dot" style="background:#7aa2ff"></i></div></button>
         <button class="preset" data-theme="twilight"><div class="preset-name">Twilight</div><div class="preset-preview"><i class="preset-dot" style="background:#110d1a"></i><i class="preset-dot" style="background:#241936"></i><i class="preset-dot" style="background:#b88cff"></i></div></button>
         <button class="preset" data-theme="sakura"><div class="preset-name">Sakura</div><div class="preset-preview"><i class="preset-dot" style="background:#190e14"></i><i class="preset-dot" style="background:#321725"></i><i class="preset-dot" style="background:#ff8fba"></i></div></button>
+        <button class="preset" id="customThemeCard" type="button"><div class="preset-name">Custom</div><div class="preset-preview"><i class="preset-dot" style="background:#444"></i><i class="preset-dot" style="background:#888"></i><i class="preset-dot" style="background:#fff"></i></div></button>
+      </div>
+      <div class="custom-card" id="customColorCard">
+        <div class="setting-title">Edit colors</div>
+        <div class="input-row"><label class="input-label">Background</label><input class="color-input" id="colorBg" type="color"></div>
+        <div class="input-row"><label class="input-label">Panel</label><input class="color-input" id="colorPanel" type="color"></div>
+        <div class="input-row"><label class="input-label">Accent</label><input class="color-input" id="colorAccent" type="color"></div>
+        <div class="input-row"><label class="input-label">Text</label><input class="color-input" id="colorText" type="color"></div>
+        <button class="primary-btn" id="applyColors">Apply custom colors</button>
       </div>
     </section>
-    <section class="setting-section">
-      <div class="setting-title">Custom colors</div>
-      <div class="input-row"><label class="input-label">Background</label><input class="color-input" id="colorBg" type="color"></div>
-      <div class="input-row"><label class="input-label">Panel</label><input class="color-input" id="colorPanel" type="color"></div>
-      <div class="input-row"><label class="input-label">Accent</label><input class="color-input" id="colorAccent" type="color"></div>
-      <div class="input-row"><label class="input-label">Text</label><input class="color-input" id="colorText" type="color"></div>
-      <button class="primary-btn" id="applyColors">Apply colors</button>
-    </section>
+
     <section class="setting-section">
       <div class="setting-title">Homepage background</div>
       <div class="input-row"><input class="text-input" id="backgroundUrl" placeholder="Image URL (blank = theme color)"></div>
       <button class="primary-btn" id="applyBackground">Apply background</button>
     </section>
+
     <section class="setting-section">
       <div class="setting-title">Tab cloak</div>
       <div class="input-row"><input class="text-input" id="cloakTitle" placeholder="Browser title (e.g. Google Docs)"></div>
@@ -201,6 +220,7 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
       <button class="primary-btn" id="applyCloak">Apply cloak</button>
       <p class="hint">Changes the real browser tab name and icon — not in-app tabs.</p>
     </section>
+
     <section class="setting-section">
       <div class="setting-title">Panic key</div>
       <div class="input-row"><label class="input-label">Key</label><input class="text-input" id="panicKey" placeholder="Click and press a key" readonly></div>
@@ -209,16 +229,24 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
       <button class="secondary-btn" id="unbindPanic">Unbind</button>
       <p class="hint">Ignored while typing in inputs. Instant redirect when pressed.</p>
     </section>
+
     <section class="setting-section">
-      <div class="setting-title">Connection</div>
+      <div class="setting-title">Transport</div>
+      <div class="transport-row">
+        <button class="transport-btn" id="transportEpoxy" type="button">Epoxy</button>
+        <button class="transport-btn" id="transportLibcurl" type="button">Libcurl</button>
+      </div>
+      <p class="hint">Epoxy is default. Switch to Libcurl if a site fails to load.</p>
       <div class="status" id="engineStatus">Initializing browser engine…</div>
     </section>
+
     <section class="setting-section">
       <div class="setting-title">Reset</div>
       <button class="secondary-btn" id="resetSettings">Reset settings</button>
     </section>
   </div>
 </aside>
+
 <aside class="panel" id="bookmarksPanel">
   <div class="panel-header"><h2>Bookmarks</h2><button class="close-panel" data-close-panel>×</button></div>
   <div class="panel-body" id="bookmarkList"></div>
