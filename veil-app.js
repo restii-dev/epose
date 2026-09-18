@@ -258,6 +258,42 @@ async function trySetTransport(mux, transportModule, wispUrl) {
   return true;
 }
 
+
+/* ---- IndexedDB recovery (Scramjet v1 store-not-found) ---- */
+function listIdbNames() {
+  if (indexedDB.databases) return indexedDB.databases();
+  return Promise.resolve([]);
+}
+
+async function deleteScramjetDatabases() {
+  try {
+    const dbs = await listIdbNames();
+    const targets = (dbs || [])
+      .map(d => d && d.name)
+      .filter(Boolean)
+      .filter(name =>
+        /scramjet|__scramjet|sj-|bare|cookie|proxy/i.test(name) ||
+        name.toLowerCase().includes("scram")
+      );
+    // Also try common fixed names used by older builds
+    for (const n of ["scramjet", "scramjet-cookies", "__scramjet", "sj-db"]) {
+      if (!targets.includes(n)) targets.push(n);
+    }
+    await Promise.all(targets.map(name => new Promise(resolve => {
+      try {
+        const req = indexedDB.deleteDatabase(name);
+        req.onsuccess = () => resolve();
+        req.onerror = () => resolve();
+        req.onblocked = () => resolve();
+      } catch (_) { resolve(); }
+    })));
+    console.warn("[Veil] Cleared Scramjet IndexedDB stores:", targets);
+  } catch (e) {
+    console.warn("[Veil] IDB cleanup failed", e);
+  }
+}
+
+
 async function initEngine() {
   if (engineInitPromise) return engineInitPromise;
 
@@ -318,9 +354,26 @@ async function initEngine() {
       return true;
     } catch (error) {
       console.error("[Veil] Engine init failed", error);
+      const msg = String(error && error.message || error || "");
+      // Known Scramjet v1 bug: missing IDB object store — wipe and retry once
+      if (!window.__veilIdbRetried && /object stores was not found|NotFoundError|IDBDatabase/i.test(msg)) {
+        window.__veilIdbRetried = true;
+        if (status) status.textContent = "Repairing browser storage…";
+        try {
+          await deleteScramjetDatabases();
+          // Unregister SW so it re-registers clean
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+        } catch (_) {}
+        engineInitPromise = null;
+        engineController = null;
+        engineReady = false;
+        return initEngine();
+      }
       engineReady = false;
       if (status) {
-        status.textContent = "Engine error • " + (error.message || "check files / Wisp");
+        status.textContent = "Engine error • " + (error.message || "check files / Wisp") +
+          " — try clearing site data (Application → Storage → Clear)";
       }
       return false;
     }
@@ -335,7 +388,7 @@ async function initEngine() {
 async function createEngineFrame(page) {
   if (!engineReady) await initEngine();
   if (!engineReady) {
-    return showFrameError(page, "Browser engine unavailable. Check scramjet/, baremux/, and sw.js.");
+    return showFrameError(page, "Browser engine unavailable (IndexedDB/Scramjet). Click Retry, or clear site data: DevTools → Application → Storage → Clear site data.");
   }
 
   const container = page.frameEl;
