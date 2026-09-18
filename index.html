@@ -138,6 +138,45 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
   .tab{min-width:56px;padding-left:6px}
   .tab-title{font-size:11px}
 }
+
+/* Persistent pages */
+.page{position:absolute;inset:0;display:none;width:100%;height:100%}
+.page.active{display:block}
+.engine-container,.engine-frame{width:100%;height:100%;border:0}
+.engine-error{display:flex;align-items:center;justify-content:center;height:100%;padding:24px}
+.engine-error-box{max-width:420px;text-align:center;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:28px 24px}
+.engine-error-box h2{font-size:16px;margin-bottom:10px}
+.engine-error-box p{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:16px}
+.engine-error-box button{height:36px;padding:0 18px;border-radius:9px;background:var(--accent);color:var(--accentText);cursor:pointer;font-size:13px;font-weight:600}
+
+/* Tab open/close feel */
+.tab{transition:background .15s ease,color .15s ease,opacity .15s ease,transform .15s ease}
+.tabs-row{align-items:flex-end}
+.new-tab{margin-left:2px}
+
+/* Centered home logo */
+.veil-mark{display:flex;justify-content:center;margin-bottom:10px}
+.veil-mark img{width:48px;height:48px;border-radius:12px}
+.newtab-center{display:flex;flex-direction:column;align-items:center}
+
+/* About:blank modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:2500;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal-box{width:100%;max-width:400px;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:24px}
+.modal-box h2{font-size:16px;margin-bottom:8px}
+.modal-hint{font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:18px}
+.modal-actions{display:flex;flex-direction:column;gap:8px}
+.modal-actions .primary-btn,.modal-actions .secondary-btn{width:100%;margin:0}
+
+/* Cloak presets */
+.cloak-presets{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.cloak-preset-btn{height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;font-size:11px}
+.cloak-preset-btn:hover{border-color:var(--accent)}
+
+/* Settings additions */
+.server-row{display:flex;gap:8px;margin-bottom:8px}
+.server-row .text-input{flex:1}
+
 </style>
 </head>
 <body>
@@ -152,18 +191,18 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
         <button class="tool-btn" id="backBtn" title="Back"><span class="icon" style="--i:url('image/backward.svg')"></span></button>
         <button class="tool-btn" id="forwardBtn" title="Forward"><span class="icon" style="--i:url('image/forward.svg')"></span></button>
         <button class="tool-btn" id="refreshBtn" title="Refresh"><span class="icon" style="--i:url('image/refresh.svg')"></span></button>
+        <button class="tool-btn" id="homeBtn" title="Home"><span class="icon" style="--i:url('image/home.svg')"></span></button>
       </div>
       <div class="address-wrap">
         <span class="address-icon"></span>
         <input id="address" type="text" autocomplete="off" spellcheck="false" placeholder="Search or enter address">
         <button class="address-bookmark" id="bookmarkBtn" title="Bookmark this page"><span class="icon" style="--i:url('image/bookmarks.svg')"></span></button>
       </div>
-      <button class="menu-btn" id="homeBtn" title="Home"><span class="icon" style="--i:url('image/home.svg')"></span></button>
-      <button class="menu-btn" id="bookmarksOpenBtn" title="Bookmarks"><span class="icon" style="--i:url('image/bookmarks.svg')"></span></button>
       <button class="menu-btn" id="settingsOpenBtn" title="Settings"><span class="icon" style="--i:url('image/settings.svg')"></span></button>
       <button class="menu-btn" id="menuBtn" title="Menu">⋮</button>
     </div>
   </header>
+  <button id="bookmarksOpenBtn" style="display:none" aria-hidden="true"></button>
   <main class="viewport" id="viewport"></main>
 </div>
 
@@ -176,9 +215,16 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
   <button class="menu-item" id="menuSettings"><span class="menu-icon">⚙</span>Settings</button>
   <button class="menu-item" id="menuAboutBlank"><span class="menu-icon">⬚</span>Open in about:blank</button>
 </div>
-<div class="launch-menu" id="launchMenu">
-  <button type="button" id="launchAB">Open browser in about:blank</button>
-  <button type="button" id="launchSame">Continue in this tab</button>
+<div class="modal-overlay" id="aboutBlankModal">
+  <div class="modal-box">
+    <h2>How would you like to launch the site?</h2>
+    <p class="modal-hint">Open Veil inside an about:blank page to hide the real URL from the address bar.</p>
+    <div class="modal-actions">
+      <button type="button" class="primary-btn" id="abOpenTab">New about:blank tab</button>
+      <button type="button" class="primary-btn" id="abOpenWindow">New about:blank window</button>
+      <button type="button" class="secondary-btn" id="abCancel">Cancel</button>
+    </div>
+  </div>
 </div>
 <div class="backdrop" id="backdrop"></div>
 
@@ -215,6 +261,14 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
 
     <section class="setting-section">
       <div class="setting-title">Tab cloak</div>
+      <div class="cloak-presets">
+        <button type="button" class="cloak-preset-btn" data-cloak-preset="Google Docs">Google Docs</button>
+        <button type="button" class="cloak-preset-btn" data-cloak-preset="Google Drive">Google Drive</button>
+        <button type="button" class="cloak-preset-btn" data-cloak-preset="Classroom">Classroom</button>
+        <button type="button" class="cloak-preset-btn" data-cloak-preset="Canvas">Canvas</button>
+        <button type="button" class="cloak-preset-btn" data-cloak-preset="Wikipedia">Wikipedia</button>
+        <button type="button" class="cloak-preset-btn" data-cloak-preset="Blank">Blank</button>
+      </div>
       <div class="input-row"><input class="text-input" id="cloakTitle" placeholder="Browser title (e.g. Google Docs)"></div>
       <div class="input-row"><input class="text-input" id="cloakIcon" placeholder="Favicon URL"></div>
       <button class="primary-btn" id="applyCloak">Apply cloak</button>
@@ -238,6 +292,24 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
       </div>
       <p class="hint">Epoxy is default. Switch to Libcurl if a site fails to load.</p>
       <div class="status" id="engineStatus">Initializing browser engine…</div>
+    </section>
+
+    <section class="setting-section">
+      <div class="setting-title">Wisp / proxy server</div>
+      <div class="input-row"><input class="text-input" id="customWisp" placeholder="wss://your-wisp-server.example"></div>
+      <button class="primary-btn" id="applyWisp">Use custom server</button>
+      <p class="hint">Leave blank to auto-try built-in servers. Custom server is tried first.</p>
+    </section>
+
+    <section class="setting-section">
+      <div class="setting-title">About:blank launch</div>
+      <div class="input-row">
+        <select class="text-input" id="aboutBlankMode" style="height:36px">
+          <option value="manual">Manual — ask me each time</option>
+          <option value="auto">Auto — open about:blank on start</option>
+        </select>
+      </div>
+      <p class="hint">Controls whether Veil automatically opens in an about:blank page when you load it.</p>
     </section>
 
     <section class="setting-section">
