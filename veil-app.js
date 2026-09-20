@@ -22,7 +22,7 @@ const BAREMUX_SCRIPT = BASE + "/baremux/index.js";
 const BAREMUX_WORKER = BASE + "/baremux/worker.js";
 const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
 const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs";
-const DEFAULT_WISP = "wss://wisp-backend-weyl.onrender.com";
+const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
 const SW_URL = BASE + "/sw.js";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
@@ -33,10 +33,19 @@ const SEARCH_ENGINES = {
   brave: { id: "brave", name: "Brave", prefix: "https://search.brave.com/search?q=" }
 };
 
-const WISP_PRESETS = [
-  { id: "default", name: "Default (Render)", url: DEFAULT_WISP },
-  { id: "custom", name: "Custom…", url: "" }
+/** Built-in Wisp servers (display names only in UI) */
+const WISP_BUILTIN = [
+  { id: "va1", name: "Virginia Server 1", url: "wss://serv-1-va.onrender.com/" },
+  { id: "va2", name: "Virginia Server 2", url: "wss://serv-2-va.onrender.com/" },
+  { id: "oh3", name: "Ohio Server 3", url: "wss://serv-3-oh.onrender.com/" },
+  { id: "or4", name: "Oregon Server 4", url: "wss://serv-4-or.onrender.com/" },
+  { id: "s5", name: "Server 5", url: "wss://anura.pro/" }
 ];
+
+function allWispServers() {
+  const custom = (settings && Array.isArray(settings.customServers)) ? settings.customServers : [];
+  return WISP_BUILTIN.concat(custom);
+}
 
 const CLOAK_PRESETS = {
   docs: { title: "Google Docs", icon: "https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico" },
@@ -62,16 +71,16 @@ function loadScript(src) {
 }
 
 function currentWisp() {
-  let url;
-  if (typeof settings !== "undefined" && settings.wispId === "custom" && settings.wispCustom) {
-    url = settings.wispCustom.trim();
-  } else if (typeof settings !== "undefined") {
-    const preset = WISP_PRESETS.find((w) => w.id === settings.wispId);
-    url = (preset && preset.url) || DEFAULT_WISP;
-  } else {
-    url = DEFAULT_WISP;
+  let url = DEFAULT_WISP;
+  if (typeof settings !== "undefined") {
+    const all = allWispServers();
+    const found = all.find((w) => w.id === settings.wispId);
+    if (found && found.url) url = found.url;
   }
   url = String(url || DEFAULT_WISP).trim() || DEFAULT_WISP;
+  if (!/^wss?:\/\//i.test(url)) {
+    url = url.replace(/^https:\/\//i, "wss://").replace(/^http:\/\//i, "ws://");
+  }
   if (typeof settings !== "undefined" && settings.transport === "libcurl" && !url.endsWith("/")) {
     url += "/";
   }
@@ -168,8 +177,18 @@ async function initEngine() {
       }
 
       if (status) status.textContent = "Registering service worker…";
-      await navigator.serviceWorker.register(SW_URL, { scope: SW_SCOPE });
+      await navigator.serviceWorker.register(SW_URL, {
+        scope: SW_SCOPE,
+        updateViaCache: "none"
+      });
       await navigator.serviceWorker.ready;
+
+      // Second init pushes config into the active SW (fixes missing prefix)
+      try {
+        await engineController.init();
+      } catch (e) {
+        console.warn("second init", e);
+      }
 
       if (status) status.textContent = "Connecting transport…";
       muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
@@ -230,12 +249,16 @@ const THEMES = {
   forest: { bg: "#0b140e", bg2: "#101b13", bg3: "#17291b", panel: "#132219", panel2: "#1b3020", border: "#29452f", text: "#effff1", muted: "#8da993", accent: "#73c982", accentText: "#071109", newtab: "#0b140e" },
   moonlight: { bg: "#080b12", bg2: "#0d111b", bg3: "#121827", panel: "#101521", panel2: "#171e2d", border: "#263047", text: "#eef3ff", muted: "#8490a7", accent: "#7aa2ff", accentText: "#08101f", newtab: "#080b12" },
   twilight: { bg: "#110d1a", bg2: "#171122", bg3: "#241936", panel: "#1c142b", panel2: "#2b1d40", border: "#412c5c", text: "#f7f0ff", muted: "#a89ab8", accent: "#b88cff", accentText: "#160c24", newtab: "#110d1a" },
-  sakura: { bg: "#190e14", bg2: "#21111a", bg3: "#321725", panel: "#28131e", panel2: "#3a1b29", border: "#512538", text: "#fff0f6", muted: "#b991a3", accent: "#ff8fba", accentText: "#250b16", newtab: "#190e14" }
+  sakura: { bg: "#190e14", bg2: "#21111a", bg3: "#321725", panel: "#28131e", panel2: "#3a1b29", border: "#512538", text: "#fff0f6", muted: "#b991a3", accent: "#ff8fba", accentText: "#250b16", newtab: "#190e14" },
+  ocean: { bg: "#06141c", bg2: "#0a1c26", bg3: "#0f2833", panel: "#0c222c", panel2: "#12303c", border: "#1e4554", text: "#e6f7ff", muted: "#7aa0b0", accent: "#3ecfce", accentText: "#042028", newtab: "#06141c" },
+  slate: { bg: "#12151a", bg2: "#181c24", bg3: "#222833", panel: "#1a1f28", panel2: "#252b36", border: "#343b4a", text: "#e8ecf4", muted: "#8b93a7", accent: "#9db0ff", accentText: "#10131a", newtab: "#12151a" },
+  mono: { bg: "#0c0c0c", bg2: "#141414", bg3: "#1c1c1c", panel: "#161616", panel2: "#222", border: "#333", text: "#eee", muted: "#777", accent: "#ccc", accentText: "#111", newtab: "#0c0c0c" },
+  rose: { bg: "#160c10", bg2: "#1e1016", bg3: "#2a1620", panel: "#24141c", panel2: "#321c28", border: "#4a2838", text: "#ffe8f0", muted: "#c090a0", accent: "#ff6b9d", accentText: "#2a0a14", newtab: "#160c10" }
 };
 
 const DEFAULT_SETTINGS = {
   theme: "matte", transport: "epoxy", wispId: "default", wispCustom: "",
-  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 8, searchEngine: "duckduckgo", lockUnload: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", ...THEMES.matte
+  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 8, searchEngine: "duckduckgo", wispId: "va1", customServers: [], lockUnload: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", ...THEMES.matte
 };
 const DEFAULT_PANIC = { key: "", code: "", url: "https://classroom.google.com" };
 
@@ -311,6 +334,15 @@ function saveProfile() {
     COOKIE.set(STORAGE.profile, raw);
   } catch {}
 }
+function migrateSettings() {
+  if (!settings.wispId || settings.wispId === "default" || settings.wispId === "custom") {
+    settings.wispId = "va1";
+  }
+  if (!SEARCH_ENGINES[settings.searchEngine]) settings.searchEngine = "duckduckgo";
+  if (!Array.isArray(settings.customServers)) settings.customServers = [];
+  if (settings.animCount == null) settings.animCount = 18;
+  if (settings.animSize == null) settings.animSize = 1;
+}
 function loadSavedData() {
   loadProfile();
   try {
@@ -318,6 +350,7 @@ function loadSavedData() {
     const c = COOKIE.get(STORAGE.cloak), p = COOKIE.get(STORAGE.panic);
     if (b) bookmarks = JSON.parse(b) || [];
     if (s) settings = { ...DEFAULT_SETTINGS, ...JSON.parse(s) };
+    migrateSettings();
     if (c) cloak = { ...cloak, ...JSON.parse(c) };
     if (p) panic = { ...DEFAULT_PANIC, ...JSON.parse(p) };
   } catch (e) { console.warn("load failed", e); }
@@ -514,7 +547,7 @@ function startWelcomeClock() {
 }
 
 function engineOptionsHTML() {
-  const cur = (settings && settings.searchEngine) || "google";
+  const cur = (settings && settings.searchEngine) || "duckduckgo";
   return Object.values(SEARCH_ENGINES).map((e) =>
     '<option value="' + e.id + '"' + (e.id === cur ? " selected" : "") + ">" + e.name + "</option>"
   ).join("");
@@ -877,13 +910,93 @@ function loadPanicInputs() {
   document.getElementById("panicKey").value = panic.key ? ("Bound: " + panic.key) : "Not bound";
   document.getElementById("panicUrl").value = panic.url || "";
 }
-function fillWispSelect() {
-  const sel = document.getElementById("wispSelect");
-  sel.innerHTML = WISP_PRESETS.map(w =>
-    '<option value="' + w.id + '"' + (settings.wispId === w.id ? " selected" : "") + ">" + w.name + "</option>"
-  ).join("");
-  document.getElementById("wispCustom").value = settings.wispCustom || "";
+function pingClass(ms, offline) {
+  if (offline || ms == null) return "ping-bad";
+  if (ms < 120) return "ping-good";
+  if (ms < 280) return "ping-mid";
+  return "ping-bad";
 }
+
+function pingWisp(url, timeoutMs = 4000) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const start = performance.now();
+    let ws;
+    const done = (ms, offline) => {
+      if (settled) return;
+      settled = true;
+      try { ws && ws.close(); } catch {}
+      resolve({ ms, offline: !!offline });
+    };
+    try {
+      ws = new WebSocket(url);
+      ws.onopen = () => done(Math.round(performance.now() - start), false);
+      ws.onerror = () => done(null, true);
+      ws.onclose = () => { if (!settled) done(null, true); };
+      setTimeout(() => done(null, true), timeoutMs);
+    } catch {
+      done(null, true);
+    }
+  });
+}
+
+function fillWispSelect() {
+  const box = document.getElementById("serverList");
+  if (!box) return;
+  const servers = allWispServers();
+  box.innerHTML = servers.map((s) => {
+    const sel = settings.wispId === s.id ? " selected" : "";
+    const custom = s.custom ? ' data-custom="1"' : "";
+    return (
+      '<button type="button" class="server-row' + sel + '" data-server-id="' + s.id + '"' + custom + '>' +
+      '<span class="server-dot ping-mid" data-dot="' + s.id + '"></span>' +
+      '<span class="server-name">' + escapeHTML(s.name) + '</span>' +
+      '<span class="server-ping" data-ping="' + s.id + '">…</span>' +
+      (s.custom ? '<span class="server-edit" data-edit="' + s.id + '" title="Rename">✎</span>' : "") +
+      "</button>"
+    );
+  }).join("");
+
+  box.querySelectorAll("[data-server-id]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      if (e.target.closest("[data-edit]")) return;
+      settings.wispId = btn.dataset.serverId;
+      save();
+      fillWispSelect();
+      applyMuxTransport().catch(() => {});
+      const st = document.getElementById("engineStatus");
+      if (st) st.textContent = "Server: " + (allWispServers().find((x) => x.id === settings.wispId) || {}).name;
+    });
+  });
+  box.querySelectorAll("[data-edit]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = el.dataset.edit;
+      const list = settings.customServers || [];
+      const item = list.find((x) => x.id === id);
+      if (!item) return;
+      const name = prompt("Server name", item.name);
+      if (name && name.trim()) {
+        item.name = name.trim();
+        save();
+        fillWispSelect();
+      }
+    });
+  });
+
+  // async pings
+  servers.forEach(async (s) => {
+    const res = await pingWisp(s.url);
+    const pingEl = box.querySelector('[data-ping="' + s.id + '"]');
+    const dot = box.querySelector('[data-dot="' + s.id + '"]');
+    if (pingEl) {
+      pingEl.textContent = res.offline ? "offline" : (res.ms + " ms");
+      pingEl.className = "server-ping " + pingClass(res.ms, res.offline);
+    }
+    if (dot) dot.className = "server-dot " + pingClass(res.ms, res.offline);
+  });
+}
+
 
 const homeFxLoops = new WeakMap();
 
@@ -919,14 +1032,21 @@ function setupHomeFx(wrapper) {
   };
   resize();
   const style = settings.animStyle || "orbs";
-  const n = style === "constellation" ? 48 : style === "aurora" ? 6 : 18;
+  const sizeMul = Math.max(0.4, Math.min(2.5, Number(settings.animSize) || 1));
+  let n = Number(settings.animCount);
+  if (!Number.isFinite(n)) n = 18;
+  n = Math.max(4, Math.min(80, Math.round(n)));
+  if (style === "aurora") n = Math.min(n, 10);
+  if (style === "stars") n = Math.max(n, 30);
+  state.shooters = [];
   for (let i = 0; i < n; i++) {
     state.particles.push({
       x: Math.random(), y: Math.random(),
-      r: 0.02 + Math.random() * 0.08,
+      r: (0.015 + Math.random() * 0.07) * sizeMul,
       vx: (Math.random() - 0.5) * 0.0004,
       vy: (Math.random() - 0.5) * 0.00035,
-      phase: Math.random() * Math.PI * 2
+      phase: Math.random() * Math.PI * 2,
+      tw: Math.random()
     });
   }
   const draw = () => {
@@ -1107,7 +1227,10 @@ function highlightTheme() {
     if (rangeVal) rangeVal.textContent = String(maxLoaded());
   }
   const engSel = document.getElementById("searchEngineSelect");
-  if (engSel) engSel.value = settings.searchEngine || "duckduckgo";
+  if (engSel) {
+    if (!SEARCH_ENGINES[settings.searchEngine]) settings.searchEngine = "duckduckgo";
+    engSel.value = settings.searchEngine || "duckduckgo";
+  }
   const style = document.getElementById("animStyle");
   if (style) style.value = settings.animStyle || "orbs";
   const speed = document.getElementById("animSpeed");
@@ -1120,6 +1243,18 @@ function highlightTheme() {
   const cb = document.getElementById("animColorB");
   if (ca) ca.value = settings.animColorA || "#7aa2ff";
   if (cb) cb.value = settings.animColorB || "#b88cff";
+  const ac = document.getElementById("animCount");
+  const acv = document.getElementById("animCountVal");
+  if (ac) {
+    ac.value = String(settings.animCount || 18);
+    if (acv) acv.textContent = String(settings.animCount || 18);
+  }
+  const asz = document.getElementById("animSize");
+  const asv = document.getElementById("animSizeVal");
+  if (asz) {
+    asz.value = String(settings.animSize || 1);
+    if (asv) asv.textContent = Number(settings.animSize || 1).toFixed(2) + "×";
+  }
 }
 
 function pushAdblockToSW() {
@@ -1133,7 +1268,7 @@ function pushAdblockToSW() {
 
 function applyTheme(name) {
   if (!THEMES[name]) return;
-  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB };
+  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, wispId: settings.wispId };
   settings = Object.assign({}, settings, THEMES[name], keep, { theme: name });
   const editor = document.getElementById("customColorCard");
   if (editor) editor.classList.remove("open", "force-open");
@@ -1346,6 +1481,14 @@ document.getElementById("menuLock").onclick = () => lockVeil();
 document.getElementById("menuBookmarks").onclick = () => { closeMenu(); openPanel("bookmarksPanel"); };
 const launchNowBtn = document.getElementById("launchNowBtn");
 if (launchNowBtn) launchNowBtn.onclick = () => openLaunchModal();
+const searchEngineSelect = document.getElementById("searchEngineSelect");
+if (searchEngineSelect) {
+  searchEngineSelect.addEventListener("change", () => {
+    const v = searchEngineSelect.value || "duckduckgo";
+    settings.searchEngine = SEARCH_ENGINES[v] ? v : "duckduckgo";
+    save();
+  });
+}
 document.getElementById("adblockSwitch").onclick = () => {
   settings.adBlocker = !(settings.adBlocker !== false);
   save(); highlightTheme(); pushAdblockToSW();
@@ -1378,6 +1521,47 @@ if (animSpeed) {
     save(); refreshHomeFxAll();
   });
 }
+const animCount = document.getElementById("animCount");
+if (animCount) {
+  animCount.addEventListener("input", () => {
+    settings.animCount = Number(animCount.value) || 18;
+    const v = document.getElementById("animCountVal");
+    if (v) v.textContent = String(settings.animCount);
+  });
+  animCount.addEventListener("change", () => {
+    settings.animCount = Math.max(4, Math.min(80, Number(animCount.value) || 18));
+    save(); refreshHomeFxAll();
+  });
+}
+const animSize = document.getElementById("animSize");
+if (animSize) {
+  animSize.addEventListener("input", () => {
+    settings.animSize = Number(animSize.value) || 1;
+    const v = document.getElementById("animSizeVal");
+    if (v) v.textContent = Number(settings.animSize).toFixed(2) + "×";
+  });
+  animSize.addEventListener("change", () => {
+    settings.animSize = Number(animSize.value) || 1;
+    save(); refreshHomeFxAll();
+  });
+}
+document.getElementById("addCustomServer")?.addEventListener("click", () => {
+  const name = (document.getElementById("customServerName")?.value || "").trim() || "Custom";
+  let url = (document.getElementById("customServerUrl")?.value || "").trim();
+  if (!url) { alert("Enter a server address (wss://…)"); return; }
+  url = url.replace(/^https:\/\//i, "wss://").replace(/^http:\/\//i, "ws://");
+  if (!/^wss?:\/\//i.test(url)) url = "wss://" + url;
+  if (!url.endsWith("/")) url += "/";
+  if (!settings.customServers) settings.customServers = [];
+  const id = "c_" + Date.now().toString(36);
+  settings.customServers.push({ id, name, url, custom: true });
+  settings.wispId = id;
+  save();
+  document.getElementById("customServerName").value = "";
+  document.getElementById("customServerUrl").value = "";
+  fillWispSelect();
+  applyMuxTransport().catch(() => {});
+});
 ["animColorA", "animColorB"].forEach((id) => {
   const el = document.getElementById(id);
   if (!el) return;
@@ -1419,7 +1603,7 @@ document.getElementById("transportEpoxy").onclick = () => setTransport("epoxy");
 document.getElementById("transportLibcurl").onclick = () => setTransport("libcurl");
 document.getElementById("applyBackground").onclick = applyBackground;
 document.getElementById("applyCloak").onclick = applyCloak;
-document.getElementById("applyWisp").onclick = applyWisp;
+document.getElementById("applyWisp_removed").onclick = applyWisp;
 document.getElementById("resetSettings").onclick = resetSettings;
 document.querySelectorAll("[data-cloak]").forEach(b => b.onclick = () => applyCloakPreset(b.dataset.cloak));
 document.addEventListener("click", e => {

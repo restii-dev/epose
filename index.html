@@ -120,7 +120,7 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .menu.open{display:block}
 .menu-item{width:100%;height:38px;padding:0 11px;border-radius:8px;background:transparent;color:var(--text);display:flex;align-items:center;gap:11px;cursor:pointer;text-align:left;font-size:13px}
 .menu-item:hover{background:var(--panel2)}
-.menu-icon{width:20px;text-align:center;color:var(--muted)}
+.menu-icon{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);flex:0 0 20px}.menu-icon img{width:16px;height:16px;display:block;filter:invert(1);opacity:.85}
 .menu-separator{height:1px;background:var(--border);margin:6px 4px}
 .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;display:none}
 .backdrop.open{display:block}
@@ -156,6 +156,22 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .switch.on::after{transform:translateX(20px)}
 .switch:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .switch:active::after{width:26px}
+.server-list{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.server-row{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;text-align:left;font-size:13px}
+.server-row:hover{background:var(--panel2)}
+.server-row.selected{border-color:var(--accent);background:var(--panel2)}
+.server-dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;background:#888}
+.server-dot.ping-good{background:#7CFF6B}
+.server-dot.ping-mid{background:#FFA94D}
+.server-dot.ping-bad{background:#FF4D4D}
+.server-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.server-ping{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.server-ping.ping-good{color:#9dff90}
+.server-ping.ping-mid{color:#ffb86b}
+.server-ping.ping-bad{color:#ff7b7b}
+.server-edit{opacity:.6;padding:2px 4px}
+.server-edit:hover{opacity:1}
+
 .anim-opts{opacity:.45;pointer-events:none;transition:opacity .2s ease}
 .anim-opts.enabled{opacity:1;pointer-events:auto}
 .home-fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
@@ -217,10 +233,10 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 </div>
 
 <div class="menu" id="mainMenu">
-  <button class="menu-item" id="menuBookmarks"><span class="menu-icon">★</span>Bookmarks</button>
-  <button class="menu-item" id="menuRename"><span class="menu-icon">✎</span>Rename tab</button>
+  <button class="menu-item" id="menuBookmarks"><span class="menu-icon"><img src="image/banner.svg" alt=""></span>Bookmarks</button>
+  <button class="menu-item" id="menuRename"><span class="menu-icon"><img src="image/pencil.svg" alt=""></span>Rename tab</button>
   <div class="menu-separator"></div>
-  <button class="menu-item" id="menuLock"><span class="menu-icon">🔒</span>Lock Veil</button>
+  <button class="menu-item" id="menuLock"><span class="menu-icon"><img src="image/lock.svg" alt=""></span>Lock Veil</button>
 </div>
 
 <div class="backdrop" id="backdrop"></div>
@@ -238,6 +254,38 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
         <button class="preset" data-theme="moonlight"><div class="preset-name">Moonlight</div><div class="preset-preview"><i class="preset-dot" style="background:#080b12"></i><i class="preset-dot" style="background:#121827"></i><i class="preset-dot" style="background:#7aa2ff"></i></div></button>
         <button class="preset" data-theme="twilight"><div class="preset-name">Twilight</div><div class="preset-preview"><i class="preset-dot" style="background:#110d1a"></i><i class="preset-dot" style="background:#241936"></i><i class="preset-dot" style="background:#b88cff"></i></div></button>
         <button class="preset" data-theme="sakura"><div class="preset-name">Sakura</div><div class="preset-preview"><i class="preset-dot" style="background:#190e14"></i><i class="preset-dot" style="background:#321725"></i><i class="preset-dot" style="background:#ff8fba"></i></div></button>
+      <button class="preset" type="button" data-theme="ocean">
+        <div class="preset-name">Ocean</div>
+        <div class="preset-preview">
+          <span class="preset-dot" style="background:#06141c"></span>
+          <span class="preset-dot" style="background:#3ecfce"></span>
+          <span class="preset-dot" style="background:#e6f7ff"></span>
+        </div>
+      </button>
+      <button class="preset" type="button" data-theme="slate">
+        <div class="preset-name">Slate</div>
+        <div class="preset-preview">
+          <span class="preset-dot" style="background:#12151a"></span>
+          <span class="preset-dot" style="background:#9db0ff"></span>
+          <span class="preset-dot" style="background:#e8ecf4"></span>
+        </div>
+      </button>
+      <button class="preset" type="button" data-theme="mono">
+        <div class="preset-name">Mono</div>
+        <div class="preset-preview">
+          <span class="preset-dot" style="background:#0c0c0c"></span>
+          <span class="preset-dot" style="background:#ccc"></span>
+          <span class="preset-dot" style="background:#eee"></span>
+        </div>
+      </button>
+      <button class="preset" type="button" data-theme="rose">
+        <div class="preset-name">Rose</div>
+        <div class="preset-preview">
+          <span class="preset-dot" style="background:#160c10"></span>
+          <span class="preset-dot" style="background:#ff6b9d"></span>
+          <span class="preset-dot" style="background:#ffe8f0"></span>
+        </div>
+      </button>
         <button class="preset" id="customThemeCard" type="button"><div class="preset-name">Custom</div><div class="preset-preview"><i class="preset-dot" style="background:#444"></i><i class="preset-dot" style="background:#888"></i><i class="preset-dot" style="background:#fff"></i></div></button>
       </div>
       <div class="custom-card" id="customColorCard">
@@ -285,15 +333,17 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
         <span class="switch-label">Auto-open about:blank once</span>
         <button type="button" class="switch" id="launchAutoSwitch" role="switch" aria-checked="false"></button>
       </div>
-      <p class="hint">Off = manual from Launch Options. On = one about:blank on first open (never loops if already cloaked).</p>
+      <p class="hint">Automatically open Veil in a hidden tab when you start. Only once.</p>
       <button class="primary-btn" id="launchNowBtn" type="button" style="margin-top:8px">Launch options…</button>
     </section>
 
     <section class="setting-section">
-      <div class="setting-title">Wisp server</div>
-      <select class="text-input" id="wispSelect"></select>
-      <div class="input-row" style="margin-top:8px"><input class="text-input" id="wispCustom" placeholder="wss://your-wisp-server"></div>
-      <button class="primary-btn" id="applyWisp">Apply server</button>
+      <div class="setting-title">Proxy servers</div>
+      <div class="server-list" id="serverList"></div>
+      <p class="hint">Pick a server. Green = fast, orange = OK, red = slow or offline.</p>
+      <div class="input-row" style="margin-top:10px"><input class="text-input" id="customServerName" placeholder="Custom name"></div>
+      <div class="input-row"><input class="text-input" id="customServerUrl" placeholder="wss://your-server"></div>
+      <button class="primary-btn" id="addCustomServer" type="button">Add custom server</button>
     </section>
 
     <section class="setting-section">
@@ -302,7 +352,7 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
         <button class="transport-btn" id="transportEpoxy" type="button">Epoxy</button>
         <button class="transport-btn" id="transportLibcurl" type="button">Libcurl</button>
       </div>
-      <p class="hint">Epoxy is default. Use Libcurl if a site fails.</p>
+      <p class="hint">Try Epoxy first. Switch to Libcurl if a site will not load.</p>
       <div class="status" id="engineStatus">Initializing browser engine…</div>
     </section>
 
@@ -314,7 +364,7 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
         <option value="bing">Bing</option>
         <option value="brave">Brave</option>
       </select>
-      <p class="hint">Used when you type words (not a URL) in the address bar or home search.</p>
+      <p class="hint">Used when you search with words instead of a full website address.</p>
     </section>
 
     <section class="setting-section">
@@ -323,7 +373,7 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
         <span class="switch-label">Block ads &amp; trackers</span>
         <button type="button" class="switch" id="adblockSwitch" role="switch" aria-checked="true"></button>
       </div>
-      <p class="hint">Blocks common ad / tracker hosts in the proxy service worker.</p>
+      <p class="hint">Hide common ads and trackers while browsing.</p>
     </section>
 
     <section class="setting-section">
@@ -337,7 +387,8 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
           <select class="text-input" id="animStyle">
             <option value="orbs">Floating orbs</option>
             <option value="aurora">Aurora ribbons</option>
-            <option value="constellation">Constellation drift</option>
+            <option value="constellation">Constellation</option>
+            <option value="stars">Twinkling stars</option>
           </select>
         </div>
         <div class="range-row">
@@ -345,9 +396,19 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
           <input type="range" id="animSpeed" min="0.25" max="2.5" step="0.05" value="1">
           <span class="range-val" id="animSpeedVal">1.0×</span>
         </div>
+        <div class="range-row">
+          <span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Amount</span>
+          <input type="range" id="animCount" min="4" max="80" step="1" value="18">
+          <span class="range-val" id="animCountVal">18</span>
+        </div>
+        <div class="range-row">
+          <span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Size</span>
+          <input type="range" id="animSize" min="0.4" max="2.5" step="0.05" value="1">
+          <span class="range-val" id="animSizeVal">1.0×</span>
+        </div>
         <div class="input-row"><label class="input-label">Color A</label><input class="color-input" type="color" id="animColorA" value="#7aa2ff"></div>
         <div class="input-row"><label class="input-label">Color B</label><input class="color-input" type="color" id="animColorB" value="#b88cff"></div>
-        <p class="hint">Soft background motion on new tabs only. Off by default.</p>
+        <p class="hint">Background motion on the home page only. Off until you turn it on.</p>
       </div>
     </section>
 
@@ -357,7 +418,7 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
         <span class="switch-label">Unload pages when locking</span>
         <button type="button" class="switch" id="lockUnloadSwitch" role="switch" aria-checked="false"></button>
       </div>
-      <p class="hint">Off = keep Veil and sites loaded under the lock screen. On = unload engines (warning: open pages may be lost).</p>
+      <p class="hint">When locking: off keeps pages running, on closes them to save memory.</p>
     </section>
 
     <section class="setting-section">
@@ -366,7 +427,7 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
         <input type="range" id="maxLoadedTabs" min="1" max="20" step="1" value="8">
         <span class="range-val" id="maxLoadedTabsVal">8</span>
       </div>
-      <p class="hint">Only this many tab pages keep a live engine (max 20). Others unload until you switch back — saves RAM.</p>
+      <p class="hint">How many tabs stay fully loaded. Lower = less memory.</p>
     </section>
 
     <section class="setting-section">

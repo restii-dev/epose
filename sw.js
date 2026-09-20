@@ -1,8 +1,5 @@
-// sw.js — same structure as working testprox
-// https://github.com/retropixel101/testprox
-
+// sw.js — aligned with working testprox + config guard
 const BASE = (() => {
-  // /veil/sw.js → /veil ; /sw.js → ""
   let p = self.location.pathname.replace(/\/?sw\.js$/i, "");
   if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
   return p === "/" ? "" : p;
@@ -21,8 +18,10 @@ let AD_BLOCK_ENABLED = true;
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener("message", (e) => {
-  if (e.data && e.data.type === "veil-adblock") {
-    AD_BLOCK_ENABLED = !!e.data.enabled;
+  const d = e.data || {};
+  if (d.type === "veil-adblock") AD_BLOCK_ENABLED = !!d.enabled;
+  if (d.scramjet$type === "loadConfig" && d.config) {
+    scramjet.config = d.config;
   }
 });
 
@@ -39,26 +38,13 @@ function isStaticAsset(path) {
   return false;
 }
 
-/**
- * Only true double-proxy (copied from testprox).
- * Normal /service/https%3A%2F%2Fexample.com is left alone.
- */
 function unwrapDoubleProxy(pathname) {
   if (!pathname.startsWith(PROXY_PREFIX)) return null;
-
   let rest = pathname.slice(PROXY_PREFIX.length);
   let decoded;
-  try {
-    decoded = decodeURIComponent(rest);
-  } catch {
-    return null;
-  }
-
+  try { decoded = decodeURIComponent(rest); } catch { return null; }
   const leakPrefix = ORIGIN + PROXY_PREFIX;
-  if (!decoded.startsWith(leakPrefix) && !decoded.startsWith(PROXY_PREFIX)) {
-    return null;
-  }
-
+  if (!decoded.startsWith(leakPrefix) && !decoded.startsWith(PROXY_PREFIX)) return null;
   for (let i = 0; i < 5; i++) {
     if (decoded.startsWith(leakPrefix)) {
       decoded = decoded.slice(leakPrefix.length);
@@ -73,14 +59,12 @@ function unwrapDoubleProxy(pathname) {
     }
     break;
   }
-
-  if (decoded.startsWith("http://") || decoded.startsWith("https://")) {
-    if (decoded.startsWith(leakPrefix) || decoded.includes(PROXY_PREFIX)) return null;
+  if ((decoded.startsWith("http://") || decoded.startsWith("https://")) &&
+      !decoded.startsWith(leakPrefix) && !decoded.includes(PROXY_PREFIX)) {
     return decoded;
   }
   return null;
 }
-
 
 const AD_HOSTS = [
   "doubleclick.net", "googleadservices.com", "googlesyndication.com",
@@ -95,9 +79,22 @@ function isAdUrl(href) {
   try {
     const host = new URL(href).hostname.replace(/^www\./, "");
     return AD_HOSTS.some((h) => host === h || host.endsWith("." + h));
-  } catch {
-    return false;
+  } catch { return false; }
+}
+
+async function ensureConfig() {
+  try {
+    await scramjet.loadConfig();
+  } catch (e) {
+    console.warn("[SW] loadConfig", e);
   }
+  if (scramjet.config && scramjet.config.prefix) return true;
+  // brief retry (IDB race on first navigation)
+  await new Promise((r) => setTimeout(r, 80));
+  try {
+    await scramjet.loadConfig();
+  } catch {}
+  return !!(scramjet.config && scramjet.config.prefix);
 }
 
 self.addEventListener("fetch", (event) => {
@@ -108,36 +105,42 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  event.respondWith(
-    (async () => {
-      try {
-        const unwrapped = unwrapDoubleProxy(url.pathname);
-        if (unwrapped) {
-          const clean =
-            ORIGIN + PROXY_PREFIX + encodeURIComponent(unwrapped) + (url.hash || "");
-          if (clean !== url.href && !url.href.includes(encodeURIComponent(unwrapped))) {
-            console.warn("[SW] unwrapped double-proxy →", unwrapped);
-            return Response.redirect(clean, 302);
-          }
+  event.respondWith((async () => {
+    try {
+      const unwrapped = unwrapDoubleProxy(url.pathname);
+      if (unwrapped) {
+        const clean = ORIGIN + PROXY_PREFIX + encodeURIComponent(unwrapped) + (url.hash || "");
+        if (clean !== url.href && !url.href.includes(encodeURIComponent(unwrapped))) {
+          return Response.redirect(clean, 302);
         }
-
-        // ad block on proxied absolute URLs
-        if (url.pathname.startsWith(PROXY_PREFIX)) {
-          let rest = url.pathname.slice(PROXY_PREFIX.length);
-          try { rest = decodeURIComponent(rest); } catch {}
-          if ((rest.startsWith("http://") || rest.startsWith("https://")) && isAdUrl(rest)) {
-            return new Response("", { status: 204 });
-          }
-        }
-
-        await scramjet.loadConfig();
-        if (scramjet.route(event)) {
-          return await scramjet.fetch(event);
-        }
-      } catch (err) {
-        console.warn("[SW] Scramjet error, network fallback:", err);
       }
-      return fetch(event.request);
-    })()
-  );
+
+      if (url.pathname.startsWith(PROXY_PREFIX)) {
+        let rest = url.pathname.slice(PROXY_PREFIX.length);
+        try { rest = decodeURIComponent(rest); } catch {}
+        if ((rest.startsWith("http://") || rest.startsWith("https://")) && isAdUrl(rest)) {
+          return new Response("", { status: 204 });
+        }
+      }
+
+      const ok = await ensureConfig();
+      if (!ok) {
+        // avoid GitHub Pages 404 HTML for /service/… — empty response is cleaner
+        if (url.pathname.startsWith(PROXY_PREFIX)) {
+          return new Response("Proxy not ready — refresh once.", {
+            status: 503,
+            headers: { "Content-Type": "text/plain" }
+          });
+        }
+        return fetch(event.request);
+      }
+
+      if (scramjet.route(event)) {
+        return await scramjet.fetch(event);
+      }
+    } catch (err) {
+      console.warn("[SW] Scramjet error, network fallback:", err);
+    }
+    return fetch(event.request);
+  })());
 });
