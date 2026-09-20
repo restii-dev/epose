@@ -21,13 +21,13 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .tabs-row{height:40px;display:flex;align-items:center;padding:0 8px;gap:0;overflow:hidden}
 .tabs{height:100%;display:flex;align-items:center;gap:3px;flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
-.tab{height:32px;flex:0 0 160px;width:160px;min-width:160px;max-width:160px;display:flex;align-items:center;gap:7px;padding:0 6px 0 9px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;user-select:none;overflow:hidden;transform-origin:left center;flex-shrink:0}
+.tab{height:32px;flex:1 1 0;min-width:72px;max-width:180px;display:flex;align-items:center;gap:6px;padding:0 4px 0 8px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;user-select:none;overflow:hidden;transform-origin:left center}
 .tab:hover{background:var(--bg3);color:var(--text)}
 .tab.active{background:var(--panel);color:var(--text)}
 .tab.opening{animation:tabOpen .18s cubic-bezier(.2,.8,.2,1)}
 .tab.closing{animation:tabClose .16s cubic-bezier(.4,0,1,1) forwards}
-@keyframes tabOpen{from{opacity:0;transform:scaleX(.72) translateY(3px);width:0}to{opacity:1;transform:none;width:180px}}
-@keyframes tabClose{from{opacity:1;width:180px}to{opacity:0;width:0;padding:0;margin:0}}
+@keyframes tabOpen{from{opacity:0;transform:scaleX(.72) translateY(3px);min-width:0;max-width:0;padding:0}to{opacity:1;transform:none}}
+@keyframes tabClose{from{opacity:1}to{opacity:0;min-width:0;max-width:0;padding:0;margin:0;flex-grow:0}}
 .tab-icon{width:16px;height:16px;flex:0 0 16px;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .tab-icon img{width:16px;height:16px;border-radius:3px;object-fit:cover;display:block}
 .tab-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
@@ -69,24 +69,43 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .engine-frame{width:100%;height:100%;display:block;border:0;background:#fff}
 
 .newtab-page{width:100%;height:100%;overflow:auto;background-color:var(--newtab);background-size:cover;background-position:center;position:relative}
-.newtab-overlay{width:100%;min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px 80px}
-.newtab-center{width:min(700px,100%);text-align:center;display:flex;flex-direction:column;align-items:center}
-.veil-mark{width:86px;height:86px;margin:0 auto 18px;border-radius:50%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;overflow:hidden}
-.veil-mark img{width:58px;height:58px;object-fit:contain;display:block}
-.newtab-title{font-size:clamp(42px,7vw,64px);font-weight:700;letter-spacing:-2.5px;line-height:1;margin-bottom:22px}
-.search-box{width:min(520px,100%);height:48px;border-radius:12px;background:rgba(255,255,255,.92);border:1px solid rgba(0,0,0,.08);display:flex;align-items:center;padding:0 16px;gap:10px}
-.search-box .home-search-icon{width:18px;height:18px;flex:0 0 18px;background:#999;-webkit-mask:url("image/search.svg") center / contain no-repeat;mask:url("image/search.svg") center / contain no-repeat}
+.newtab-page::before{content:"";position:absolute;inset:0;background:
+  radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255,255,255,.07), transparent 55%),
+  radial-gradient(circle at 15% 80%, rgba(255,255,255,.03), transparent 40%),
+  radial-gradient(circle at 85% 70%, rgba(255,255,255,.025), transparent 40%);
+  pointer-events:none}
+.newtab-overlay{position:relative;z-index:1;width:100%;min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 20px 88px}
+.welcome-bar{width:min(640px,100%);margin-bottom:28px;padding:14px 18px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(12px);text-align:left}
+.welcome-bar .welcome-line{font-size:14px;font-weight:600;letter-spacing:.01em;color:var(--text);margin-bottom:4px}
+.welcome-bar .welcome-time{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.newtab-center{width:min(640px,100%);text-align:center;display:flex;flex-direction:column;align-items:center}
+.veil-mark{width:92px;height:92px;margin:0 auto 16px;border-radius:28px;background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.12);box-shadow:0 12px 40px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.veil-mark img{width:56px;height:56px;object-fit:contain;display:block}
+.newtab-title{font-size:clamp(40px,6.5vw,58px);font-weight:700;letter-spacing:-2.2px;line-height:1;margin-bottom:8px}
+.newtab-sub{font-size:13px;color:var(--muted);margin-bottom:22px;letter-spacing:.04em}
+.search-row{width:min(560px,100%);display:flex;align-items:stretch;gap:8px}
+.engine-select{height:50px;flex:0 0 auto;min-width:108px;border-radius:14px;border:1px solid rgba(255,255,255,.1);background:rgba(20,20,20,.85);color:var(--text);padding:0 12px;font-size:13px;cursor:pointer}
+.search-box{flex:1;min-width:0;height:50px;border-radius:14px;background:rgba(255,255,255,.94);border:1px solid rgba(0,0,0,.06);box-shadow:0 8px 32px rgba(0,0,0,.25);display:flex;align-items:center;padding:0 16px;gap:10px}
+.search-box .home-search-icon{width:18px;height:18px;flex:0 0 18px;background:#888;-webkit-mask:url("image/search.svg") center / contain no-repeat;mask:url("image/search.svg") center / contain no-repeat}
 .search-box input{flex:1;border:0;background:transparent;color:#111;font-size:14px}
 .search-box input::placeholder{color:#999}
-.quick-links{display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin-top:28px}
+.quick-links{display:flex;justify-content:center;flex-wrap:wrap;gap:14px;margin-top:32px}
 .quick-links.row2{margin-top:12px}
-.quick-link{width:52px;height:52px;border-radius:14px;border:1px solid var(--border);background:rgba(30,30,30,.85);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center}
-.quick-link:hover{transform:translateY(-2px);background:var(--panel2)}
-.quick-link img{width:24px;height:24px;object-fit:contain;display:block;filter:invert(1)}
-.quick-link.soon{opacity:.5;cursor:default}
+.quick-link{width:56px;height:56px;border-radius:16px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s ease,background .15s ease,border-color .15s ease}
+.quick-link:hover{transform:translateY(-3px);background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.18)}
+.quick-link img{width:26px;height:26px;object-fit:contain;display:block;filter:invert(1)}
+.quick-link.soon{opacity:.45;cursor:default}
 .quick-link.soon:hover{transform:none}
-.launch-btn{margin-top:28px;height:40px;padding:0 22px;border-radius:10px;background:rgba(40,40,40,.7);border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:13px}
-.launch-btn:hover{color:var(--text);background:var(--panel2)}
+.launch-btn{margin-top:30px;height:42px;padding:0 24px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:var(--text);cursor:pointer;font-size:13px;font-weight:500;letter-spacing:.02em;transition:background .15s ease,transform .15s ease}
+.launch-btn:hover{background:rgba(255,255,255,.1);transform:translateY(-1px)}
+.signup-overlay{position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,.72);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px}
+.signup-card{width:min(400px,100%);background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:28px 24px;box-shadow:0 24px 80px rgba(0,0,0,.5)}
+.signup-card h2{font-size:20px;letter-spacing:-.02em;margin-bottom:6px}
+.signup-card .signup-sub{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.45}
+.signup-card label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:12px 0 6px}
+.signup-card input{width:100%;height:42px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 12px;font-size:14px}
+.signup-card .signup-go{width:100%;height:44px;margin-top:20px;border-radius:10px;background:var(--accent);color:var(--accentText);font-weight:600;font-size:14px;cursor:pointer}
+.signup-card .signup-err{color:var(--danger);font-size:12px;margin-top:10px;min-height:16px}
 .time-bar{position:absolute;left:0;right:0;bottom:0;height:36px;padding:0 14px;display:flex;align-items:center;background:rgba(0,0,0,.35);border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
 
 .menu{position:fixed;top:88px;right:10px;width:245px;background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:7px;z-index:1000;display:none}
@@ -263,6 +282,16 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
       </div>
       <p class="hint">Epoxy is default. Use Libcurl if a site fails.</p>
       <div class="status" id="engineStatus">Initializing browser engine…</div>
+    </section>
+
+    <section class="setting-section">
+      <div class="setting-title">Search engine</div>
+      <select class="text-input" id="searchEngineSelect">
+        <option value="google">Google</option>
+        <option value="bing">Bing</option>
+        <option value="brave">Brave</option>
+      </select>
+      <p class="hint">Used when you type words (not a URL) in the address bar or home search.</p>
     </section>
 
     <section class="setting-section">

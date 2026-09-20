@@ -26,6 +26,11 @@ const DEFAULT_WISP = "wss://wisp-backend-weyl.onrender.com";
 const SW_URL = BASE + "/sw.js";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
+const SEARCH_ENGINES = {
+  google: { id: "google", name: "Google", prefix: "https://www.google.com/search?q=" },
+  bing: { id: "bing", name: "Bing", prefix: "https://www.bing.com/search?pglt=299&q=" },
+  brave: { id: "brave", name: "Brave", prefix: "https://search.brave.com/search?q=" }
+};
 
 const WISP_PRESETS = [
   { id: "default", name: "Default (Render)", url: DEFAULT_WISP },
@@ -229,11 +234,13 @@ const THEMES = {
 
 const DEFAULT_SETTINGS = {
   theme: "matte", transport: "epoxy", wispId: "default", wispCustom: "",
-  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 8, ...THEMES.matte
+  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 8, searchEngine: "google", ...THEMES.matte
 };
 const DEFAULT_PANIC = { key: "", code: "", url: "https://classroom.google.com" };
 
 let settings = { ...DEFAULT_SETTINGS };
+let profile = { name: "", password: "" }; // client-side welcome only
+let welcomeClockTimer = null;
 let panic = { ...DEFAULT_PANIC };
 let bookmarks = [];
 let cloak = { title: "Veil", icon: FAVI };
@@ -258,7 +265,7 @@ const COOKIE = {
     return null;
   }
 };
-const STORAGE = { bookmarks: "veil_bookmarks", settings: "veil_settings", cloak: "veil_cloak", panic: "veil_panic" };
+const STORAGE = { bookmarks: "veil_bookmarks", settings: "veil_settings", cloak: "veil_cloak", panic: "veil_panic", profile: "veil_profile" };
 
 function uid() { return "tab_" + Date.now().toString(36) + "_" + (++tabCounter).toString(36); }
 function escapeHTML(v) {
@@ -290,7 +297,21 @@ function save() {
     COOKIE.set(STORAGE.panic, JSON.stringify(panic));
   } catch (e) { console.warn("save failed", e); }
 }
+function loadProfile() {
+  try {
+    const raw = localStorage.getItem(STORAGE.profile) || COOKIE.get(STORAGE.profile);
+    if (raw) profile = { ...profile, ...JSON.parse(raw) };
+  } catch {}
+}
+function saveProfile() {
+  try {
+    const raw = JSON.stringify({ name: profile.name || "", password: profile.password || "" });
+    localStorage.setItem(STORAGE.profile, raw);
+    COOKIE.set(STORAGE.profile, raw);
+  } catch {}
+}
 function loadSavedData() {
+  loadProfile();
   try {
     const b = COOKIE.get(STORAGE.bookmarks), s = COOKIE.get(STORAGE.settings);
     const c = COOKIE.get(STORAGE.cloak), p = COOKIE.get(STORAGE.panic);
@@ -315,6 +336,12 @@ function applyNewTabBackground() {
 
 function imgIcon(name) { return '<img src="' + IMG + name + '" alt="">'; }
 
+function searchPrefix() {
+  const id = (settings && settings.searchEngine) || "google";
+  const eng = SEARCH_ENGINES[id] || SEARCH_ENGINES.google;
+  return eng.prefix;
+}
+
 function normalizeUrl(input) {
   let value = String(input || "").trim();
   if (!value) return null;
@@ -323,7 +350,7 @@ function normalizeUrl(input) {
   if (/^https?:\/\//i.test(value)) return value;
   if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return value;
   if (/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(value)) return "https://" + value;
-  return "https://duckduckgo.com/?q=" + encodeURIComponent(value);
+  return searchPrefix() + encodeURIComponent(value);
 }
 
 /** Never show https://…github.io/veil/service/… in the address bar */
@@ -454,12 +481,57 @@ function renderTabs() {
   requestAnimationFrame(() => { c.scrollLeft = c.scrollWidth; });
 }
 
+function formatWelcomeClock(d) {
+  const pad = (n) => String(n).padStart(2, "0");
+  const hh = pad(d.getHours());
+  const mm = pad(d.getMinutes());
+  const ss = pad(d.getSeconds());
+  const MD = pad(d.getMonth() + 1) + "/" + pad(d.getDate()) + "/" + d.getFullYear();
+  return { time: hh + ":" + mm + ":" + ss, date: MD };
+}
+
+function welcomeHTML() {
+  const name = (profile && profile.name) ? profile.name : "guest";
+  const { time, date } = formatWelcomeClock(new Date());
+  return (
+    '<div class="welcome-bar">' +
+    '<div class="welcome-line">Welcome to Veil, ' + escapeHTML(name) + '.</div>' +
+    '<div class="welcome-time">It is currently <span data-welcome-time>' + time + '</span> on <span data-welcome-date>' + date + '</span>.</div>' +
+    '</div>'
+  );
+}
+
+function startWelcomeClock() {
+  if (welcomeClockTimer) clearInterval(welcomeClockTimer);
+  const tick = () => {
+    const { time, date } = formatWelcomeClock(new Date());
+    document.querySelectorAll("[data-welcome-time]").forEach((el) => { el.textContent = time; });
+    document.querySelectorAll("[data-welcome-date]").forEach((el) => { el.textContent = date; });
+  };
+  tick();
+  welcomeClockTimer = setInterval(tick, 1000);
+}
+
+function engineOptionsHTML() {
+  const cur = (settings && settings.searchEngine) || "google";
+  return Object.values(SEARCH_ENGINES).map((e) =>
+    '<option value="' + e.id + '"' + (e.id === cur ? " selected" : "") + ">" + e.name + "</option>"
+  ).join("");
+}
+
 function homepageHTML(pageId) {
   return (
-    '<div class="newtab-page"><div class="newtab-overlay"><div class="newtab-center">' +
+    '<div class="newtab-page"><div class="newtab-overlay">' +
+    welcomeHTML() +
+    '<div class="newtab-center">' +
     '<div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div>' +
     '<div class="newtab-title">Veil</div>' +
-    '<div class="search-box"><span class="home-search-icon"></span><input class="newtab-search" data-page="' + pageId + '" placeholder="Browse the web freely…" autocomplete="off" spellcheck="false"></div>' +
+    '<div class="newtab-sub">Browse quietly. Stay undetected.</div>' +
+    '<div class="search-row">' +
+    '<select class="engine-select" data-engine-select aria-label="Search engine">' + engineOptionsHTML() + '</select>' +
+    '<div class="search-box"><span class="home-search-icon"></span>' +
+    '<input class="newtab-search" data-page="' + pageId + '" placeholder="Search or enter a site…" autocomplete="off" spellcheck="false">' +
+    '</div></div>' +
     '<div class="quick-links">' +
     '<button class="quick-link" title="X" data-url="https://x.com">' + imgIcon("x.svg") + '</button>' +
     '<button class="quick-link" title="Discord" data-url="https://discord.com/">' + imgIcon("discord.svg") + '</button>' +
@@ -478,6 +550,17 @@ function homepageHTML(pageId) {
 
 function wireHome(wrapper, page) {
   applyNewTabBackground();
+  startWelcomeClock();
+  wrapper.querySelectorAll("[data-engine-select]").forEach((sel) => {
+    sel.value = settings.searchEngine || "google";
+    sel.addEventListener("change", () => {
+      settings.searchEngine = sel.value;
+      save();
+      document.querySelectorAll("[data-engine-select]").forEach((s) => { s.value = sel.value; });
+      const settingsSel = document.getElementById("searchEngineSelect");
+      if (settingsSel) settingsSel.value = sel.value;
+    });
+  });
   wrapper.querySelectorAll(".newtab-search").forEach(input => {
     input.addEventListener("keydown", e => {
       if (e.key === "Enter") { activeTabId = page.id; navigate(input.value); }
@@ -832,6 +915,8 @@ function highlightTheme() {
     range.value = String(maxLoaded());
     if (rangeVal) rangeVal.textContent = String(maxLoaded());
   }
+  const engSel = document.getElementById("searchEngineSelect");
+  if (engSel) engSel.value = settings.searchEngine || "google";
 }
 
 function pushAdblockToSW() {
@@ -845,7 +930,7 @@ function pushAdblockToSW() {
 
 function applyTheme(name) {
   if (!THEMES[name]) return;
-  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs };
+  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine };
   settings = Object.assign({}, settings, THEMES[name], keep, { theme: name });
   const editor = document.getElementById("customColorCard");
   if (editor) editor.classList.remove("open", "force-open");
@@ -1130,7 +1215,59 @@ function showCookieConsent() {
   document.getElementById("cookieNo").onclick = () => { COOKIE.consent = false; overlay.remove(); renderChrome(); };
 }
 
+
+function showSignup() {
+  return new Promise((resolve) => {
+    if (profile && profile.name) { resolve(false); return; }
+    try {
+      loadProfile();
+      if (profile && profile.name) { resolve(false); return; }
+    } catch {}
+    const overlay = document.createElement("div");
+    overlay.className = "signup-overlay";
+    overlay.innerHTML =
+      '<div class="signup-card">' +
+      "<h2>Welcome to Veil</h2>" +
+      '<p class="signup-sub">Choose what we should call you, and a password for this device. Nothing leaves your browser until server auth is added.</p>' +
+      "<label>Display name</label>" +
+      '<input id="signupName" maxlength="32" placeholder="e.g. Alex" autocomplete="nickname">' +
+      "<label>Password</label>" +
+      '<input id="signupPass" type="password" maxlength="64" placeholder="At least 4 characters" autocomplete="new-password">' +
+      '<div class="signup-err" id="signupErr"></div>' +
+      '<button class="signup-go" type="button" id="signupGo">Continue</button>' +
+      "</div>";
+    document.body.appendChild(overlay);
+    const nameEl = overlay.querySelector("#signupName");
+    const passEl = overlay.querySelector("#signupPass");
+    const err = overlay.querySelector("#signupErr");
+    nameEl.focus();
+    const submit = () => {
+      const name = nameEl.value.trim();
+      const pass = passEl.value;
+      if (name.length < 1) { err.textContent = "Enter a name."; return; }
+      if (pass.length < 4) { err.textContent = "Password must be at least 4 characters."; return; }
+      profile = { name: name, password: pass };
+      saveProfile();
+      overlay.remove();
+      // refresh open home pages with welcome bar
+      document.querySelectorAll(".page").forEach((pageEl) => {
+        const id = pageEl.dataset.pageId;
+        const tab = tabs.find((x) => x.id === id);
+        if (tab && tab.newTab) {
+          pageEl.innerHTML = homepageHTML(id);
+          wireHome(pageEl, tab);
+        }
+      });
+      resolve(true);
+    };
+    overlay.querySelector("#signupGo").onclick = submit;
+    passEl.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+    nameEl.addEventListener("keydown", (e) => { if (e.key === "Enter") passEl.focus(); });
+  });
+}
+
 (async function init() {
+  loadProfile();
   const consent = COOKIE.get("veil_cookie_consent");
   if (consent === "yes") { COOKIE.consent = true; loadSavedData(); }
   if (!cloak.icon) cloak.icon = FAVI;
@@ -1138,7 +1275,9 @@ function showCookieConsent() {
   document.title = cloak.title || "Veil";
   document.getElementById("favicon").href = cloak.icon || FAVI;
   markAboutBlankSession();
+  await showSignup();
   createTab(true);
+  startWelcomeClock();
   initEngine().then(() => pushAdblockToSW());
   if (consent !== "yes") showCookieConsent();
   if (settings.launchMode === "auto" && !isInsideAboutBlank()) {
