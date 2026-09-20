@@ -13,21 +13,15 @@ const REPO_PATH = BASE ? BASE + "/" : "/";
 const IMG = REPO_PATH + "image/";
 const FAVI = IMG + "favi.png";
 const SCRAMJET_PREFIX = BASE + "/service/";
-function absPath(p) {
-  if (!p) return p;
-  if (/^https?:\/\//i.test(p)) return p;
-  const path = p.startsWith("/") ? p : "/" + p;
-  return location.origin + path;
-}
 const SCRAMJET_FILES = {
-  all: absPath(BASE + "/scramjet/scramjet.all.js"),
-  sync: absPath(BASE + "/scramjet/scramjet.sync.js"),
-  wasm: absPath(BASE + "/scramjet/scramjet.wasm.wasm")
+  all: BASE + "/scramjet/scramjet.all.js",
+  sync: BASE + "/scramjet/scramjet.sync.js",
+  wasm: BASE + "/scramjet/scramjet.wasm.wasm"
 };
-const BAREMUX_SCRIPT = absPath(BASE + "/baremux/index.js");
-const BAREMUX_WORKER = absPath(BASE + "/baremux/worker.js");
-const EPOXY_MODULE = absPath(BASE + "/epoxy/index.mjs");
-const LIBCURL_MODULE = absPath(BASE + "/libcurl/indexmjs.mjs");
+const BAREMUX_SCRIPT = BASE + "/baremux/index.js";
+const BAREMUX_WORKER = BASE + "/baremux/worker.js";
+const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
+const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs";
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
 const SW_URL = BASE + "/sw.js";
 const SW_SCOPE = BASE + "/";
@@ -169,22 +163,17 @@ async function initEngine() {
       }
       if (!window.BareMux) throw new Error("BareMux did not load.");
       if (!("serviceWorker" in navigator)) throw new Error("Service workers unavailable.");
-      if (typeof window.$scramjetLoadController !== "function" && typeof window.ScramjetController !== "function") {
-        throw new Error("Scramjet controller unavailable.");
-      }
 
       if (status) status.textContent = "Checking Scramjet DB...";
-      try {
-        await ensureScramjetDB();
-      } catch (err) {
-        console.warn("DB check failed", err);
-      }
+      try { await ensureScramjetDB(); } catch (err) { console.warn("DB check failed", err); }
 
       if (status) status.textContent = "Starting Scramjet...";
       const loaded = typeof window.$scramjetLoadController === "function"
         ? window.$scramjetLoadController()
         : null;
       const Controller = (loaded && loaded.ScramjetController) || window.ScramjetController;
+      if (typeof Controller !== "function") throw new Error("Scramjet controller unavailable.");
+
       engineController = new Controller({
         prefix: SCRAMJET_PREFIX,
         files: {
@@ -194,24 +183,8 @@ async function initEngine() {
         },
         flags: {
           captureErrors: true,
-          cleanErrors: true,
-          // false = fewer broken SPAs (Discord/X/Reddit login shells)
-          strictRewrites: false,
-          rewriterLogs: false,
-          allowInvalidJs: true,
-          allowFailedIntercepts: true,
-          // some sites register their own SW inside the proxy
-          serviceworkers: false
-        },
-        siteFlags: {
-          "discord.com": { strictRewrites: false, allowInvalidJs: true, serviceworkers: false },
-          "discordapp.com": { strictRewrites: false, allowInvalidJs: true },
-          "reddit.com": { strictRewrites: false, allowInvalidJs: true, allowFailedIntercepts: true },
-          "www.reddit.com": { strictRewrites: false, allowInvalidJs: true },
-          "x.com": { strictRewrites: false, allowInvalidJs: true, allowFailedIntercepts: true },
-          "twitter.com": { strictRewrites: false, allowInvalidJs: true },
-          "accounts.google.com": { strictRewrites: false, allowInvalidJs: true },
-          "play.geforcenow.com": { strictRewrites: false, allowInvalidJs: true, allowFailedIntercepts: true }
+          strictRewrites: true,
+          rewriterLogs: false
         }
       });
 
@@ -236,50 +209,16 @@ async function initEngine() {
       });
       await navigator.serviceWorker.ready;
 
-      // Second init pushes config into the active SW (fixes missing prefix)
-      try {
-        await engineController.init();
-      } catch (e) {
-        console.warn("second init", e);
-      }
-
-      // Confirm config landed in IndexedDB (SW reads this for $W.prefix)
-      const hasCfg = await new Promise((resolve) => {
-        try {
-          const req = indexedDB.open("$scramjet");
-          req.onerror = () => resolve(false);
-          req.onsuccess = () => {
-            const db = req.result;
-            try {
-              if (![...db.objectStoreNames].includes("config")) { db.close(); resolve(false); return; }
-              const g = db.transaction("config").objectStore("config").get("config");
-              g.onsuccess = () => { const v = g.result; db.close(); resolve(!!(v && v.prefix)); };
-              g.onerror = () => { db.close(); resolve(false); };
-            } catch { try { db.close(); } catch {} resolve(false); }
-          };
-        } catch { resolve(false); }
-      });
-      if (!hasCfg) {
-        console.warn("[veil] Scramjet config missing from IDB - clearing and re-init");
-        try { indexedDB.deleteDatabase("$scramjet"); } catch {}
-        await new Promise((r) => setTimeout(r, 300));
-        await engineController.init();
-      }
-      console.info("[veil] Scramjet IDB config OK, prefix=", SCRAMJET_PREFIX);
-
       if (status) status.textContent = "Connecting transport...";
       await applyMuxTransport();
 
       engineReady = true;
       if (status) status.textContent = engineStatusReady();
-      return true;
-    } catch (error) {
-      console.error(error);
-      if (status) status.textContent = "Engine error - " + (error.message || "check scramjet/baremux files");
-      engineInitPromise = null;
+    } catch (err) {
+      console.error(err);
       engineReady = false;
-      engineController = null;
-      return false;
+      if (status) status.textContent = (err && err.message) || String(err);
+      throw err;
     }
   })();
   return engineInitPromise;
@@ -289,17 +228,15 @@ async function applyMuxTransport() {
   const wisp = currentWisp();
   const preferred = transportModule();
   const fallback = preferred === LIBCURL_MODULE ? EPOXY_MODULE : LIBCURL_MODULE;
-  // Fresh connection avoids dead MuxTask / stale MessagePort after Wisp drops
-  muxConnection = new BareMux.BareMuxConnection(absUrl(BAREMUX_WORKER));
+  muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
   try {
-    await muxConnection.setTransport(absUrl(preferred), [{ wisp }]);
+    await muxConnection.setTransport(preferred, [{ wisp }]);
     return preferred;
   } catch (err) {
     console.warn("[veil] transport failed, trying fallback", err);
-    muxConnection = new BareMux.BareMuxConnection(absUrl(BAREMUX_WORKER));
-    await muxConnection.setTransport(absUrl(fallback), [{ wisp }]);
-    if (fallback === LIBCURL_MODULE) settings.transport = "libcurl";
-    else settings.transport = "epoxy";
+    muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
+    await muxConnection.setTransport(fallback, [{ wisp }]);
+    settings.transport = fallback === LIBCURL_MODULE ? "libcurl" : "epoxy";
     return fallback;
   }
 }
