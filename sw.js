@@ -1,11 +1,18 @@
 // sw.js — same structure as working testprox
-importScripts("./scramjet/scramjet.all.js");
+// https://github.com/retropixel101/testprox
+
+const BASE = (() => {
+  // /veil/sw.js → /veil ; /sw.js → ""
+  let p = self.location.pathname.replace(/\/?sw\.js$/i, "");
+  if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
+  return p === "/" ? "" : p;
+})();
+
+importScripts((BASE || "") + "/scramjet/scramjet.all.js");
 
 const { ScramjetServiceWorker } = $scramjetLoadWorker();
 const scramjet = new ScramjetServiceWorker();
 
-// Derive site base from this worker's URL ("" at domain root, "/veil" on project pages)
-const BASE = self.location.pathname.replace(/\/?sw\.js$/i, "").replace(/\/$/, "") || "";
 const PROXY_PREFIX = BASE + "/service/";
 const ORIGIN = self.location.origin;
 
@@ -13,18 +20,22 @@ self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 
 function isStaticAsset(path) {
-  if (path.endsWith("/sw.js") || path === "/sw.js") return true;
-  if (path === BASE + "/" || path === BASE || path === "/" || path.endsWith("/index.html")) return true;
-  if (path.endsWith("/veil-app.js") || path === "/veil-app.js") return true;
-  if (path.includes("/baremux/")) return true;
-  if (path.includes("/epoxy/")) return true;
-  if (path.includes("/libcurl/")) return true;
-  if (path.includes("/scramjet/")) return true;
-  if (path.includes("/image/")) return true;
-  if (path.endsWith(".map") || path.endsWith(".png") || path.endsWith(".svg") || path.endsWith(".wasm")) return true;
+  if (path === BASE + "/sw.js" || path === "/sw.js") return true;
+  if (path === BASE + "/" || path === BASE + "/index.html" || path === BASE || path === "/") return true;
+  if (path === BASE + "/veil-app.js" || path === "/veil-app.js") return true;
+  if (path.startsWith(BASE + "/baremux/") || path.startsWith("/baremux/")) return true;
+  if (path.startsWith(BASE + "/epoxy/") || path.startsWith("/epoxy/")) return true;
+  if (path.startsWith(BASE + "/libcurl/") || path.startsWith("/libcurl/")) return true;
+  if (path.startsWith(BASE + "/scramjet/") || path.startsWith("/scramjet/")) return true;
+  if (path.startsWith(BASE + "/image/") || path.startsWith("/image/")) return true;
+  if (path.endsWith(".map")) return true;
   return false;
 }
 
+/**
+ * Only true double-proxy (copied from testprox).
+ * Normal /service/https%3A%2F%2Fexample.com is left alone.
+ */
 function unwrapDoubleProxy(pathname) {
   if (!pathname.startsWith(PROXY_PREFIX)) return null;
 
@@ -85,12 +96,6 @@ self.addEventListener("fetch", (event) => {
         }
 
         await scramjet.loadConfig();
-        // Config missing → do not call route/fetch (avoids prefix TypeError)
-        if (!scramjet.config || !scramjet.config.prefix) {
-          console.warn("[SW] Scramjet config not ready yet");
-          return fetch(event.request);
-        }
-
         if (scramjet.route(event)) {
           return await scramjet.fetch(event);
         }
