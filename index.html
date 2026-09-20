@@ -130,7 +130,18 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .panel-header h2{font-size:17px}
 .close-panel{width:32px;height:32px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font-size:20px}
 .panel-body{padding:20px;overflow-y:auto}
-.setting-section{margin-bottom:28px}
+.settings-cat{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);opacity:.85;margin:28px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.settings-cat:first-child{margin-top:0}
+.setting-section{margin-bottom:22px}
+.panel-body{animation:panelIn .22s ease}
+@keyframes panelIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
+.chrome{transition:background .25s ease,border-color .25s ease}
+.tab{transition:background .15s ease,color .15s ease,flex-basis .2s ease}
+.quick-link{transition:transform .18s ease,background .18s ease,box-shadow .18s ease}
+.quick-link:hover{box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.search-box{transition:box-shadow .2s ease,transform .15s ease}
+.search-box:focus-within{box-shadow:0 12px 40px rgba(0,0,0,.35);transform:translateY(-1px)}
+
 .setting-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.09em;margin-bottom:11px}
 .preset-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
 .preset{min-height:67px;border:1px solid var(--border);background:var(--bg2);border-radius:11px;cursor:pointer;text-align:left;padding:10px}
@@ -170,7 +181,7 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .server-ping.ping-mid{color:#ffb86b}
 .server-ping.ping-bad{color:#ff7b7b}
 .server-edit{opacity:.6;padding:2px 4px}
-.server-edit:hover{opacity:1}
+.server-edit:hover{opacity:1}.server-edit img{width:14px;height:14px;display:block;filter:invert(1)}
 
 .anim-opts{opacity:.45;pointer-events:none;transition:opacity .2s ease}
 .anim-opts.enabled{opacity:1;pointer-events:auto}
@@ -225,7 +236,7 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
       </div>
       <div class="right-tools">
         <button class="menu-btn" id="settingsOpenBtn" title="Settings"><span class="icon" style="--i:url('image/settings.svg')"></span></button>
-        <button class="menu-btn" id="menuBtn" title="Menu">⋮</button>
+        <button class="menu-btn" id="menuBtn" title="Menu"><span style="font-weight:700;letter-spacing:1px">...</span></button>
       </div>
     </div>
   </header>
@@ -242,120 +253,94 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 <div class="backdrop" id="backdrop"></div>
 
 <aside class="panel" id="settingsPanel">
-  <div class="panel-header"><h2>Settings</h2><button class="close-panel" data-close-panel>×</button></div>
+  <div class="panel-head"><span>Settings</span><button type="button" data-close-panel>x</button></div>
   <div class="panel-body">
+
+    <div class="settings-cat">Appearance</div>
     <section class="setting-section">
-      <div class="setting-title">Themes</div>
-      <div class="preset-grid">
-        <button class="preset" data-theme="matte"><div class="preset-name">Matte</div><div class="preset-preview"><i class="preset-dot" style="background:#101010"></i><i class="preset-dot" style="background:#1b1b1b"></i><i class="preset-dot" style="background:#fff"></i></div></button>
-        <button class="preset" data-theme="ember"><div class="preset-name">Ember</div><div class="preset-preview"><i class="preset-dot" style="background:#1a0a0a"></i><i class="preset-dot" style="background:#3a1212"></i><i class="preset-dot" style="background:#ff4d4d"></i></div></button>
-        <button class="preset" data-theme="sunlight"><div class="preset-name">Sunlight</div><div class="preset-preview"><i class="preset-dot" style="background:#191108"></i><i class="preset-dot" style="background:#32200c"></i><i class="preset-dot" style="background:#ffb84d"></i></div></button>
-        <button class="preset" data-theme="forest"><div class="preset-name">Forest</div><div class="preset-preview"><i class="preset-dot" style="background:#0b140e"></i><i class="preset-dot" style="background:#17291b"></i><i class="preset-dot" style="background:#73c982"></i></div></button>
-        <button class="preset" data-theme="moonlight"><div class="preset-name">Moonlight</div><div class="preset-preview"><i class="preset-dot" style="background:#080b12"></i><i class="preset-dot" style="background:#121827"></i><i class="preset-dot" style="background:#7aa2ff"></i></div></button>
-        <button class="preset" data-theme="twilight"><div class="preset-name">Twilight</div><div class="preset-preview"><i class="preset-dot" style="background:#110d1a"></i><i class="preset-dot" style="background:#241936"></i><i class="preset-dot" style="background:#b88cff"></i></div></button>
-        <button class="preset" data-theme="sakura"><div class="preset-name">Sakura</div><div class="preset-preview"><i class="preset-dot" style="background:#190e14"></i><i class="preset-dot" style="background:#321725"></i><i class="preset-dot" style="background:#ff8fba"></i></div></button>
-      <button class="preset" type="button" data-theme="ocean">
-        <div class="preset-name">Ocean</div>
-        <div class="preset-preview">
-          <span class="preset-dot" style="background:#06141c"></span>
-          <span class="preset-dot" style="background:#3ecfce"></span>
-          <span class="preset-dot" style="background:#e6f7ff"></span>
-        </div>
-      </button>
-      <button class="preset" type="button" data-theme="slate">
-        <div class="preset-name">Slate</div>
-        <div class="preset-preview">
-          <span class="preset-dot" style="background:#12151a"></span>
-          <span class="preset-dot" style="background:#9db0ff"></span>
-          <span class="preset-dot" style="background:#e8ecf4"></span>
-        </div>
-      </button>
-      <button class="preset" type="button" data-theme="mono">
-        <div class="preset-name">Mono</div>
-        <div class="preset-preview">
-          <span class="preset-dot" style="background:#0c0c0c"></span>
-          <span class="preset-dot" style="background:#ccc"></span>
-          <span class="preset-dot" style="background:#eee"></span>
-        </div>
-      </button>
-      <button class="preset" type="button" data-theme="rose">
-        <div class="preset-name">Rose</div>
-        <div class="preset-preview">
-          <span class="preset-dot" style="background:#160c10"></span>
-          <span class="preset-dot" style="background:#ff6b9d"></span>
-          <span class="preset-dot" style="background:#ffe8f0"></span>
-        </div>
-      </button>
-        <button class="preset" id="customThemeCard" type="button"><div class="preset-name">Custom</div><div class="preset-preview"><i class="preset-dot" style="background:#444"></i><i class="preset-dot" style="background:#888"></i><i class="preset-dot" style="background:#fff"></i></div></button>
+      <div class="setting-title">Theme</div>
+      <div class="preset-grid" id="themeGrid">
+        <button class="preset" type="button" data-theme="matte"><div class="preset-name">Matte</div><div class="preset-preview"><span class="preset-dot" style="background:#101010"></span><span class="preset-dot" style="background:#fff"></span><span class="preset-dot" style="background:#888"></span></div></button>
+        <button class="preset" type="button" data-theme="ember"><div class="preset-name">Ember</div><div class="preset-preview"><span class="preset-dot" style="background:#1a0a0a"></span><span class="preset-dot" style="background:#ff4d4d"></span><span class="preset-dot" style="background:#ffeaea"></span></div></button>
+        <button class="preset" type="button" data-theme="sunlight"><div class="preset-name">Sunlight</div><div class="preset-preview"><span class="preset-dot" style="background:#191108"></span><span class="preset-dot" style="background:#ffb84d"></span><span class="preset-dot" style="background:#fff8eb"></span></div></button>
+        <button class="preset" type="button" data-theme="forest"><div class="preset-name">Forest</div><div class="preset-preview"><span class="preset-dot" style="background:#0b140e"></span><span class="preset-dot" style="background:#73c982"></span><span class="preset-dot" style="background:#effff1"></span></div></button>
+        <button class="preset" type="button" data-theme="moonlight"><div class="preset-name">Moonlight</div><div class="preset-preview"><span class="preset-dot" style="background:#080b12"></span><span class="preset-dot" style="background:#7aa2ff"></span><span class="preset-dot" style="background:#eef3ff"></span></div></button>
+        <button class="preset" type="button" data-theme="twilight"><div class="preset-name">Twilight</div><div class="preset-preview"><span class="preset-dot" style="background:#110d1a"></span><span class="preset-dot" style="background:#b88cff"></span><span class="preset-dot" style="background:#f7f0ff"></span></div></button>
+        <button class="preset" type="button" data-theme="sakura"><div class="preset-name">Sakura</div><div class="preset-preview"><span class="preset-dot" style="background:#190e14"></span><span class="preset-dot" style="background:#ff8fba"></span><span class="preset-dot" style="background:#fff0f6"></span></div></button>
+        <button class="preset" type="button" data-theme="ocean"><div class="preset-name">Ocean</div><div class="preset-preview"><span class="preset-dot" style="background:#06141c"></span><span class="preset-dot" style="background:#3ecfce"></span><span class="preset-dot" style="background:#e6f7ff"></span></div></button>
+        <button class="preset" type="button" data-theme="slate"><div class="preset-name">Slate</div><div class="preset-preview"><span class="preset-dot" style="background:#12151a"></span><span class="preset-dot" style="background:#9db0ff"></span><span class="preset-dot" style="background:#e8ecf4"></span></div></button>
+        <button class="preset" type="button" data-theme="mono"><div class="preset-name">Mono</div><div class="preset-preview"><span class="preset-dot" style="background:#0c0c0c"></span><span class="preset-dot" style="background:#ccc"></span><span class="preset-dot" style="background:#eee"></span></div></button>
+        <button class="preset" type="button" data-theme="rose"><div class="preset-name">Rose</div><div class="preset-preview"><span class="preset-dot" style="background:#160c10"></span><span class="preset-dot" style="background:#ff6b9d"></span><span class="preset-dot" style="background:#ffe8f0"></span></div></button>
+        <button class="preset" type="button" data-theme="crimson"><div class="preset-name">Crimson</div><div class="preset-preview"><span class="preset-dot" style="background:#140808"></span><span class="preset-dot" style="background:#e63232"></span><span class="preset-dot" style="background:#ffd6d6"></span></div></button>
+        <button class="preset" type="button" data-theme="amber"><div class="preset-name">Amber</div><div class="preset-preview"><span class="preset-dot" style="background:#161008"></span><span class="preset-dot" style="background:#ff9f1a"></span><span class="preset-dot" style="background:#fff0d6"></span></div></button>
+        <button class="preset" type="button" data-theme="lime"><div class="preset-name">Lime</div><div class="preset-preview"><span class="preset-dot" style="background:#0c1408"></span><span class="preset-dot" style="background:#8dff4d"></span><span class="preset-dot" style="background:#f0ffe6"></span></div></button>
+        <button class="preset" type="button" data-theme="scarlet"><div class="preset-name">Scarlet</div><div class="preset-preview"><span class="preset-dot" style="background:#1a0606"></span><span class="preset-dot" style="background:#ff2a2a"></span><span class="preset-dot" style="background:#ffe0e0"></span></div></button>
+        <button class="preset" type="button" id="customThemeCard"><div class="preset-name">Custom</div><div class="preset-preview"><span class="preset-dot" style="background:#333"></span><span class="preset-dot" style="background:#666"></span><span class="preset-dot" style="background:#999"></span></div></button>
       </div>
       <div class="custom-card" id="customColorCard">
-        <div class="setting-title">Edit colors</div>
-        <div class="input-row"><label class="input-label">Background</label><input class="color-input" id="colorBg" type="color"></div>
-        <div class="input-row"><label class="input-label">Panel</label><input class="color-input" id="colorPanel" type="color"></div>
-        <div class="input-row"><label class="input-label">Accent</label><input class="color-input" id="colorAccent" type="color"></div>
-        <div class="input-row"><label class="input-label">Text</label><input class="color-input" id="colorText" type="color"></div>
-        <button class="primary-btn" id="applyColors">Apply custom colors</button>
+        <div class="input-row"><label class="input-label">Background</label><input class="color-input" type="color" id="colorBg"></div>
+        <div class="input-row"><label class="input-label">Panel</label><input class="color-input" type="color" id="colorPanel"></div>
+        <div class="input-row"><label class="input-label">Accent</label><input class="color-input" type="color" id="colorAccent"></div>
+        <div class="input-row"><label class="input-label">Text</label><input class="color-input" type="color" id="colorText"></div>
+        <button class="primary-btn" id="applyColors" type="button">Apply colors</button>
       </div>
     </section>
-
     <section class="setting-section">
-      <div class="setting-title">Homepage background</div>
+      <div class="setting-title">Home background</div>
       <div class="input-row"><input class="text-input" id="backgroundUrl" placeholder="Image URL (blank = theme color)"></div>
-      <button class="primary-btn" id="applyBackground">Apply background</button>
+      <button class="primary-btn" id="applyBackground" type="button">Apply background</button>
+    </section>
+    <section class="setting-section">
+      <div class="setting-title">Clock</div>
+      <div class="switch-row">
+        <span class="switch-label">24-hour time</span>
+        <button type="button" class="switch" id="time24Switch" role="switch" aria-checked="false"></button>
+      </div>
+      <p class="hint">Off uses 12-hour time with AM/PM. On uses 24-hour time.</p>
     </section>
 
+    <div class="settings-cat">Privacy</div>
     <section class="setting-section">
-      <div class="setting-title">Tab cloak presets</div>
+      <div class="setting-title">Tab cloak</div>
       <div class="cloak-grid">
-        <button class="cloak-preset" data-cloak="docs">Google Docs</button>
-        <button class="cloak-preset" data-cloak="classroom">Classroom</button>
-        <button class="cloak-preset" data-cloak="drive">Drive</button>
-        <button class="cloak-preset" data-cloak="canvas">Canvas</button>
-        <button class="cloak-preset" data-cloak="veil">Veil</button>
+        <button class="cloak-preset" type="button" data-cloak="docs">Google Docs</button>
+        <button class="cloak-preset" type="button" data-cloak="classroom">Classroom</button>
+        <button class="cloak-preset" type="button" data-cloak="drive">Drive</button>
+        <button class="cloak-preset" type="button" data-cloak="canvas">Canvas</button>
+        <button class="cloak-preset" type="button" data-cloak="veil">Veil</button>
       </div>
       <div class="input-row" style="margin-top:10px"><input class="text-input" id="cloakTitle" placeholder="Custom title"></div>
       <div class="input-row"><input class="text-input" id="cloakIcon" placeholder="Favicon URL"></div>
-      <button class="primary-btn" id="applyCloak">Apply cloak</button>
+      <button class="primary-btn" id="applyCloak" type="button">Apply cloak</button>
+      <p class="hint">Also applies when you open about:blank.</p>
     </section>
-
     <section class="setting-section">
       <div class="setting-title">Panic key</div>
       <div class="input-row"><label class="input-label">Key</label><input class="text-input" id="panicKey" placeholder="Click Bind, then press a key" readonly></div>
       <div class="input-row"><label class="input-label">Redirect</label><input class="text-input" id="panicUrl" placeholder="https://classroom.google.com"></div>
-      <button class="primary-btn" id="bindPanic">Bind key</button>
-      <button class="secondary-btn" id="unbindPanic">Unbind</button>
-      <p class="hint">Does nothing while you are typing in a text box.</p>
+      <button class="primary-btn" id="bindPanic" type="button">Bind key</button>
+      <button class="secondary-btn" id="unbindPanic" type="button">Unbind</button>
+      <p class="hint">Ignored while typing in a text box.</p>
     </section>
-
     <section class="setting-section">
       <div class="setting-title">Launch (about:blank)</div>
       <div class="switch-row">
         <span class="switch-label">Auto-open about:blank once</span>
         <button type="button" class="switch" id="launchAutoSwitch" role="switch" aria-checked="false"></button>
       </div>
-      <p class="hint">Automatically open Veil in a hidden tab when you start. Only once.</p>
-      <button class="primary-btn" id="launchNowBtn" type="button" style="margin-top:8px">Launch options…</button>
+      <p class="hint">Opens a hidden tab once when you start. Skips if already cloaked.</p>
+      <button class="primary-btn" id="launchNowBtn" type="button" style="margin-top:8px">Launch options</button>
     </section>
-
     <section class="setting-section">
-      <div class="setting-title">Proxy servers</div>
-      <div class="server-list" id="serverList"></div>
-      <p class="hint">Pick a server. Green = fast, orange = OK, red = slow or offline.</p>
-      <div class="input-row" style="margin-top:10px"><input class="text-input" id="customServerName" placeholder="Custom name"></div>
-      <div class="input-row"><input class="text-input" id="customServerUrl" placeholder="wss://your-server"></div>
-      <button class="primary-btn" id="addCustomServer" type="button">Add custom server</button>
-    </section>
-
-    <section class="setting-section">
-      <div class="setting-title">Browser engine</div>
-      <div class="transport-row">
-        <button class="transport-btn" id="transportEpoxy" type="button">Epoxy</button>
-        <button class="transport-btn" id="transportLibcurl" type="button">Libcurl</button>
+      <div class="setting-title">Lock</div>
+      <div class="switch-row">
+        <span class="switch-label">Unload pages when locking</span>
+        <button type="button" class="switch" id="lockUnloadSwitch" role="switch" aria-checked="false"></button>
       </div>
-      <p class="hint">Try Epoxy first. Switch to Libcurl if a site will not load.</p>
-      <div class="status" id="engineStatus">Initializing browser engine…</div>
+      <p class="hint">Off keeps pages running under the lock. On closes them to save memory.</p>
     </section>
 
+    <div class="settings-cat">Browsing</div>
     <section class="setting-section">
       <div class="setting-title">Search engine</div>
       <select class="text-input" id="searchEngineSelect">
@@ -364,18 +349,24 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
         <option value="bing">Bing</option>
         <option value="brave">Brave</option>
       </select>
-      <p class="hint">Used when you search with words instead of a full website address.</p>
+      <p class="hint">Used when you type words instead of a full address.</p>
     </section>
-
     <section class="setting-section">
       <div class="setting-title">Ad blocker</div>
       <div class="switch-row">
-        <span class="switch-label">Block ads &amp; trackers</span>
+        <span class="switch-label">Block ads and trackers</span>
         <button type="button" class="switch" id="adblockSwitch" role="switch" aria-checked="true"></button>
       </div>
-      <p class="hint">Hide common ads and trackers while browsing.</p>
+      <p class="hint">Hides common ads and trackers while you browse.</p>
     </section>
-
+    <section class="setting-section">
+      <div class="setting-title">Loaded tabs at once</div>
+      <div class="range-row">
+        <input type="range" id="maxLoadedTabs" min="1" max="20" step="1" value="8">
+        <span class="range-val" id="maxLoadedTabsVal">8</span>
+      </div>
+      <p class="hint">How many tabs stay fully loaded. Lower uses less memory.</p>
+    </section>
     <section class="setting-section">
       <div class="setting-title">Home page animations</div>
       <div class="switch-row">
@@ -391,54 +382,44 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
             <option value="stars">Twinkling stars</option>
           </select>
         </div>
-        <div class="range-row">
-          <span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Speed</span>
-          <input type="range" id="animSpeed" min="0.25" max="2.5" step="0.05" value="1">
-          <span class="range-val" id="animSpeedVal">1.0×</span>
-        </div>
-        <div class="range-row">
-          <span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Amount</span>
-          <input type="range" id="animCount" min="4" max="80" step="1" value="18">
-          <span class="range-val" id="animCountVal">18</span>
-        </div>
-        <div class="range-row">
-          <span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Size</span>
-          <input type="range" id="animSize" min="0.4" max="2.5" step="0.05" value="1">
-          <span class="range-val" id="animSizeVal">1.0×</span>
-        </div>
+        <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Speed</span><input type="range" id="animSpeed" min="0.25" max="2.5" step="0.05" value="1"><span class="range-val" id="animSpeedVal">1.00x</span></div>
+        <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Amount</span><input type="range" id="animCount" min="4" max="80" step="1" value="18"><span class="range-val" id="animCountVal">18</span></div>
+        <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Size</span><input type="range" id="animSize" min="0.4" max="2.5" step="0.05" value="1"><span class="range-val" id="animSizeVal">1.00x</span></div>
         <div class="input-row"><label class="input-label">Color A</label><input class="color-input" type="color" id="animColorA" value="#7aa2ff"></div>
         <div class="input-row"><label class="input-label">Color B</label><input class="color-input" type="color" id="animColorB" value="#b88cff"></div>
-        <p class="hint">Background motion on the home page only. Off until you turn it on.</p>
+        <p class="hint">Background motion on the home page only.</p>
       </div>
     </section>
 
+    <div class="settings-cat">Connection</div>
     <section class="setting-section">
-      <div class="setting-title">Lock</div>
-      <div class="switch-row">
-        <span class="switch-label">Unload pages when locking</span>
-        <button type="button" class="switch" id="lockUnloadSwitch" role="switch" aria-checked="false"></button>
-      </div>
-      <p class="hint">When locking: off keeps pages running, on closes them to save memory.</p>
+      <div class="setting-title">Proxy servers</div>
+      <div class="server-list" id="serverList"></div>
+      <p class="hint">Green = fast, orange = ok, red = slow or offline.</p>
+      <div class="input-row" style="margin-top:10px"><input class="text-input" id="customServerName" placeholder="Custom name"></div>
+      <div class="input-row"><input class="text-input" id="customServerUrl" placeholder="wss://your-server"></div>
+      <button class="primary-btn" id="addCustomServer" type="button">Add custom server</button>
     </section>
-
     <section class="setting-section">
-      <div class="setting-title">Loaded tabs at once</div>
-      <div class="range-row">
-        <input type="range" id="maxLoadedTabs" min="1" max="20" step="1" value="8">
-        <span class="range-val" id="maxLoadedTabsVal">8</span>
+      <div class="setting-title">Browser engine</div>
+      <div class="transport-row">
+        <button class="transport-btn" id="transportEpoxy" type="button">Epoxy</button>
+        <button class="transport-btn" id="transportLibcurl" type="button">Libcurl</button>
       </div>
-      <p class="hint">How many tabs stay fully loaded. Lower = less memory.</p>
+      <p class="hint">Try Epoxy first. Switch to Libcurl if a site will not load.</p>
+      <div class="status" id="engineStatus">Starting...</div>
     </section>
 
+    <div class="settings-cat">System</div>
     <section class="setting-section">
       <div class="setting-title">Reset</div>
-      <button class="secondary-btn" id="resetSettings">Reset settings</button>
+      <button class="secondary-btn" id="resetSettings" type="button">Reset settings</button>
     </section>
   </div>
 </aside>
 
 <aside class="panel" id="bookmarksPanel">
-  <div class="panel-header"><h2>Bookmarks</h2><button class="close-panel" data-close-panel>×</button></div>
+  <div class="panel-header"><h2>Bookmarks</h2><button class="close-panel" data-close-panel>x</button></div>
   <div class="panel-body" id="bookmarkList"></div>
 </aside>
 

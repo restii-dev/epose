@@ -1,4 +1,4 @@
-// sw.js — loadConfig must come from IndexedDB so Scramjet sets internal $W.prefix
+// sw.js - loadConfig must come from IndexedDB so Scramjet sets internal $W.prefix
 const BASE = (() => {
   let p = self.location.pathname.replace(/\/?sw\.js$/i, "");
   if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
@@ -24,7 +24,7 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("message", (e) => {
   const d = e.data || {};
   if (d.type === "veil-adblock") AD_BLOCK_ENABLED = !!d.enabled;
-  // Do NOT assign scramjet.config here — that skips $W init and breaks fetch().prefix
+  // Do NOT assign scramjet.config here - that skips $W init and breaks fetch().prefix
 });
 
 function isStaticAsset(path) {
@@ -129,7 +129,7 @@ self.addEventListener("fetch", (event) => {
       const ok = await ensureConfig();
       if (!ok) {
         if (url.pathname.startsWith(PROXY_PREFIX)) {
-          return new Response("Proxy config missing — hard refresh once.", {
+          return new Response("Proxy config missing - hard refresh once.", {
             status: 503,
             headers: { "Content-Type": "text/plain; charset=utf-8" }
           });

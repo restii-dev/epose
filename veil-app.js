@@ -104,7 +104,7 @@ function serverDisplayName() {
 
 function engineStatusReady() {
   const tname = (settings && settings.transport === "libcurl") ? "Libcurl" : "Epoxy";
-  return "Ready • " + tname + " • " + serverDisplayName();
+  return "Ready - " + tname + " - " + serverDisplayName();
 }
 
 function transportModule() {
@@ -140,7 +140,7 @@ async function ensureScramjetDB() {
   ]);
 }
 
-/** Exact order as working testprox: DB → init → register SW → transport */
+/** Exact order as working testprox: DB -> init -> register SW -> transport */
 async function initEngine() {
   if (engineInitPromise) return engineInitPromise;
   engineInitPromise = (async () => {
@@ -156,14 +156,14 @@ async function initEngine() {
         throw new Error("Scramjet controller unavailable.");
       }
 
-      if (status) status.textContent = "Checking Scramjet DB…";
+      if (status) status.textContent = "Checking Scramjet DB...";
       try {
         await ensureScramjetDB();
       } catch (err) {
         console.warn("DB check failed", err);
       }
 
-      if (status) status.textContent = "Starting Scramjet…";
+      if (status) status.textContent = "Starting Scramjet...";
       const loaded = typeof window.$scramjetLoadController === "function"
         ? window.$scramjetLoadController()
         : null;
@@ -196,7 +196,7 @@ async function initEngine() {
         }
       }
 
-      if (status) status.textContent = "Registering service worker…";
+      if (status) status.textContent = "Registering service worker...";
       await navigator.serviceWorker.register(SW_URL, {
         scope: SW_SCOPE,
         updateViaCache: "none"
@@ -227,14 +227,14 @@ async function initEngine() {
         } catch { resolve(false); }
       });
       if (!hasCfg) {
-        console.warn("[veil] Scramjet config missing from IDB — clearing and re-init");
+        console.warn("[veil] Scramjet config missing from IDB - clearing and re-init");
         try { indexedDB.deleteDatabase("$scramjet"); } catch {}
         await new Promise((r) => setTimeout(r, 300));
         await engineController.init();
       }
       console.info("[veil] Scramjet IDB config OK, prefix=", SCRAMJET_PREFIX);
 
-      if (status) status.textContent = "Connecting transport…";
+      if (status) status.textContent = "Connecting transport...";
       await applyMuxTransport();
 
       engineReady = true;
@@ -242,7 +242,7 @@ async function initEngine() {
       return true;
     } catch (error) {
       console.error(error);
-      if (status) status.textContent = "Engine error • " + (error.message || "check scramjet/baremux files");
+      if (status) status.textContent = "Engine error - " + (error.message || "check scramjet/baremux files");
       engineInitPromise = null;
       engineReady = false;
       engineController = null;
@@ -279,7 +279,7 @@ async function reconnectTransport() {
   } catch (e) {
     console.warn("reconnect failed", e);
     const status = document.getElementById("engineStatus");
-    if (status) status.textContent = "Server offline — try another server";
+    if (status) status.textContent = "Server offline - try another server";
   }
 }
 
@@ -294,12 +294,16 @@ const THEMES = {
   ocean: { bg: "#06141c", bg2: "#0a1c26", bg3: "#0f2833", panel: "#0c222c", panel2: "#12303c", border: "#1e4554", text: "#e6f7ff", muted: "#7aa0b0", accent: "#3ecfce", accentText: "#042028", newtab: "#06141c" },
   slate: { bg: "#12151a", bg2: "#181c24", bg3: "#222833", panel: "#1a1f28", panel2: "#252b36", border: "#343b4a", text: "#e8ecf4", muted: "#8b93a7", accent: "#9db0ff", accentText: "#10131a", newtab: "#12151a" },
   mono: { bg: "#0c0c0c", bg2: "#141414", bg3: "#1c1c1c", panel: "#161616", panel2: "#222", border: "#333", text: "#eee", muted: "#777", accent: "#ccc", accentText: "#111", newtab: "#0c0c0c" },
-  rose: { bg: "#160c10", bg2: "#1e1016", bg3: "#2a1620", panel: "#24141c", panel2: "#321c28", border: "#4a2838", text: "#ffe8f0", muted: "#c090a0", accent: "#ff6b9d", accentText: "#2a0a14", newtab: "#160c10" }
+  rose: { bg: "#160c10", bg2: "#1e1016", bg3: "#2a1620", panel: "#24141c", panel2: "#321c28", border: "#4a2838", text: "#ffe8f0", muted: "#c090a0", accent: "#ff6b9d", accentText: "#2a0a14", newtab: "#160c10" },
+  crimson: { bg: "#140808", bg2: "#1c0c0c", bg3: "#2a1010", panel: "#221010", panel2: "#321818", border: "#5a2020", text: "#ffd6d6", muted: "#c88888", accent: "#e63232", accentText: "#1a0505", newtab: "#140808" },
+  amber: { bg: "#161008", bg2: "#1e160c", bg3: "#2a1e10", panel: "#241810", panel2: "#322414", border: "#5a3c18", text: "#fff0d6", muted: "#c8a878", accent: "#ff9f1a", accentText: "#1a1005", newtab: "#161008" },
+  lime: { bg: "#0c1408", bg2: "#121c0c", bg3: "#1a2810", panel: "#162214", panel2: "#203018", border: "#3a5028", text: "#f0ffe6", muted: "#98b878", accent: "#8dff4d", accentText: "#0a1405", newtab: "#0c1408" },
+  scarlet: { bg: "#1a0606", bg2: "#220a0a", bg3: "#321010", panel: "#281010", panel2: "#3a1414", border: "#6a2020", text: "#ffe0e0", muted: "#d09090", accent: "#ff2a2a", accentText: "#1a0505", newtab: "#1a0606" }
 };
 
 const DEFAULT_SETTINGS = {
   theme: "matte", transport: "epoxy", wispId: "default", wispCustom: "",
-  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 8, searchEngine: "duckduckgo", wispId: "va1", customServers: [], lockUnload: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", ...THEMES.matte
+  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 8, searchEngine: "duckduckgo", wispId: "va1", customServers: [], lockUnload: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", ...THEMES.matte
 };
 const DEFAULT_PANIC = { key: "", code: "", url: "https://classroom.google.com" };
 
@@ -383,6 +387,7 @@ function migrateSettings() {
   if (!Array.isArray(settings.customServers)) settings.customServers = [];
   if (settings.animCount == null) settings.animCount = 18;
   if (settings.animSize == null) settings.animSize = 1;
+  if (settings.timeFormat !== "12" && settings.timeFormat !== "24") settings.timeFormat = "12";
 }
 function loadSavedData() {
   loadProfile();
@@ -428,7 +433,7 @@ function normalizeUrl(input) {
   return searchPrefix() + encodeURIComponent(value);
 }
 
-/** Never show https://…github.io/veil/service/… in the address bar */
+/** Never show https://...github.io/veil/service/... in the address bar */
 function unwrapProxyUrl(href) {
   if (!href || href === "about:blank") return href;
   try {
@@ -527,7 +532,7 @@ async function goFrame(page, url) {
   } catch (e) {
     const msg = String(e && e.message || e);
     if (/MuxTaskEnded|headers is not iterable|Invalid URL|Failed to fetch|network|Wisp|WebSocket/i.test(msg)) {
-      console.warn("[veil] navigation transport error, reconnecting…", msg);
+      console.warn("[veil] navigation transport error, reconnecting...", msg);
       try {
         // flip transport once if epoxy is flaky
         if (/headers is not iterable|MuxTaskEnded/i.test(msg) && settings.transport !== "libcurl") {
@@ -538,7 +543,7 @@ async function goFrame(page, url) {
       } catch (e2) {
         console.warn("[veil] retry failed", e2);
         const status = document.getElementById("engineStatus");
-        if (status) status.textContent = "Connection lost — pick another server";
+        if (status) status.textContent = "Connection lost - pick another server";
       }
     } else {
       console.warn(e);
@@ -552,7 +557,7 @@ function renderTabs() {
     '<div class="tab ' + (tab.id === activeTabId ? "active " : "") + (tab.animOpen ? "opening" : "") + '" data-tab-id="' + tab.id + '">' +
     '<div class="tab-icon"><img src="' + escapeHTML(tab.favicon || FAVI) + '" alt=""></div>' +
     '<div class="tab-title">' + escapeHTML(tab.title) + '</div>' +
-    '<button class="tab-close" data-close="' + tab.id + '" aria-label="Close">×</button></div>'
+    '<button class="tab-close" data-close="' + tab.id + '" aria-label="Close">x</button></div>'
   ).join("");
   c.innerHTML = tabsHtml + '<button class="new-tab" id="newTabBtn" type="button" aria-label="New tab">+</button>';
   tabs.forEach(t => { t.animOpen = false; });
@@ -572,11 +577,21 @@ function renderTabs() {
 
 function formatWelcomeClock(d) {
   const pad = (n) => String(n).padStart(2, "0");
-  const hh = pad(d.getHours());
   const mm = pad(d.getMinutes());
   const ss = pad(d.getSeconds());
   const MD = pad(d.getMonth() + 1) + "/" + pad(d.getDate()) + "/" + d.getFullYear();
-  return { time: hh + ":" + mm + ":" + ss, date: MD };
+  const use24 = settings && settings.timeFormat === "24";
+  let time;
+  if (use24) {
+    time = pad(d.getHours()) + ":" + mm + ":" + ss;
+  } else {
+    let h = d.getHours();
+    const ap = h >= 12 ? "PM" : "AM";
+    h = h % 12;
+    if (h === 0) h = 12;
+    time = h + ":" + mm + ":" + ss + " " + ap;
+  }
+  return { time: time, date: MD };
 }
 
 function welcomeHTML() {
@@ -618,7 +633,7 @@ function homepageHTML(pageId) {
     '<div class="newtab-sub">Browse quietly. Stay undetected.</div>' +
     '<div class="search-row">' +
     '<div class="search-box" style="width:100%"><span class="home-search-icon"></span>' +
-    '<input class="newtab-search" data-page="' + pageId + '" placeholder="Search or enter a site…" autocomplete="off" spellcheck="false">' +
+    '<input class="newtab-search" data-page="' + pageId + '" placeholder="Search or enter a site..." autocomplete="off" spellcheck="false">' +
     '</div></div>' +
     '<div class="quick-links">' +
     '<button class="quick-link" title="X" data-url="https://x.com">' + imgIcon("x.svg") + '</button>' +
@@ -630,9 +645,9 @@ function homepageHTML(pageId) {
     '<button class="quick-link soon" title="Games (soon)" data-soon="1">' + imgIcon("games.svg") + '</button>' +
     '<button class="quick-link soon" title="Utilities (soon)" data-soon="1">' + imgIcon("util.svg") + '</button>' +
     '</div>' +
-    '<button class="launch-btn" id="launchOptionsBtn" type="button">Launch Options…</button>' +
+    '<button class="launch-btn" id="launchOptionsBtn" type="button">Launch Options...</button>' +
     '</div></div>' +
-    '<div class="time-bar" id="timeBar">Time Remaining: — (auth coming soon)</div></div>'
+    '<div class="time-bar" id="timeBar">Time Remaining: - (auth coming soon)</div></div>'
   );
 }
 
@@ -926,7 +941,7 @@ function renderBookmarks() {
     '<div class="bookmark-row"><div class="bookmark-main" data-open-bookmark="' + escapeHTML(b.url) + '">' +
     '<div class="bookmark-title">' + escapeHTML(b.title) + '</div>' +
     '<div class="bookmark-url">' + escapeHTML(b.url) + '</div></div>' +
-    '<button class="bookmark-delete" data-delete-bookmark="' + escapeHTML(b.id) + '">×</button></div>'
+    '<button class="bookmark-delete" data-delete-bookmark="' + escapeHTML(b.id) + '">x</button></div>'
   ).join("");
   list.querySelectorAll("[data-open-bookmark]").forEach(el =>
     el.onclick = () => { closePanels(); navigate(el.dataset.openBookmark); }
@@ -1006,8 +1021,8 @@ function fillWispSelect() {
       '<button type="button" class="server-row' + sel + '" data-server-id="' + s.id + '"' + custom + '>' +
       '<span class="server-dot ping-mid" data-dot="' + s.id + '"></span>' +
       '<span class="server-name">' + escapeHTML(s.name) + '</span>' +
-      '<span class="server-ping" data-ping="' + s.id + '">…</span>' +
-      (s.custom ? '<span class="server-edit" data-edit="' + s.id + '" title="Rename">✎</span>' : "") +
+      '<span class="server-ping" data-ping="' + s.id + '">...</span>' +
+      (s.custom ? '<span class="server-edit" data-edit="' + s.id + '" title="Rename"><img src="' + IMG + 'pencil.svg" alt="Rename"></span>' : "") +
       "</button>"
     );
   }).join("");
@@ -1316,6 +1331,7 @@ function highlightTheme() {
   setSwitch(document.getElementById("adblockSwitch"), settings.adBlocker !== false);
   setSwitch(document.getElementById("animEnabledSwitch"), !!settings.animEnabled);
   setSwitch(document.getElementById("lockUnloadSwitch"), !!settings.lockUnload);
+  setSwitch(document.getElementById("time24Switch"), settings.timeFormat === "24");
   const animOpts = document.getElementById("animOpts");
   if (animOpts) animOpts.classList.toggle("enabled", !!settings.animEnabled);
   const range = document.getElementById("maxLoadedTabs");
@@ -1335,7 +1351,7 @@ function highlightTheme() {
   const speedVal = document.getElementById("animSpeedVal");
   if (speed) {
     speed.value = String(settings.animSpeed || 1);
-    if (speedVal) speedVal.textContent = Number(settings.animSpeed || 1).toFixed(2) + "×";
+    if (speedVal) speedVal.textContent = Number(settings.animSpeed || 1).toFixed(2) + "x";
   }
   const ca = document.getElementById("animColorA");
   const cb = document.getElementById("animColorB");
@@ -1351,7 +1367,7 @@ function highlightTheme() {
   const asv = document.getElementById("animSizeVal");
   if (asz) {
     asz.value = String(settings.animSize || 1);
-    if (asv) asv.textContent = Number(settings.animSize || 1).toFixed(2) + "×";
+    if (asv) asv.textContent = Number(settings.animSize || 1).toFixed(2) + "x";
   }
 }
 
@@ -1366,7 +1382,7 @@ function pushAdblockToSW() {
 
 function applyTheme(name) {
   if (!THEMES[name]) return;
-  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, wispId: settings.wispId };
+  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, wispId: settings.wispId, timeFormat: settings.timeFormat };
   settings = Object.assign({}, settings, THEMES[name], keep, { theme: name });
   const editor = document.getElementById("customColorCard");
   if (editor) editor.classList.remove("open", "force-open");
@@ -1417,13 +1433,13 @@ async function setTransport(kind) {
   settings.transport = kind === "libcurl" ? "libcurl" : "epoxy";
   save(); highlightTheme();
   const st1 = document.getElementById("engineStatus");
-  if (st1) st1.textContent = "Switching engine…";
+  if (st1) st1.textContent = "Switching engine...";
   try {
     await applyMuxTransport();
     if (st1) st1.textContent = engineStatusReady();
   } catch (e) {
     console.warn(e);
-    if (st1) st1.textContent = "Engine switch failed — try the other one";
+    if (st1) st1.textContent = "Engine switch failed - try the other one";
   }
 }
 
@@ -1434,7 +1450,7 @@ function isTypingTarget(el) {
 }
 document.getElementById("bindPanic").onclick = () => {
   bindingPanic = true;
-  document.getElementById("panicKey").value = "Press any key…";
+  document.getElementById("panicKey").value = "Press any key...";
   document.getElementById("panicKey").focus();
 };
 document.getElementById("unbindPanic").onclick = () => {
@@ -1472,7 +1488,7 @@ function isInsideAboutBlank() {
       try {
         if (String(window.parent.location.href || "").startsWith("about:")) return true;
       } catch {
-        // cross-origin parent — if we were opened with ?ab=1 we're already covered
+        // cross-origin parent - if we were opened with ?ab=1 we're already covered
       }
     }
   } catch {}
@@ -1487,18 +1503,26 @@ function markAboutBlankSession() {
   } catch {}
 }
 
-/** RetroPixel-style about:blank shell — full viewport, no scrollbar, school-filter friendly */
+/** RetroPixel-style about:blank shell - full viewport, no scrollbar, school-filter friendly */
 function openAboutBlank(kind) {
   if (isInsideAboutBlank()) {
-    console.info("[veil] already inside about:blank — skip");
+    console.info("[veil] already inside about:blank - skip");
     return;
   }
   const appUrl = location.origin + REPO_PATH + (REPO_PATH.endsWith("/") ? "" : "/") + "?ab=1";
+  const abTitle = (cloak && cloak.title) ? cloak.title : "Veil";
+  let abIcon = (cloak && cloak.icon) ? cloak.icon : FAVI;
+  if (abIcon && abIcon.startsWith("/") && !abIcon.startsWith("//")) {
+    abIcon = location.origin + abIcon;
+  } else if (abIcon && !/^https?:\/\//i.test(abIcon) && !abIcon.startsWith("data:")) {
+    abIcon = location.origin + REPO_PATH + abIcon.replace(/^\.\//, "");
+  }
   const shell = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8" />
-<title> </title>
+<title>${abTitle.replace(/</g, "")}</title>
+<link rel="icon" href="${abIcon.replace(/"/g, "")}">
 <style>
 html, body {
   margin: 0; padding: 0; width: 100%; height: 100%;
@@ -1524,7 +1548,7 @@ iframe {
     w = window.open("about:blank");
   }
   if (!w) {
-    alert("Popup blocked — allow popups for this site.");
+    alert("Popup blocked - allow popups for this site.");
     return;
   }
   try {
@@ -1605,6 +1629,10 @@ on("lockUnloadSwitch", () => {
   settings.lockUnload = !settings.lockUnload;
   save(); highlightTheme();
 });
+on("time24Switch", () => {
+  settings.timeFormat = settings.timeFormat === "24" ? "12" : "24";
+  save(); highlightTheme(); startWelcomeClock();
+});
 const animStyle = document.getElementById("animStyle");
 if (animStyle) animStyle.addEventListener("change", () => {
   settings.animStyle = animStyle.value; save(); refreshHomeFxAll();
@@ -1614,7 +1642,7 @@ if (animSpeed) {
   animSpeed.addEventListener("input", () => {
     settings.animSpeed = Number(animSpeed.value) || 1;
     const v = document.getElementById("animSpeedVal");
-    if (v) v.textContent = Number(settings.animSpeed).toFixed(2) + "×";
+    if (v) v.textContent = Number(settings.animSpeed).toFixed(2) + "x";
   });
   animSpeed.addEventListener("change", () => {
     settings.animSpeed = Number(animSpeed.value) || 1;
@@ -1638,7 +1666,7 @@ if (animSize) {
   animSize.addEventListener("input", () => {
     settings.animSize = Number(animSize.value) || 1;
     const v = document.getElementById("animSizeVal");
-    if (v) v.textContent = Number(settings.animSize).toFixed(2) + "×";
+    if (v) v.textContent = Number(settings.animSize).toFixed(2) + "x";
   });
   animSize.addEventListener("change", () => {
     settings.animSize = Number(animSize.value) || 1;
@@ -1648,7 +1676,7 @@ if (animSize) {
 document.getElementById("addCustomServer")?.addEventListener("click", () => {
   const name = (document.getElementById("customServerName")?.value || "").trim() || "Custom";
   let url = (document.getElementById("customServerUrl")?.value || "").trim();
-  if (!url) { alert("Enter a server address (wss://…)"); return; }
+  if (!url) { alert("Enter a server address (wss://...)"); return; }
   url = url.replace(/^https:\/\//i, "wss://").replace(/^http:\/\//i, "ws://");
   if (!/^wss?:\/\//i.test(url)) url = "wss://" + url;
   if (!url.endsWith("/")) url += "/";
