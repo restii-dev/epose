@@ -747,20 +747,6 @@ function showActiveOnly() {
     page.classList.toggle("active", active);
     page.style.display = active ? "block" : "none";
 
-    // Home animations only run on the active Veil tab
-    if (tab.newTab) {
-      if (active && settings.animEnabled) {
-        if (!homeFxLoops.get(page)) setupHomeFx(page);
-      } else {
-        stopHomeFx(page);
-      }
-      const vid = page.querySelector("video.newtab-media");
-      if (vid) {
-        if (active) vid.play().catch(() => {});
-        else vid.pause();
-      }
-    }
-
     if (!keep.has(tab.id) && tab.engineFrame) {
       try {
         const f = tab.engineFrame.element || tab.engineFrame.frame;
