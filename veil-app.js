@@ -18,8 +18,9 @@ const BAREMUX_SCRIPT = REPO_PATH + "baremux/index.js";
 const BAREMUX_WORKER = REPO_PATH + "baremux/worker.js";
 const EPOXY_MODULE = REPO_PATH + "epoxy/index.mjs";
 const LIBCURL_MODULE = REPO_PATH + "libcurl/indexmjs.mjs";
-const DEFAULT_WISP = "wss://wisp-backend-weyl.onrender.com/";
+const DEFAULT_WISP = "wss://wisp-backend-weyl.onrender.com";
 const MAX_TABS = 20;
+const SW_SCOPE = REPO_PATH || "/";
 
 const WISP_PRESETS = [
   { id: "default", name: "Default (Render)", url: DEFAULT_WISP },
@@ -49,13 +50,6 @@ function loadScript(src) {
   });
 }
 
-/** Libcurl requires a trailing slash on the Wisp URL. */
-function normalizeWispUrl(url) {
-  const u = String(url || "").trim();
-  if (!u) return DEFAULT_WISP;
-  return u.endsWith("/") ? u : u + "/";
-}
-
 function currentWisp() {
   let url;
   if (settings.wispId === "custom" && settings.wispCustom) url = settings.wispCustom.trim();
@@ -63,7 +57,10 @@ function currentWisp() {
     const preset = WISP_PRESETS.find((w) => w.id === settings.wispId);
     url = (preset && preset.url) || DEFAULT_WISP;
   }
-  return normalizeWispUrl(url);
+  url = String(url || DEFAULT_WISP).trim() || DEFAULT_WISP;
+  // Libcurl is picky about trailing slash; epoxy is fine either way
+  if (settings.transport === "libcurl" && !url.endsWith("/")) url += "/";
+  return url;
 }
 
 function transportModule() {
@@ -72,69 +69,74 @@ function transportModule() {
 
 async function applyMuxTransport() {
   if (!muxConnection) muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
-  await muxConnection.setTransport(transportModule(), [{ wisp: currentWisp() }]);
+  try {
+    await muxConnection.setTransport(transportModule(), [{ wisp: currentWisp() }]);
+  } catch (err) {
+    console.warn("[veil] preferred transport failed, trying fallback", err);
+    const fallback = settings.transport === "libcurl" ? EPOXY_MODULE : LIBCURL_MODULE;
+    let wisp = currentWisp();
+    if (fallback === LIBCURL_MODULE && !wisp.endsWith("/")) wisp += "/";
+    await muxConnection.setTransport(fallback, [{ wisp }]);
+  }
 }
 
-/** Wipe a broken/empty $scramjet IndexedDB so init can recreate stores. */
-function deleteScramjetDB() {
-  return new Promise((resolve) => {
-    try {
-      const req = indexedDB.deleteDatabase("$scramjet");
-      const done = () => resolve(true);
-      req.onsuccess = done;
-      req.onerror = done;
-      req.onblocked = done;
-      setTimeout(done, 1500);
-    } catch {
-      resolve(false);
-    }
+/** Same as working testprox: only delete $scramjet if it has zero object stores. */
+async function ensureScramjetDB() {
+  const dbs = (await indexedDB.databases?.()) ?? [];
+  const existing = dbs.find((d) => d && d.name === "$scramjet");
+  if (!existing) return;
+
+  const stores = await new Promise((resolve) => {
+    const req = indexedDB.open("$scramjet");
+    req.onsuccess = () => {
+      try {
+        const db = req.result;
+        const names = [...db.objectStoreNames];
+        db.close();
+        resolve(names);
+      } catch {
+        resolve([]);
+      }
+    };
+    req.onerror = () => resolve([]);
   });
+
+  if (stores.length > 0) return; // healthy
+
+  await Promise.race([
+    new Promise((resolve) => {
+      const del = indexedDB.deleteDatabase("$scramjet");
+      del.onsuccess = del.onerror = del.onblocked = () => resolve();
+    }),
+    new Promise((r) => setTimeout(r, 1500)),
+  ]);
 }
 
-async function createController() {
+function buildController() {
   if (typeof window.$scramjetLoadController === "function") {
     const loaded = window.$scramjetLoadController();
     const Controller = loaded && loaded.ScramjetController;
     if (!Controller) throw new Error("ScramjetController not found.");
-    engineController = new Controller({ files: SCRAMJET_FILES, prefix: SCRAMJET_PREFIX });
-  } else if (typeof window.ScramjetController === "function") {
-    engineController = new window.ScramjetController({ files: SCRAMJET_FILES, prefix: SCRAMJET_PREFIX });
-  } else {
-    throw new Error("Scramjet controller unavailable.");
+    return new Controller({
+      prefix: SCRAMJET_PREFIX,
+      files: SCRAMJET_FILES,
+      flags: { captureErrors: true, strictRewrites: true, rewriterLogs: false }
+    });
   }
-  if (typeof engineController.init === "function") {
-    try {
-      await engineController.init();
-    } catch (err) {
-      const msg = String(err && err.message || err);
-      if (/object stores was not found|NotFoundError|IDBDatabase|Failed to execute 'transaction'/i.test(msg)) {
-        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-          navigator.serviceWorker.controller.postMessage({ type: "veil-reset-db" });
-        }
-        await deleteScramjetDB();
-        await new Promise((r) => setTimeout(r, 300));
-        await engineController.init();
-      } else {
-        throw err;
-      }
-    }
+  if (typeof window.ScramjetController === "function") {
+    return new window.ScramjetController({
+      prefix: SCRAMJET_PREFIX,
+      files: SCRAMJET_FILES,
+      flags: { captureErrors: true, strictRewrites: true, rewriterLogs: false }
+    });
   }
+  throw new Error("Scramjet controller unavailable — load scramjet.all.js first.");
 }
 
-async function registerServiceWorker() {
-  // Wipe corrupt DB *before* the SW opens it
-  await deleteScramjetDB();
-  const reg = await navigator.serviceWorker.register(REPO_PATH + "sw.js?v=3", {
-    scope: SCRAMJET_PREFIX,
-    updateViaCache: "none"
-  });
-  try { await reg.update(); } catch {}
-  await navigator.serviceWorker.ready;
-  if (reg.active) {
-    reg.active.postMessage({ type: "veil-reset-db" });
-  }
-}
-
+/**
+ * Init order matches working testprox:
+ * 1) ensureScramjetDB  2) controller.init  3) register SW (site scope)  4) transport
+ */
 async function initEngine() {
   if (engineInitPromise) return engineInitPromise;
   engineInitPromise = (async () => {
@@ -144,24 +146,50 @@ async function initEngine() {
       if (!window.$scramjetLoadController && !window.ScramjetController) {
         await loadScript(SCRAMJET_FILES.all);
       }
-      if (!("serviceWorker" in navigator)) throw new Error("Service workers unavailable.");
       if (!window.BareMux) throw new Error("BareMux did not load.");
+      if (!("serviceWorker" in navigator)) throw new Error("Service workers unavailable.");
 
-      if (status) status.textContent = "Resetting Scramjet DB…";
-      await registerServiceWorker();
+      if (status) status.textContent = "Checking Scramjet DB…";
+      try {
+        await ensureScramjetDB();
+      } catch (err) {
+        console.warn("DB check failed", err);
+      }
+
+      if (status) status.textContent = "Starting Scramjet…";
+      engineController = buildController();
+      try {
+        if (typeof engineController.init === "function") await engineController.init();
+      } catch (err) {
+        const msg = String(err && err.message || err);
+        if (/object stores|IDBDatabase|NotFoundError|transaction/i.test(msg)) {
+          console.warn("IDB error, force-clear and retry");
+          try { indexedDB.deleteDatabase("$scramjet"); } catch {}
+          await new Promise((r) => setTimeout(r, 400));
+          if (typeof engineController.init === "function") await engineController.init();
+        } else {
+          throw err;
+        }
+      }
+
+      if (status) status.textContent = "Registering service worker…";
+      await navigator.serviceWorker.register(REPO_PATH + "sw.js", {
+        scope: SW_SCOPE,
+        updateViaCache: "none"
+      });
+      await navigator.serviceWorker.ready;
 
       if (status) status.textContent = "Connecting transport…";
       await applyMuxTransport();
 
-      if (status) status.textContent = "Starting controller…";
-      await createController();
-
       engineReady = true;
-      status.textContent = "Ready • " + (settings.transport === "libcurl" ? "Libcurl" : "Epoxy") + " • " + currentWisp();
+      if (status) {
+        status.textContent = "Ready • " + (settings.transport === "libcurl" ? "Libcurl" : "Epoxy") + " • " + currentWisp();
+      }
       return true;
     } catch (error) {
       console.error(error);
-      status.textContent = "Engine error • " + (error.message || "check scramjet/baremux/libcurl files");
+      if (status) status.textContent = "Engine error • " + (error.message || "check scramjet/baremux files");
       engineInitPromise = null;
       engineReady = false;
       engineController = null;
