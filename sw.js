@@ -1,4 +1,4 @@
-// sw.js — aligned with working testprox + config guard
+// sw.js — loadConfig must come from IndexedDB so Scramjet sets internal $W.prefix
 const BASE = (() => {
   let p = self.location.pathname.replace(/\/?sw\.js$/i, "");
   if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
@@ -15,14 +15,16 @@ const ORIGIN = self.location.origin;
 
 let AD_BLOCK_ENABLED = true;
 
-self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener("install", (e) => {
+  self.skipWaiting();
+});
+self.addEventListener("activate", (e) => {
+  e.waitUntil(self.clients.claim());
+});
 self.addEventListener("message", (e) => {
   const d = e.data || {};
   if (d.type === "veil-adblock") AD_BLOCK_ENABLED = !!d.enabled;
-  if (d.scramjet$type === "loadConfig" && d.config) {
-    scramjet.config = d.config;
-  }
+  // Do NOT assign scramjet.config here — that skips $W init and breaks fetch().prefix
 });
 
 function isStaticAsset(path) {
@@ -82,18 +84,19 @@ function isAdUrl(href) {
   } catch { return false; }
 }
 
+/**
+ * Force IDB path every time so Scramjet's loadConfig runs Nk() and sets $W.prefix.
+ * Setting this.config manually breaks fetch (route sees prefix, $W does not).
+ */
 async function ensureConfig() {
+  try {
+    scramjet.config = undefined;
+  } catch {}
   try {
     await scramjet.loadConfig();
   } catch (e) {
-    console.warn("[SW] loadConfig", e);
+    console.warn("[SW] loadConfig failed", e);
   }
-  if (scramjet.config && scramjet.config.prefix) return true;
-  // brief retry (IDB race on first navigation)
-  await new Promise((r) => setTimeout(r, 80));
-  try {
-    await scramjet.loadConfig();
-  } catch {}
   return !!(scramjet.config && scramjet.config.prefix);
 }
 
@@ -125,11 +128,10 @@ self.addEventListener("fetch", (event) => {
 
       const ok = await ensureConfig();
       if (!ok) {
-        // avoid GitHub Pages 404 HTML for /service/… — empty response is cleaner
         if (url.pathname.startsWith(PROXY_PREFIX)) {
-          return new Response("Proxy not ready — refresh once.", {
+          return new Response("Proxy config missing — hard refresh once.", {
             status: 503,
-            headers: { "Content-Type": "text/plain" }
+            headers: { "Content-Type": "text/plain; charset=utf-8" }
           });
         }
         return fetch(event.request);

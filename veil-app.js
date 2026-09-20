@@ -39,7 +39,7 @@ const WISP_BUILTIN = [
   { id: "va2", name: "Virginia Server 2", url: "wss://serv-2-va.onrender.com/" },
   { id: "oh3", name: "Ohio Server 3", url: "wss://serv-3-oh.onrender.com/" },
   { id: "or4", name: "Oregon Server 4", url: "wss://serv-4-or.onrender.com/" },
-  { id: "s5", name: "Server 5", url: "wss://anura.pro/" }
+  { id: "s5", name: "Anura Server", url: "wss://anura.pro/" }
 ];
 
 function allWispServers() {
@@ -189,6 +189,30 @@ async function initEngine() {
       } catch (e) {
         console.warn("second init", e);
       }
+
+      // Confirm config landed in IndexedDB (SW reads this for $W.prefix)
+      const hasCfg = await new Promise((resolve) => {
+        try {
+          const req = indexedDB.open("$scramjet");
+          req.onerror = () => resolve(false);
+          req.onsuccess = () => {
+            const db = req.result;
+            try {
+              if (![...db.objectStoreNames].includes("config")) { db.close(); resolve(false); return; }
+              const g = db.transaction("config").objectStore("config").get("config");
+              g.onsuccess = () => { const v = g.result; db.close(); resolve(!!(v && v.prefix)); };
+              g.onerror = () => { db.close(); resolve(false); };
+            } catch { try { db.close(); } catch {} resolve(false); }
+          };
+        } catch { resolve(false); }
+      });
+      if (!hasCfg) {
+        console.warn("[veil] Scramjet config missing from IDB — clearing and re-init");
+        try { indexedDB.deleteDatabase("$scramjet"); } catch {}
+        await new Promise((r) => setTimeout(r, 300));
+        await engineController.init();
+      }
+      console.info("[veil] Scramjet IDB config OK, prefix=", SCRAMJET_PREFIX);
 
       if (status) status.textContent = "Connecting transport…";
       muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
@@ -1040,13 +1064,14 @@ function setupHomeFx(wrapper) {
   if (style === "stars") n = Math.max(n, 30);
   state.shooters = [];
   for (let i = 0; i < n; i++) {
+    const isStars = style === "stars";
     state.particles.push({
       x: Math.random(), y: Math.random(),
-      r: (0.015 + Math.random() * 0.07) * sizeMul,
-      vx: (Math.random() - 0.5) * 0.0004,
-      vy: (Math.random() - 0.5) * 0.00035,
+      r: isStars ? (0.4 + Math.random() * 1.6) : ((0.015 + Math.random() * 0.07) * sizeMul),
+      vx: isStars ? 0 : (Math.random() - 0.5) * 0.0004,
+      vy: isStars ? 0 : (Math.random() - 0.5) * 0.00035,
       phase: Math.random() * Math.PI * 2,
-      tw: Math.random()
+      tw: Math.random() * Math.PI * 2
     });
   }
   const draw = () => {
@@ -1077,6 +1102,48 @@ function setupHomeFx(wrapper) {
         ctx.closePath();
         ctx.fill();
       }
+    } else if (style === "stars") {
+      // Fixed night-sky stars (stay in place) + rare shooting stars
+      const pts = state.particles;
+      if (!state.shooters) state.shooters = [];
+      pts.forEach((p) => {
+        p.tw += (0.018 + (p.phase % 1) * 0.025) * speed;
+        const alpha = 0.1 + Math.pow(Math.abs(Math.sin(p.tw)), 2.2) * 0.9;
+        const rad = Math.max(0.7, p.r * (0.8 + sizeMul * 0.5) * (window.devicePixelRatio || 1));
+        const col = ((p.phase * 7) % 2 > 1) ? a : b;
+        ctx.fillStyle = "rgba(" + col.r + "," + col.g + "," + col.b + "," + alpha + ")";
+        ctx.beginPath();
+        ctx.arc(p.x * w, p.y * h, rad, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      if (Math.random() < 0.01 * speed && state.shooters.length < 2) {
+        state.shooters.push({
+          x: Math.random() * 0.85,
+          y: Math.random() * 0.25,
+          vx: 0.012 + Math.random() * 0.016,
+          vy: 0.007 + Math.random() * 0.012,
+          life: 1,
+          len: 12 + Math.random() * 18
+        });
+      }
+      state.shooters = state.shooters.filter((s) => s.life > 0 && s.x < 1.15 && s.y < 1.15);
+      state.shooters.forEach((s) => {
+        s.x += s.vx * speed;
+        s.y += s.vy * speed;
+        s.life -= 0.015 * speed;
+        const x1 = s.x * w, y1 = s.y * h;
+        const x0 = (s.x - s.vx * s.len) * w, y0 = (s.y - s.vy * s.len) * h;
+        const grd = ctx.createLinearGradient(x1, y1, x0, y0);
+        grd.addColorStop(0, "rgba(" + b.r + "," + b.g + "," + b.b + "," + (0.95 * s.life) + ")");
+        grd.addColorStop(1, "rgba(" + a.r + "," + a.g + "," + a.b + ",0)");
+        ctx.strokeStyle = grd;
+        ctx.lineWidth = Math.max(1, 1.4 * sizeMul * (window.devicePixelRatio || 1));
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x0, y0);
+        ctx.stroke();
+      });
     } else if (style === "constellation") {
       const pts = state.particles;
       pts.forEach((p) => {
