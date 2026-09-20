@@ -407,10 +407,35 @@ function applyCSSVariables() {
   ["bg", "bg2", "bg3", "panel", "panel2", "border", "text", "muted", "accent", "accentText", "newtab"]
     .forEach(k => root.style.setProperty("--" + k, settings[k]));
 }
+function isVideoUrl(url) {
+  return /\.(mp4|webm|ogg)(\?|#|$)/i.test(url || "");
+}
+
 function applyNewTabBackground() {
-  document.querySelectorAll(".newtab-page").forEach(el => {
-    el.style.backgroundImage = settings.backgroundUrl
-      ? 'url("' + settings.backgroundUrl.replace(/"/g, "%22") + '")' : "none";
+  const url = (settings.backgroundUrl || "").trim();
+  document.querySelectorAll(".newtab-page").forEach((el) => {
+    el.querySelectorAll(".newtab-media, .newtab-media-img").forEach((n) => n.remove());
+    el.style.backgroundImage = "none";
+    if (!url) return;
+    if (isVideoUrl(url)) {
+      const v = document.createElement("video");
+      v.className = "newtab-media";
+      v.src = url;
+      v.autoplay = true;
+      v.loop = true;
+      v.muted = true;
+      v.playsInline = true;
+      v.setAttribute("playsinline", "");
+      el.insertBefore(v, el.firstChild);
+      v.play().catch(() => {});
+    } else {
+      // images, gif, webp, etc.
+      const img = document.createElement("img");
+      img.className = "newtab-media-img";
+      img.src = url;
+      img.alt = "";
+      el.insertBefore(img, el.firstChild);
+    }
   });
 }
 
@@ -557,9 +582,9 @@ function renderTabs() {
     '<div class="tab ' + (tab.id === activeTabId ? "active " : "") + (tab.animOpen ? "opening" : "") + '" data-tab-id="' + tab.id + '">' +
     '<div class="tab-icon"><img src="' + escapeHTML(tab.favicon || FAVI) + '" alt=""></div>' +
     '<div class="tab-title">' + escapeHTML(tab.title) + '</div>' +
-    '<button class="tab-close" data-close="' + tab.id + '" aria-label="Close">x</button></div>'
+    '<button class="tab-close" data-close="' + tab.id + '" aria-label="Close"><img src="' + IMG + 'exit.svg" alt=""></button></div>'
   ).join("");
-  c.innerHTML = tabsHtml + '<button class="new-tab" id="newTabBtn" type="button" aria-label="New tab">+</button>';
+  c.innerHTML = tabsHtml + '<button class="new-tab" id="newTabBtn" type="button" aria-label="New tab"><img src="' + IMG + 'plus.svg" alt=""></button>';
   tabs.forEach(t => { t.animOpen = false; });
   c.querySelectorAll(".tab").forEach(el => {
     el.addEventListener("click", e => {
@@ -721,6 +746,20 @@ function showActiveOnly() {
     const active = tab.id === activeTabId;
     page.classList.toggle("active", active);
     page.style.display = active ? "block" : "none";
+
+    // Home animations only run on the active Veil tab
+    if (tab.newTab) {
+      if (active && settings.animEnabled) {
+        if (!homeFxLoops.get(page)) setupHomeFx(page);
+      } else {
+        stopHomeFx(page);
+      }
+      const vid = page.querySelector("video.newtab-media");
+      if (vid) {
+        if (active) vid.play().catch(() => {});
+        else vid.pause();
+      }
+    }
 
     if (!keep.has(tab.id) && tab.engineFrame) {
       try {
@@ -1106,8 +1145,9 @@ function setupHomeFx(wrapper) {
   let n = Number(settings.animCount);
   if (!Number.isFinite(n)) n = 18;
   n = Math.max(4, Math.min(80, Math.round(n)));
-  if (style === "aurora") n = Math.min(n, 10);
+  if (style === "pulse") n = Math.min(n, 12);
   if (style === "stars") n = Math.max(n, 30);
+  if (style === "waves") n = Math.min(n, 8);
   state.shooters = [];
   for (let i = 0; i < n; i++) {
     const isStars = style === "stars";
@@ -1128,25 +1168,31 @@ function setupHomeFx(wrapper) {
     ctx.clearRect(0, 0, w, h);
     const a = hexToRgb(settings.animColorA);
     const b = hexToRgb(settings.animColorB);
-    if (style === "aurora") {
-      for (let i = 0; i < state.particles.length; i++) {
-        const p = state.particles[i];
-        const y = (0.2 + i * 0.12 + Math.sin(state.t * 0.6 + p.phase) * 0.08) * h;
-        const grd = ctx.createLinearGradient(0, y, w, y + 40);
-        grd.addColorStop(0, "rgba(" + a.r + "," + a.g + "," + a.b + ",0)");
-        grd.addColorStop(0.5, "rgba(" + a.r + "," + a.g + "," + a.b + ",0.18)");
-        grd.addColorStop(1, "rgba(" + b.r + "," + b.g + "," + b.b + ",0)");
-        ctx.fillStyle = grd;
+    if (style === "waves") {
+      for (let i = 0; i < 5; i++) {
+        const y = (0.25 + i * 0.12) * h;
+        const amp = (12 + i * 6) * sizeMul;
         ctx.beginPath();
-        ctx.moveTo(0, y);
-        for (let x = 0; x <= w; x += 24) {
-          const yy = y + Math.sin(state.t + x * 0.004 + p.phase) * (18 + i * 4);
-          ctx.lineTo(x, yy);
+        for (let x = 0; x <= w; x += 8) {
+          const yy = y + Math.sin(state.t * (0.8 + i * 0.15) + x * 0.008 + i) * amp;
+          if (x === 0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
         }
-        ctx.lineTo(w, y + 80);
-        ctx.lineTo(0, y + 80);
-        ctx.closePath();
-        ctx.fill();
+        ctx.strokeStyle = "rgba(" + (i % 2 ? a.r : b.r) + "," + (i % 2 ? a.g : b.g) + "," + (i % 2 ? a.b : b.b) + "," + (0.2 - i * 0.02) + ")";
+        ctx.lineWidth = (2 + sizeMul) * (window.devicePixelRatio || 1);
+        ctx.stroke();
+      }
+    } else if (style === "pulse") {
+      const cx = w * 0.5, cy = h * 0.42;
+      const maxR = Math.min(w, h) * 0.45 * sizeMul;
+      for (let i = 0; i < Math.min(n, 8); i++) {
+        const p = (state.t * 0.35 + i / 8) % 1;
+        const rad = p * maxR;
+        const alpha = (1 - p) * 0.35;
+        ctx.strokeStyle = "rgba(" + a.r + "," + a.g + "," + a.b + "," + alpha + ")";
+        ctx.lineWidth = 2 * (window.devicePixelRatio || 1);
+        ctx.beginPath();
+        ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+        ctx.stroke();
       }
     } else if (style === "stars") {
       // Fixed night-sky stars (stay in place) + rare shooting stars
