@@ -16,8 +16,15 @@ const scramjet = new ScramjetServiceWorker();
 const PROXY_PREFIX = BASE + "/service/";
 const ORIGIN = self.location.origin;
 
+let AD_BLOCK_ENABLED = true;
+
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener("message", (e) => {
+  if (e.data && e.data.type === "veil-adblock") {
+    AD_BLOCK_ENABLED = !!e.data.enabled;
+  }
+});
 
 function isStaticAsset(path) {
   if (path === BASE + "/sw.js" || path === "/sw.js") return true;
@@ -74,6 +81,25 @@ function unwrapDoubleProxy(pathname) {
   return null;
 }
 
+
+const AD_HOSTS = [
+  "doubleclick.net", "googleadservices.com", "googlesyndication.com",
+  "googletagmanager.com", "adservice.google.com", "pagead2.googlesyndication.com",
+  "amazon-adsystem.com", "adnxs.com", "adsrvr.org", "scorecardresearch.com",
+  "facebook.net", "connect.facebook.net", "ads-twitter.com", "taboola.com",
+  "outbrain.com", "criteo.com", "moatads.com", "openx.net", "pubmatic.com"
+];
+
+function isAdUrl(href) {
+  if (!AD_BLOCK_ENABLED) return false;
+  try {
+    const host = new URL(href).hostname.replace(/^www\./, "");
+    return AD_HOSTS.some((h) => host === h || host.endsWith("." + h));
+  } catch {
+    return false;
+  }
+}
+
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
 
@@ -92,6 +118,15 @@ self.addEventListener("fetch", (event) => {
           if (clean !== url.href && !url.href.includes(encodeURIComponent(unwrapped))) {
             console.warn("[SW] unwrapped double-proxy →", unwrapped);
             return Response.redirect(clean, 302);
+          }
+        }
+
+        // ad block on proxied absolute URLs
+        if (url.pathname.startsWith(PROXY_PREFIX)) {
+          let rest = url.pathname.slice(PROXY_PREFIX.length);
+          try { rest = decodeURIComponent(rest); } catch {}
+          if ((rest.startsWith("http://") || rest.startsWith("https://")) && isAdUrl(rest)) {
+            return new Response("", { status: 204 });
           }
         }
 

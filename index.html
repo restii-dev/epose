@@ -18,10 +18,10 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 
 #browser{display:flex;flex-direction:column;width:100%;height:100%;background:var(--bg)}
 .chrome{flex:0 0 auto;background:var(--bg2);border-bottom:1px solid var(--border);z-index:100}
-.tabs-row{height:40px;display:flex;align-items:center;padding:0 8px;gap:4px;overflow:hidden}
+.tabs-row{height:40px;display:flex;align-items:center;padding:0 8px;gap:0;overflow:hidden}
 .tabs{height:100%;display:flex;align-items:center;gap:3px;flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
-.tab{height:32px;flex:0 0 auto;width:180px;min-width:140px;max-width:200px;display:flex;align-items:center;gap:7px;padding:0 6px 0 9px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;user-select:none;overflow:hidden;transform-origin:left center}
+.tab{height:32px;flex:0 0 160px;width:160px;min-width:160px;max-width:160px;display:flex;align-items:center;gap:7px;padding:0 6px 0 9px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;user-select:none;overflow:hidden;transform-origin:left center;flex-shrink:0}
 .tab:hover{background:var(--bg3);color:var(--text)}
 .tab.active{background:var(--panel);color:var(--text)}
 .tab.opening{animation:tabOpen .18s cubic-bezier(.2,.8,.2,1)}
@@ -33,8 +33,19 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .tab-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
 .tab-close{width:20px;height:20px;flex:0 0 20px;border-radius:5px;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px}
 .tab-close:hover{background:var(--panel2);color:var(--text)}
-.new-tab{width:30px;height:30px;flex:0 0 30px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1}
+.new-tab{width:30px;height:30px;flex:0 0 30px;min-width:30px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:20px;line-height:1;padding:0;margin-left:2px;flex-shrink:0}
 .new-tab:hover{background:var(--panel2);color:var(--text)}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal-box{width:min(360px,100%);background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px}
+.modal-box h2{font-size:15px;margin-bottom:8px}
+.modal-box p{font-size:12px;color:var(--muted);margin-bottom:12px}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.modal-cancel,.modal-go{height:34px;padding:0 14px;border-radius:8px;cursor:pointer;font-size:13px}
+.modal-cancel{background:var(--panel2);color:var(--text)}
+.modal-go{background:var(--accent);color:var(--accentText);font-weight:600}
+.range-row{display:flex;align-items:center;gap:12px;margin:8px 0}
+.range-row input[type=range]{flex:1}
+.range-val{min-width:28px;text-align:right;font-size:13px;color:var(--muted)}
 
 .toolbar{height:46px;display:flex;align-items:center;gap:4px;padding:6px 8px;background:var(--panel)}
 .nav-buttons{display:flex;gap:2px;flex:0 0 auto}
@@ -144,7 +155,6 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
   <header class="chrome">
     <div class="tabs-row">
       <div class="tabs" id="tabs"></div>
-      <button class="new-tab" id="newTabBtn" aria-label="New tab">+</button>
     </div>
     <div class="toolbar">
       <div class="nav-buttons">
@@ -168,11 +178,8 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 </div>
 
 <div class="menu" id="mainMenu">
-  <button class="menu-item" id="menuNewTab"><span class="menu-icon">＋</span>New tab</button>
   <button class="menu-item" id="menuBookmarks"><span class="menu-icon">★</span>Bookmarks</button>
   <button class="menu-item" id="menuRename"><span class="menu-icon">✎</span>Rename tab</button>
-  <div class="menu-separator"></div>
-  <button class="menu-item" id="menuAboutBlank"><span class="menu-icon">⬚</span>Launch options</button>
 </div>
 
 <div class="backdrop" id="backdrop"></div>
@@ -237,7 +244,8 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
         <button class="transport-btn" id="launchManual" type="button">Manual</button>
         <button class="transport-btn" id="launchAuto" type="button">Auto on open</button>
       </div>
-      <p class="hint">Manual (default): you choose when to cloak. Auto: open about:blank as soon as Veil loads.</p>
+      <p class="hint">Manual: open from Launch Options. Auto: one about:blank on first open (skips if already inside about:blank — no loop).</p>
+      <button class="primary-btn" id="launchNowBtn" type="button" style="margin-top:8px">Launch options…</button>
     </section>
 
     <section class="setting-section">
@@ -253,8 +261,26 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
         <button class="transport-btn" id="transportEpoxy" type="button">Epoxy</button>
         <button class="transport-btn" id="transportLibcurl" type="button">Libcurl</button>
       </div>
-      <p class="hint">Epoxy is default. Use Libcurl if a site fails. Ad blocker is on in the service worker.</p>
+      <p class="hint">Epoxy is default. Use Libcurl if a site fails.</p>
       <div class="status" id="engineStatus">Initializing browser engine…</div>
+    </section>
+
+    <section class="setting-section">
+      <div class="setting-title">Ad blocker</div>
+      <div class="transport-row">
+        <button class="transport-btn" id="adblockOn" type="button">On</button>
+        <button class="transport-btn" id="adblockOff" type="button">Off</button>
+      </div>
+      <p class="hint">Blocks common ad / tracker hosts in the proxy service worker.</p>
+    </section>
+
+    <section class="setting-section">
+      <div class="setting-title">Loaded tabs at once</div>
+      <div class="range-row">
+        <input type="range" id="maxLoadedTabs" min="1" max="20" step="1" value="8">
+        <span class="range-val" id="maxLoadedTabsVal">8</span>
+      </div>
+      <p class="hint">Only this many tab pages keep a live engine (max 20). Others unload until you switch back — saves RAM.</p>
     </section>
 
     <section class="setting-section">

@@ -229,7 +229,7 @@ const THEMES = {
 
 const DEFAULT_SETTINGS = {
   theme: "matte", transport: "epoxy", wispId: "default", wispCustom: "",
-  launchMode: "manual", backgroundUrl: "", ...THEMES.matte
+  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 8, ...THEMES.matte
 };
 const DEFAULT_PANIC = { key: "", code: "", url: "https://classroom.google.com" };
 
@@ -432,12 +432,13 @@ async function goFrame(page, url) {
 
 function renderTabs() {
   const c = document.getElementById("tabs");
-  c.innerHTML = tabs.map(tab =>
+  const tabsHtml = tabs.map(tab =>
     '<div class="tab ' + (tab.id === activeTabId ? "active " : "") + (tab.animOpen ? "opening" : "") + '" data-tab-id="' + tab.id + '">' +
     '<div class="tab-icon"><img src="' + escapeHTML(tab.favicon || FAVI) + '" alt=""></div>' +
     '<div class="tab-title">' + escapeHTML(tab.title) + '</div>' +
     '<button class="tab-close" data-close="' + tab.id + '" aria-label="Close">×</button></div>'
   ).join("");
+  c.innerHTML = tabsHtml + '<button class="new-tab" id="newTabBtn" type="button" aria-label="New tab">+</button>';
   tabs.forEach(t => { t.animOpen = false; });
   c.querySelectorAll(".tab").forEach(el => {
     el.addEventListener("click", e => {
@@ -448,6 +449,8 @@ function renderTabs() {
   c.querySelectorAll("[data-close]").forEach(btn =>
     btn.addEventListener("click", e => { e.stopPropagation(); closeTab(btn.dataset.close); })
   );
+  const addBtn = document.getElementById("newTabBtn");
+  if (addBtn) addBtn.onclick = () => createTab(true);
   requestAnimationFrame(() => { c.scrollLeft = c.scrollWidth; });
 }
 
@@ -518,15 +521,60 @@ function prunePages() {
   });
 }
 
+function maxLoaded() {
+  const n = Number(settings && settings.maxLoadedTabs);
+  if (!Number.isFinite(n)) return 8;
+  return Math.min(MAX_TABS, Math.max(1, Math.round(n)));
+}
+
 function showActiveOnly() {
-  document.querySelectorAll(".page").forEach(el => {
-    el.classList.toggle("active", el.dataset.pageId === activeTabId);
+  const viewport = document.getElementById("viewport");
+  if (!viewport) return;
+  const limit = maxLoaded();
+  const ranked = tabs.slice().sort((a, b) => {
+    if (a.id === activeTabId) return -1;
+    if (b.id === activeTabId) return 1;
+    return (b.lastActive || 0) - (a.lastActive || 0);
+  });
+  const keep = new Set(ranked.slice(0, limit).map((x) => x.id));
+
+  tabs.forEach((tab) => {
+    const page = viewport.querySelector('.page[data-page-id="' + tab.id + '"]');
+    if (!page) return;
+    const active = tab.id === activeTabId;
+    page.classList.toggle("active", active);
+    page.style.display = active ? "block" : "none";
+
+    if (!keep.has(tab.id) && tab.engineFrame) {
+      try {
+        const f = tab.engineFrame.element || tab.engineFrame.frame;
+        if (f && f.remove) f.remove();
+      } catch {}
+      tab.engineFrame = null;
+      if (!tab.newTab && tab.url) {
+        page.dataset.unloaded = "1";
+      }
+    }
   });
 }
 
 function switchTab(id) {
   activeTabId = id;
+  const tab = getTab(id);
+  if (tab) tab.lastActive = Date.now();
   showActiveOnly();
+  if (tab && !tab.newTab && tab.url && !tab.engineFrame) {
+    const pageEl = document.querySelector('.page[data-page-id="' + tab.id + '"]');
+    if (pageEl) {
+      pageEl.innerHTML = "";
+      pageEl.dataset.unloaded = "0";
+      const frame = document.createElement("div");
+      frame.style.cssText = "width:100%;height:100%";
+      frame.dataset.engineContainer = tab.id;
+      pageEl.appendChild(frame);
+      createEngineFrame(tab, frame);
+    }
+  }
   renderTabs();
   renderToolbar();
 }
@@ -619,7 +667,7 @@ function createTab(newTab) {
   if (tabs.length >= MAX_TABS) return;
   const tab = {
     id: uid(), title: "New Tab", url: "", history: [], historyIndex: -1,
-    newTab: true, engineFrame: null, favicon: FAVI, animOpen: true
+    newTab: true, engineFrame: null, favicon: FAVI, animOpen: true, lastActive: Date.now()
   };
   tabs.push(tab);
   activeTabId = tab.id;
@@ -653,8 +701,36 @@ function closeTab(id) {
 function renameCurrentTab() {
   const p = getActiveTab();
   if (!p) return;
-  const name = prompt("Tab name:", p.title);
-  if (name && name.trim()) { p.title = name.trim(); renderTabs(); }
+  closeMenu();
+  const existing = document.querySelector(".modal-overlay.rename-modal");
+  if (existing) existing.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay rename-modal";
+  overlay.innerHTML =
+    '<div class="modal-box">' +
+    "<h2>Rename tab</h2>" +
+    '<input class="text-input" id="renameInput" maxlength="64" value="' + escapeHTML(p.title || "") + '">' +
+    '<div class="modal-actions">' +
+    '<button class="modal-cancel" type="button">Cancel</button>' +
+    '<button class="modal-go" type="button">Save</button>' +
+    "</div></div>";
+  document.body.appendChild(overlay);
+  const input = overlay.querySelector("#renameInput");
+  input.focus();
+  input.select();
+  const close = () => overlay.remove();
+  overlay.querySelector(".modal-cancel").onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+  const saveName = () => {
+    const name = input.value.trim();
+    if (name) { p.title = name; renderTabs(); }
+    close();
+  };
+  overlay.querySelector(".modal-go").onclick = saveName;
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") saveName();
+    if (e.key === "Escape") close();
+  });
 }
 function goHome() {
   const p = getActiveTab();
@@ -744,11 +820,32 @@ function highlightTheme() {
   document.getElementById("transportLibcurl").classList.toggle("active", settings.transport === "libcurl");
   document.getElementById("launchManual").classList.toggle("active", settings.launchMode !== "auto");
   document.getElementById("launchAuto").classList.toggle("active", settings.launchMode === "auto");
+  const abOn = document.getElementById("adblockOn");
+  const abOff = document.getElementById("adblockOff");
+  if (abOn && abOff) {
+    abOn.classList.toggle("active", settings.adBlocker !== false);
+    abOff.classList.toggle("active", settings.adBlocker === false);
+  }
+  const range = document.getElementById("maxLoadedTabs");
+  const rangeVal = document.getElementById("maxLoadedTabsVal");
+  if (range) {
+    range.value = String(maxLoaded());
+    if (rangeVal) rangeVal.textContent = String(maxLoaded());
+  }
+}
+
+function pushAdblockToSW() {
+  const on = settings.adBlocker !== false;
+  try {
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: "veil-adblock", enabled: on });
+    }
+  } catch {}
 }
 
 function applyTheme(name) {
   if (!THEMES[name]) return;
-  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl };
+  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs };
   settings = Object.assign({}, settings, THEMES[name], keep, { theme: name });
   const editor = document.getElementById("customColorCard");
   if (editor) editor.classList.remove("open", "force-open");
@@ -845,14 +942,81 @@ document.addEventListener("keydown", e => {
   }
 }, true);
 
+function isInsideAboutBlank() {
+  try {
+    if (sessionStorage.getItem("veil_in_ab") === "1") return true;
+  } catch {}
+  try {
+    if (new URLSearchParams(location.search).get("ab") === "1") return true;
+  } catch {}
+  try {
+    if (window.parent && window.parent !== window) {
+      try {
+        if (String(window.parent.location.href || "").startsWith("about:")) return true;
+      } catch {
+        // cross-origin parent — if we were opened with ?ab=1 we're already covered
+      }
+    }
+  } catch {}
+  return false;
+}
+
+function markAboutBlankSession() {
+  try {
+    if (new URLSearchParams(location.search).get("ab") === "1") {
+      sessionStorage.setItem("veil_in_ab", "1");
+    }
+  } catch {}
+}
+
+/** RetroPixel-style about:blank shell — full viewport, no scrollbar, school-filter friendly */
 function openAboutBlank(kind) {
-  const features = kind === "window" ? "popup=yes,width=1280,height=800" : "";
-  const w = window.open("about:blank", "_blank", features);
-  if (!w) { alert("Popup blocked — allow popups for this site."); return; }
-  const appUrl = location.origin + REPO_PATH;
-  w.document.open();
-  w.document.write('<!DOCTYPE html><html><head><title> </title><style>html,body,iframe{margin:0;padding:0;border:0;width:100%;height:100%;background:#111}</style></head><body><iframe src="' + appUrl + '" allow="fullscreen"></iframe></body></html>');
-  w.document.close();
+  if (isInsideAboutBlank()) {
+    console.info("[veil] already inside about:blank — skip");
+    return;
+  }
+  const appUrl = location.origin + REPO_PATH + (REPO_PATH.endsWith("/") ? "" : "/") + "?ab=1";
+  const shell = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title> </title>
+<style>
+html, body {
+  margin: 0; padding: 0; width: 100%; height: 100%;
+  overflow: hidden; background: #000;
+}
+iframe {
+  position: fixed; top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  border: none; margin: 0; padding: 0;
+  display: block; background: #000;
+}
+</style>
+</head>
+<body>
+<iframe src="${appUrl}" allow="fullscreen; clipboard-read; clipboard-write"></iframe>
+</body>
+</html>`;
+
+  let w;
+  if (kind === "window") {
+    w = window.open("", "", "width=1100,height=700,resizable=yes");
+  } else {
+    w = window.open("about:blank");
+  }
+  if (!w) {
+    alert("Popup blocked — allow popups for this site.");
+    return;
+  }
+  try {
+    w.document.open();
+    w.document.write(shell);
+    w.document.close();
+  } catch (err) {
+    console.error(err);
+    alert("Could not write about:blank shell.");
+  }
 }
 
 function openLaunchModal() {
@@ -881,7 +1045,6 @@ function openLaunchModal() {
   };
 }
 
-document.getElementById("newTabBtn").onclick = () => createTab(true);
 document.getElementById("backBtn").onclick = goBack;
 document.getElementById("forwardBtn").onclick = goForward;
 document.getElementById("refreshBtn").onclick = reload;
@@ -890,10 +1053,30 @@ document.getElementById("settingsOpenBtn").onclick = () => openPanel("settingsPa
 document.getElementById("bookmarkBtn").onclick = toggleBookmark;
 document.getElementById("address").addEventListener("keydown", e => { if (e.key === "Enter") navigate(e.target.value); });
 document.getElementById("menuBtn").onclick = e => { e.stopPropagation(); document.getElementById("mainMenu").classList.toggle("open"); };
-document.getElementById("menuNewTab").onclick = () => { closeMenu(); createTab(true); };
-document.getElementById("menuBookmarks").onclick = () => openPanel("bookmarksPanel");
 document.getElementById("menuRename").onclick = () => { closeMenu(); renameCurrentTab(); };
-document.getElementById("menuAboutBlank").onclick = () => openLaunchModal();
+document.getElementById("menuBookmarks").onclick = () => { closeMenu(); openPanel("bookmarksPanel"); };
+const launchNowBtn = document.getElementById("launchNowBtn");
+if (launchNowBtn) launchNowBtn.onclick = () => openLaunchModal();
+document.getElementById("adblockOn").onclick = () => {
+  settings.adBlocker = true; save(); highlightTheme(); pushAdblockToSW();
+};
+document.getElementById("adblockOff").onclick = () => {
+  settings.adBlocker = false; save(); highlightTheme(); pushAdblockToSW();
+};
+const maxRange = document.getElementById("maxLoadedTabs");
+if (maxRange) {
+  maxRange.addEventListener("input", () => {
+    settings.maxLoadedTabs = Number(maxRange.value) || 8;
+    const v = document.getElementById("maxLoadedTabsVal");
+    if (v) v.textContent = String(settings.maxLoadedTabs);
+  });
+  maxRange.addEventListener("change", () => {
+    settings.maxLoadedTabs = Math.min(20, Math.max(1, Number(maxRange.value) || 8));
+    save();
+    highlightTheme();
+    showActiveOnly();
+  });
+}
 document.getElementById("backdrop").onclick = closePanels;
 document.querySelectorAll("[data-close-panel]").forEach(b => b.onclick = closePanels);
 document.querySelectorAll("[data-theme]").forEach(b => b.onclick = () => applyTheme(b.dataset.theme));
@@ -954,10 +1137,18 @@ function showCookieConsent() {
   applyCSSVariables();
   document.title = cloak.title || "Veil";
   document.getElementById("favicon").href = cloak.icon || FAVI;
+  markAboutBlankSession();
   createTab(true);
-  initEngine();
+  initEngine().then(() => pushAdblockToSW());
   if (consent !== "yes") showCookieConsent();
-  if (settings.launchMode === "auto") {
-    setTimeout(() => openAboutBlank("tab"), 400);
+  if (settings.launchMode === "auto" && !isInsideAboutBlank()) {
+    try {
+      if (!sessionStorage.getItem("veil_auto_ab_done")) {
+        sessionStorage.setItem("veil_auto_ab_done", "1");
+        setTimeout(() => openAboutBlank("tab"), 500);
+      }
+    } catch {
+      setTimeout(() => openAboutBlank("tab"), 500);
+    }
   }
 })();
