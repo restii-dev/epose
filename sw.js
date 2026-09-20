@@ -1,25 +1,26 @@
-// sw.js — aligned with working testprox, relative paths for Cloudflare Pages root
+// sw.js — same structure as working testprox
 importScripts("./scramjet/scramjet.all.js");
 
 const { ScramjetServiceWorker } = $scramjetLoadWorker();
 const scramjet = new ScramjetServiceWorker();
 
+// Derive site base from this worker's URL ("" at domain root, "/veil" on project pages)
 const BASE = self.location.pathname.replace(/\/?sw\.js$/i, "").replace(/\/$/, "") || "";
-const PROXY_PREFIX = (BASE ? BASE + "/service/" : "/service/");
+const PROXY_PREFIX = BASE + "/service/";
 const ORIGIN = self.location.origin;
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
 
 function isStaticAsset(path) {
-  if (path === "/sw.js" || path === "/SW.js" || path.endsWith("/sw.js")) return true;
-  if (path === "/" || path === "/index.html" || path === "") return true;
-  if (path === "/veil-app.js" || path.endsWith("/veil-app.js")) return true;
-  if (path.startsWith("/baremux/") || path.includes("/baremux/")) return true;
-  if (path.startsWith("/epoxy/") || path.includes("/epoxy/")) return true;
-  if (path.startsWith("/libcurl/") || path.includes("/libcurl/")) return true;
-  if (path.startsWith("/scramjet/") || path.includes("/scramjet/")) return true;
-  if (path.startsWith("/image/") || path.includes("/image/")) return true;
+  if (path.endsWith("/sw.js") || path === "/sw.js") return true;
+  if (path === BASE + "/" || path === BASE || path === "/" || path.endsWith("/index.html")) return true;
+  if (path.endsWith("/veil-app.js") || path === "/veil-app.js") return true;
+  if (path.includes("/baremux/")) return true;
+  if (path.includes("/epoxy/")) return true;
+  if (path.includes("/libcurl/")) return true;
+  if (path.includes("/scramjet/")) return true;
+  if (path.includes("/image/")) return true;
   if (path.endsWith(".map") || path.endsWith(".png") || path.endsWith(".svg") || path.endsWith(".wasm")) return true;
   return false;
 }
@@ -84,6 +85,12 @@ self.addEventListener("fetch", (event) => {
         }
 
         await scramjet.loadConfig();
+        // Config missing → do not call route/fetch (avoids prefix TypeError)
+        if (!scramjet.config || !scramjet.config.prefix) {
+          console.warn("[SW] Scramjet config not ready yet");
+          return fetch(event.request);
+        }
+
         if (scramjet.route(event)) {
           return await scramjet.fetch(event);
         }

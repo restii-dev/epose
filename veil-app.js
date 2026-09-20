@@ -80,28 +80,45 @@ async function applyMuxTransport() {
   }
 }
 
-/** Same as working testprox: only delete $scramjet if it has zero object stores. */
+/**
+ * testprox-style DB repair, but also verify the "config" key exists with a prefix.
+ * Empty DB or missing config key → delete so init can recreate cleanly.
+ */
 async function ensureScramjetDB() {
   const dbs = (await indexedDB.databases?.()) ?? [];
   const existing = dbs.find((d) => d && d.name === "$scramjet");
   if (!existing) return;
 
-  const stores = await new Promise((resolve) => {
+  const healthy = await new Promise((resolve) => {
     const req = indexedDB.open("$scramjet");
+    req.onerror = () => resolve(false);
     req.onsuccess = () => {
+      const db = req.result;
       try {
-        const db = req.result;
-        const names = [...db.objectStoreNames];
-        db.close();
-        resolve(names);
+        if (![...db.objectStoreNames].includes("config")) {
+          db.close();
+          resolve(false);
+          return;
+        }
+        const tx = db.transaction("config", "readonly");
+        const g = tx.objectStore("config").get("config");
+        g.onsuccess = () => {
+          const val = g.result;
+          db.close();
+          resolve(!!(val && val.prefix));
+        };
+        g.onerror = () => {
+          try { db.close(); } catch {}
+          resolve(false);
+        };
       } catch {
-        resolve([]);
+        try { db.close(); } catch {}
+        resolve(false);
       }
     };
-    req.onerror = () => resolve([]);
   });
 
-  if (stores.length > 0) return; // healthy
+  if (healthy) return;
 
   await Promise.race([
     new Promise((resolve) => {
@@ -133,9 +150,26 @@ function buildController() {
   throw new Error("Scramjet controller unavailable — load scramjet.all.js first.");
 }
 
+async function runControllerInit() {
+  try {
+    await engineController.init();
+  } catch (err) {
+    const msg = String(err && err.message || err);
+    if (/object stores|IDBDatabase|NotFoundError|transaction/i.test(msg)) {
+      console.warn("IDB error, force-clear and retry");
+      try { indexedDB.deleteDatabase("$scramjet"); } catch {}
+      await new Promise((r) => setTimeout(r, 400));
+      await engineController.init();
+    } else {
+      throw err;
+    }
+  }
+}
+
 /**
- * Init order matches working testprox:
- * 1) ensureScramjetDB  2) controller.init  3) register SW (site scope)  4) transport
+ * testprox order + one extra init after SW is ready.
+ * Scramjet init() only postMessages config to an *active* SW controller;
+ * first init writes IndexedDB, second init pushes config into the live SW.
  */
 async function initEngine() {
   if (engineInitPromise) return engineInitPromise;
@@ -158,26 +192,21 @@ async function initEngine() {
 
       if (status) status.textContent = "Starting Scramjet…";
       engineController = buildController();
-      try {
-        if (typeof engineController.init === "function") await engineController.init();
-      } catch (err) {
-        const msg = String(err && err.message || err);
-        if (/object stores|IDBDatabase|NotFoundError|transaction/i.test(msg)) {
-          console.warn("IDB error, force-clear and retry");
-          try { indexedDB.deleteDatabase("$scramjet"); } catch {}
-          await new Promise((r) => setTimeout(r, 400));
-          if (typeof engineController.init === "function") await engineController.init();
-        } else {
-          throw err;
-        }
-      }
+      await runControllerInit();
 
       if (status) status.textContent = "Registering service worker…";
-      await navigator.serviceWorker.register(REPO_PATH + "sw.js", {
+      const reg = await navigator.serviceWorker.register(REPO_PATH + "sw.js", {
         scope: SW_SCOPE,
         updateViaCache: "none"
       });
       await navigator.serviceWorker.ready;
+      if (!navigator.serviceWorker.controller && reg.active) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      // Second init: push config into the now-active SW via postMessage
+      if (status) status.textContent = "Syncing Scramjet config…";
+      await runControllerInit();
 
       if (status) status.textContent = "Connecting transport…";
       await applyMuxTransport();
