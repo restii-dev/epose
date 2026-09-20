@@ -13,15 +13,21 @@ const REPO_PATH = BASE ? BASE + "/" : "/";
 const IMG = REPO_PATH + "image/";
 const FAVI = IMG + "favi.png";
 const SCRAMJET_PREFIX = BASE + "/service/";
+function absPath(p) {
+  if (!p) return p;
+  if (/^https?:\/\//i.test(p)) return p;
+  const path = p.startsWith("/") ? p : "/" + p;
+  return location.origin + path;
+}
 const SCRAMJET_FILES = {
-  all: BASE + "/scramjet/scramjet.all.js",
-  sync: BASE + "/scramjet/scramjet.sync.js",
-  wasm: BASE + "/scramjet/scramjet.wasm.wasm"
+  all: absPath(BASE + "/scramjet/scramjet.all.js"),
+  sync: absPath(BASE + "/scramjet/scramjet.sync.js"),
+  wasm: absPath(BASE + "/scramjet/scramjet.wasm.wasm")
 };
-const BAREMUX_SCRIPT = BASE + "/baremux/index.js";
-const BAREMUX_WORKER = BASE + "/baremux/worker.js";
-const EPOXY_MODULE = BASE + "/epoxy/index.mjs";
-const LIBCURL_MODULE = BASE + "/libcurl/indexmjs.mjs";
+const BAREMUX_SCRIPT = absPath(BASE + "/baremux/index.js");
+const BAREMUX_WORKER = absPath(BASE + "/baremux/worker.js");
+const EPOXY_MODULE = absPath(BASE + "/epoxy/index.mjs");
+const LIBCURL_MODULE = absPath(BASE + "/libcurl/indexmjs.mjs");
 const DEFAULT_WISP = "wss://serv-1-va.onrender.com/";
 const SW_URL = BASE + "/sw.js";
 const SW_SCOPE = BASE + "/";
@@ -72,16 +78,27 @@ function loadScript(src) {
 
 function currentWisp() {
   let url = DEFAULT_WISP;
-  if (typeof settings !== "undefined") {
-    const all = allWispServers();
-    const found = all.find((w) => w.id === settings.wispId);
-    if (found && found.url) url = found.url;
-  }
-  url = String(url || DEFAULT_WISP).trim() || DEFAULT_WISP;
+  try {
+    if (typeof settings !== "undefined") {
+      const all = allWispServers();
+      const found = all.find((w) => w.id === settings.wispId);
+      if (found && found.url) url = found.url;
+    }
+  } catch {}
+  url = String(url || "").trim();
+  // reject garbage like "h" or "wss://h/"
+  if (!url || url.length < 12) url = DEFAULT_WISP;
   if (!/^wss?:\/\//i.test(url)) {
-    url = url.replace(/^https:\/\//i, "wss://").replace(/^http:\/\//i, "ws://");
+    if (/^https:\/\//i.test(url)) url = "wss://" + url.slice(8);
+    else if (/^http:\/\//i.test(url)) url = "ws://" + url.slice(7);
+    else url = DEFAULT_WISP;
   }
-  // Both epoxy and libcurl expect a trailing slash on Wisp URLs
+  try {
+    const u = new URL(url);
+    if (!u.hostname || u.hostname.length < 2) url = DEFAULT_WISP;
+  } catch {
+    url = DEFAULT_WISP;
+  }
   if (!url.endsWith("/")) url += "/";
   return url;
 }
@@ -184,10 +201,10 @@ async function initEngine() {
           allowInvalidJs: true,
           allowFailedIntercepts: true,
           // some sites register their own SW inside the proxy
-          serviceworkers: true
+          serviceworkers: false
         },
         siteFlags: {
-          "discord.com": { strictRewrites: false, allowInvalidJs: true, serviceworkers: true },
+          "discord.com": { strictRewrites: false, allowInvalidJs: true, serviceworkers: false },
           "discordapp.com": { strictRewrites: false, allowInvalidJs: true },
           "reddit.com": { strictRewrites: false, allowInvalidJs: true, allowFailedIntercepts: true },
           "www.reddit.com": { strictRewrites: false, allowInvalidJs: true },
@@ -1054,6 +1071,10 @@ function pingWisp(url, timeoutMs = 4000) {
       resolve({ ms, offline: !!offline });
     };
     try {
+      if (!url || !/^wss?:\/\//i.test(url) || url.length < 12) {
+        done(null, true);
+        return;
+      }
       ws = new WebSocket(url);
       ws.onopen = () => done(Math.round(performance.now() - start), false);
       ws.onerror = () => done(null, true);
