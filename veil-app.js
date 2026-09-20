@@ -1468,17 +1468,22 @@ function openLaunchModal() {
   };
 }
 
-document.getElementById("backBtn").onclick = goBack;
-document.getElementById("forwardBtn").onclick = goForward;
-document.getElementById("refreshBtn").onclick = reload;
-document.getElementById("homeBtn").onclick = goHome;
-document.getElementById("settingsOpenBtn").onclick = () => openPanel("settingsPanel");
-document.getElementById("bookmarkBtn").onclick = toggleBookmark;
+function on(id, fn) {
+  const el = document.getElementById(id);
+  if (el) el.onclick = fn;
+}
+
+on("backBtn", goBack);
+on("forwardBtn", goForward);
+on("refreshBtn", reload);
+on("homeBtn", goHome);
+on("settingsOpenBtn", () => openPanel("settingsPanel"));
+on("bookmarkBtn", toggleBookmark);
 document.getElementById("address").addEventListener("keydown", e => { if (e.key === "Enter") navigate(e.target.value); });
-document.getElementById("menuBtn").onclick = e => { e.stopPropagation(); document.getElementById("mainMenu").classList.toggle("open"); };
-document.getElementById("menuRename").onclick = () => { closeMenu(); renameCurrentTab(); };
-document.getElementById("menuLock").onclick = () => lockVeil();
-document.getElementById("menuBookmarks").onclick = () => { closeMenu(); openPanel("bookmarksPanel"); };
+on("menuBtn", e => { e.stopPropagation(); document.getElementById("mainMenu")?.classList.toggle("open"); });
+on("menuRename", () => { closeMenu(); renameCurrentTab(); });
+on("menuLock", () => lockVeil());
+on("menuBookmarks", () => { closeMenu(); openPanel("bookmarksPanel"); });
 const launchNowBtn = document.getElementById("launchNowBtn");
 if (launchNowBtn) launchNowBtn.onclick = () => openLaunchModal();
 const searchEngineSelect = document.getElementById("searchEngineSelect");
@@ -1489,22 +1494,22 @@ if (searchEngineSelect) {
     save();
   });
 }
-document.getElementById("adblockSwitch").onclick = () => {
+on("adblockSwitch", () => {
   settings.adBlocker = !(settings.adBlocker !== false);
   save(); highlightTheme(); pushAdblockToSW();
-};
-document.getElementById("launchAutoSwitch").onclick = () => {
+});
+on("launchAutoSwitch", () => {
   settings.launchMode = settings.launchMode === "auto" ? "manual" : "auto";
   save(); highlightTheme();
-};
-document.getElementById("animEnabledSwitch").onclick = () => {
+});
+on("animEnabledSwitch", () => {
   settings.animEnabled = !settings.animEnabled;
   save(); highlightTheme(); refreshHomeFxAll();
-};
-document.getElementById("lockUnloadSwitch").onclick = () => {
+});
+on("lockUnloadSwitch", () => {
   settings.lockUnload = !settings.lockUnload;
   save(); highlightTheme();
-};
+});
 const animStyle = document.getElementById("animStyle");
 if (animStyle) animStyle.addEventListener("change", () => {
   settings.animStyle = animStyle.value; save(); refreshHomeFxAll();
@@ -1589,23 +1594,23 @@ if (maxRange) {
     showActiveOnly();
   });
 }
-document.getElementById("backdrop").onclick = closePanels;
-document.querySelectorAll("[data-close-panel]").forEach(b => b.onclick = closePanels);
-document.querySelectorAll("[data-theme]").forEach(b => b.onclick = () => applyTheme(b.dataset.theme));
-document.getElementById("customThemeCard").onclick = () => {
+on("backdrop", closePanels);
+document.querySelectorAll("[data-close-panel]").forEach(b => { b.onclick = closePanels; });
+document.querySelectorAll("[data-theme]").forEach(b => { b.onclick = () => applyTheme(b.dataset.theme); });
+on("customThemeCard", () => {
   const editor = document.getElementById("customColorCard");
+  if (!editor) return;
   editor.classList.toggle("open");
   editor.classList.toggle("force-open", editor.classList.contains("open"));
-  document.getElementById("customThemeCard").classList.add("active");
-};
-document.getElementById("applyColors").onclick = applyCustomColors;
-document.getElementById("transportEpoxy").onclick = () => setTransport("epoxy");
-document.getElementById("transportLibcurl").onclick = () => setTransport("libcurl");
-document.getElementById("applyBackground").onclick = applyBackground;
-document.getElementById("applyCloak").onclick = applyCloak;
-document.getElementById("applyWisp_removed").onclick = applyWisp;
-document.getElementById("resetSettings").onclick = resetSettings;
-document.querySelectorAll("[data-cloak]").forEach(b => b.onclick = () => applyCloakPreset(b.dataset.cloak));
+  document.getElementById("customThemeCard")?.classList.add("active");
+});
+on("applyColors", applyCustomColors);
+on("transportEpoxy", () => setTransport("epoxy"));
+on("transportLibcurl", () => setTransport("libcurl"));
+on("applyBackground", applyBackground);
+on("applyCloak", applyCloak);
+on("resetSettings", resetSettings);
+document.querySelectorAll("[data-cloak]").forEach(b => { b.onclick = () => applyCloakPreset(b.dataset.cloak); });
 document.addEventListener("click", e => {
   if (!e.target.closest("#mainMenu") && !e.target.closest("#menuBtn")) closeMenu();
 });
