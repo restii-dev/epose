@@ -14,37 +14,44 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text)}
 body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{outline:0}
+button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:focus,select:focus{outline:0}
 
 #browser{display:flex;flex-direction:column;width:100%;height:100%;background:var(--bg)}
-.chrome{flex:0 0 auto;background:var(--bg2);border-bottom:1px solid var(--border);position:relative;z-index:100}
-.tabs-row{height:42px;display:flex;align-items:flex-end;padding:0 7px;gap:4px;overflow:hidden}
-.tabs{height:100%;display:flex;align-items:flex-end;gap:4px;flex:1;min-width:0;overflow:hidden}
-.tab{height:36px;flex:1 1 0;min-width:72px;max-width:220px;display:flex;align-items:center;gap:8px;padding:0 7px 0 10px;border-radius:9px 9px 0 0;background:transparent;color:var(--muted);cursor:pointer;user-select:none;overflow:hidden}
+.chrome{flex:0 0 auto;background:var(--bg2);border-bottom:1px solid var(--border);z-index:100}
+.tabs-row{height:40px;display:flex;align-items:center;padding:0 8px;gap:4px;overflow:hidden}
+.tabs{height:100%;display:flex;align-items:center;gap:3px;flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{height:32px;flex:0 0 auto;width:180px;min-width:140px;max-width:200px;display:flex;align-items:center;gap:7px;padding:0 6px 0 9px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;user-select:none;overflow:hidden;transform-origin:left center}
 .tab:hover{background:var(--bg3);color:var(--text)}
 .tab.active{background:var(--panel);color:var(--text)}
+.tab.opening{animation:tabOpen .18s cubic-bezier(.2,.8,.2,1)}
+.tab.closing{animation:tabClose .16s cubic-bezier(.4,0,1,1) forwards}
+@keyframes tabOpen{from{opacity:0;transform:scaleX(.72) translateY(3px);width:0}to{opacity:1;transform:none;width:180px}}
+@keyframes tabClose{from{opacity:1;width:180px}to{opacity:0;width:0;padding:0;margin:0}}
 .tab-icon{width:16px;height:16px;flex:0 0 16px;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .tab-icon img{width:16px;height:16px;border-radius:3px;object-fit:cover;display:block}
 .tab-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
-.tab-close{width:21px;height:21px;flex:0 0 21px;border-radius:5px;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px}
+.tab-close{width:20px;height:20px;flex:0 0 20px;border-radius:5px;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px}
 .tab-close:hover{background:var(--panel2);color:var(--text)}
-.new-tab{width:32px;height:32px;flex:0 0 32px;margin-bottom:2px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:21px}
+.new-tab{width:30px;height:30px;flex:0 0 30px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1}
 .new-tab:hover{background:var(--panel2);color:var(--text)}
 
-.toolbar{height:52px;display:flex;align-items:center;gap:6px;padding:6px 9px;background:var(--panel)}
+.toolbar{height:46px;display:flex;align-items:center;gap:4px;padding:6px 8px;background:var(--panel)}
 .nav-buttons{display:flex;gap:2px;flex:0 0 auto}
 .tool-btn,.menu-btn,.address-bookmark{background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center}
-.tool-btn,.menu-btn{width:35px;height:35px;border-radius:8px}
+.tool-btn,.menu-btn{width:34px;height:34px;border-radius:8px}
 .tool-btn:hover,.menu-btn:hover,.address-bookmark:hover{background:var(--panel2);color:var(--text)}
 .tool-btn:disabled{opacity:.28;cursor:default}
-.icon{width:18px;height:18px;display:block;background:currentColor;-webkit-mask:var(--i) center / contain no-repeat;mask:var(--i) center / contain no-repeat}
-.address-wrap{flex:1;min-width:0;height:35px;display:flex;align-items:center;border-radius:18px;background:var(--bg2);border:1px solid var(--border);padding:0 7px 0 13px}
+.icon{width:17px;height:17px;display:block;background:currentColor;-webkit-mask:var(--i) center / contain no-repeat;mask:var(--i) center / contain no-repeat}
+.address-wrap{flex:1;min-width:0;height:34px;display:flex;align-items:center;border-radius:17px;background:var(--bg2);border:1px solid var(--border);padding:0 6px 0 12px}
 .address-wrap:focus-within{border-color:#444;background:var(--bg3)}
-.address-icon{width:16px;height:16px;margin-right:8px;flex:0 0 16px;background:var(--muted);-webkit-mask:url("image/search.svg") center / contain no-repeat;mask:url("image/search.svg") center / contain no-repeat}
+.address-icon{width:15px;height:15px;margin-right:8px;flex:0 0 15px;background:var(--muted);-webkit-mask:url("image/search.svg") center / contain no-repeat;mask:url("image/search.svg") center / contain no-repeat}
 #address{flex:1;min-width:0;border:0;background:transparent;color:var(--text);font-size:13px}
 #address::placeholder{color:#666}
-.address-bookmark{width:29px;height:29px;border-radius:50%}
+.address-bookmark{width:28px;height:28px;border-radius:50%}
 .address-bookmark.saved{color:var(--accent)}
+.right-tools{display:flex;gap:2px;flex:0 0 auto}
+
 .viewport{position:relative;flex:1;min-height:0;width:100%;background:var(--bg);overflow:hidden}
 .page{position:absolute;inset:0;display:none;background:var(--bg)}
 .page.active{display:block}
@@ -52,27 +59,26 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
 
 .newtab-page{width:100%;height:100%;overflow:auto;background-color:var(--newtab);background-size:cover;background-position:center;position:relative}
 .newtab-overlay{width:100%;min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px 80px}
-.newtab-center{width:min(700px,100%);text-align:center}
-.veil-mark{width:86px;height:86px;margin:0 auto 18px;border-radius:50%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,.35)}
-.veil-mark img{width:58px;height:58px;object-fit:contain}
+.newtab-center{width:min(700px,100%);text-align:center;display:flex;flex-direction:column;align-items:center}
+.veil-mark{width:86px;height:86px;margin:0 auto 18px;border-radius:50%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.veil-mark img{width:58px;height:58px;object-fit:contain;display:block}
 .newtab-title{font-size:clamp(42px,7vw,64px);font-weight:700;letter-spacing:-2.5px;line-height:1;margin-bottom:22px}
-.search-box{width:min(520px,100%);height:48px;margin:0 auto;border-radius:12px;background:rgba(255,255,255,.92);border:1px solid rgba(0,0,0,.08);display:flex;align-items:center;padding:0 16px;box-shadow:0 4px 24px rgba(0,0,0,.2);gap:10px}
+.search-box{width:min(520px,100%);height:48px;border-radius:12px;background:rgba(255,255,255,.92);border:1px solid rgba(0,0,0,.08);display:flex;align-items:center;padding:0 16px;gap:10px}
 .search-box .home-search-icon{width:18px;height:18px;flex:0 0 18px;background:#999;-webkit-mask:url("image/search.svg") center / contain no-repeat;mask:url("image/search.svg") center / contain no-repeat}
 .search-box input{flex:1;border:0;background:transparent;color:#111;font-size:14px}
 .search-box input::placeholder{color:#999}
 .quick-links{display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin-top:28px}
 .quick-links.row2{margin-top:12px}
-.quick-link{width:52px;height:52px;border-radius:14px;border:1px solid var(--border);background:rgba(30,30,30,.85);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s,background .15s,border-color .15s}
-.quick-link:hover{transform:translateY(-2px);background:var(--panel2);border-color:#555}
+.quick-link{width:52px;height:52px;border-radius:14px;border:1px solid var(--border);background:rgba(30,30,30,.85);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.quick-link:hover{transform:translateY(-2px);background:var(--panel2)}
 .quick-link img{width:24px;height:24px;object-fit:contain;display:block;filter:invert(1)}
-.quick-link.soon{opacity:.45;cursor:default}
+.quick-link.soon{opacity:.5;cursor:default}
 .quick-link.soon:hover{transform:none}
-.quick-link svg{width:22px;height:22px;fill:currentColor}
 .launch-btn{margin-top:28px;height:40px;padding:0 22px;border-radius:10px;background:rgba(40,40,40,.7);border:1px solid var(--border);color:var(--muted);cursor:pointer;font-size:13px}
 .launch-btn:hover{color:var(--text);background:var(--panel2)}
 .time-bar{position:absolute;left:0;right:0;bottom:0;height:36px;padding:0 14px;display:flex;align-items:center;background:rgba(0,0,0,.35);border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
 
-.menu{position:fixed;top:94px;right:10px;width:245px;background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:7px;z-index:1000;display:none}
+.menu{position:fixed;top:88px;right:10px;width:245px;background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:7px;z-index:1000;display:none}
 .menu.open{display:block}
 .menu-item{width:100%;height:38px;padding:0 11px;border-radius:8px;background:transparent;color:var(--text);display:flex;align-items:center;gap:11px;cursor:pointer;text-align:left;font-size:13px}
 .menu-item:hover{background:var(--panel2)}
@@ -85,7 +91,6 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
 .panel-header{height:65px;padding:0 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .panel-header h2{font-size:17px}
 .close-panel{width:32px;height:32px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font-size:20px}
-.close-panel:hover{background:var(--panel2);color:var(--text)}
 .panel-body{padding:20px;overflow-y:auto}
 .setting-section{margin-bottom:28px}
 .setting-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.09em;margin-bottom:11px}
@@ -100,44 +105,38 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
 .custom-card.open{display:block}
 .input-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
 .input-label{width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)}
-.text-input{flex:1;min-width:0;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 10px;font-size:12px}
+.text-input,select.text-input{flex:1;min-width:0;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 10px;font-size:12px}
 .color-input{width:45px;height:36px;padding:3px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:pointer}
 .primary-btn{width:100%;height:38px;border-radius:9px;background:var(--accent);color:var(--accentText);cursor:pointer;font-size:12px;font-weight:600;margin-top:4px}
-.primary-btn:hover{opacity:.9}
 .secondary-btn{width:100%;height:38px;border-radius:9px;background:var(--bg2);border:1px solid var(--border);color:var(--text);cursor:pointer;font-size:12px;margin-top:6px}
 .hint{font-size:11px;color:var(--muted);line-height:1.5;margin-top:6px}
-.transport-row{display:flex;gap:8px}
-.transport-btn{flex:1;height:38px;border-radius:9px;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;font-size:12px}
-.transport-btn.active{border-color:var(--accent);background:var(--panel2)}
+.transport-row,.cloak-grid{display:flex;flex-wrap:wrap;gap:8px}
+.transport-btn,.cloak-preset{flex:1;min-width:90px;height:36px;border-radius:9px;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;font-size:12px}
+.transport-btn.active,.cloak-preset.active{border-color:var(--accent);background:var(--panel2)}
 .bookmark-row{display:flex;align-items:center;gap:9px;padding:10px;border:1px solid var(--border);background:var(--bg2);border-radius:9px;margin-bottom:8px}
 .bookmark-main{min-width:0;flex:1;cursor:pointer}
 .bookmark-title{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bookmark-url{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
 .bookmark-delete{width:28px;height:28px;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer}
-.bookmark-delete:hover{background:var(--panel2);color:var(--danger)}
 .empty{padding:30px 10px;text-align:center;color:var(--muted);font-size:12px}
 .status{padding:10px 12px;border:1px solid var(--border);background:var(--bg2);border-radius:9px;color:var(--muted);font-size:11px;line-height:1.5;margin-top:10px}
-.cookie-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:3000;display:flex;align-items:center;justify-content:center;padding:20px}
-.cookie-box{width:min(430px,100%);background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:28px}
-.cookie-box h2{font-size:20px}
-.cookie-box p{margin-top:10px;color:var(--muted);font-size:13px;line-height:1.6}
-.cookie-buttons{display:flex;gap:9px;margin-top:22px}
-.cookie-no,.cookie-yes{flex:1;height:40px;border-radius:9px;cursor:pointer;font-size:12px}
+
+.cookie-overlay,.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:3000;display:flex;align-items:center;justify-content:center;padding:20px}
+.cookie-box,.modal-box{width:min(430px,100%);background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:28px}
+.cookie-box h2,.modal-box h2{font-size:18px}
+.cookie-box p,.modal-box p{margin-top:10px;color:var(--muted);font-size:13px;line-height:1.6}
+.cookie-buttons,.modal-actions{display:flex;gap:9px;margin-top:18px}
+.cookie-no,.cookie-yes,.modal-actions button{flex:1;height:40px;border-radius:9px;cursor:pointer;font-size:12px}
 .cookie-no{background:var(--bg2);border:1px solid var(--border);color:var(--text)}
 .cookie-yes{background:var(--accent);color:var(--accentText)}
-.engine-error{height:100%;display:flex;align-items:center;justify-content:center;padding:30px;background:var(--bg)}
+.engine-error{height:100%;display:flex;align-items:center;justify-content:center;padding:30px}
 .engine-error-box{width:min(560px,100%);border:1px solid var(--border);background:var(--panel);border-radius:14px;padding:24px}
 .engine-error-box h2{font-size:18px}
 .engine-error-box p{margin-top:9px;color:var(--muted);font-size:12px;line-height:1.6}
-.engine-error-box button{margin-top:16px;height:36px;padding:0 14px;border-radius:8px;background:var(--accent);color:var(--accentText);cursor:pointer;font-size:12px}
-.launch-menu{position:fixed;left:50%;bottom:60px;transform:translateX(-50%);width:min(320px,90%);background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:10px;z-index:1300;display:none}
-.launch-menu.open{display:block}
-.launch-menu button{width:100%;height:40px;border-radius:9px;background:transparent;color:var(--text);cursor:pointer;text-align:left;padding:0 12px;font-size:13px}
-.launch-menu button:hover{background:var(--panel2)}
-@media(max-width:700px){
-  .tab{min-width:56px;padding-left:6px}
-  .tab-title{font-size:11px}
-}
+.engine-error-box button{margin-top:16px;height:36px;padding:0 14px;border-radius:8px;background:var(--accent);color:var(--accentText);cursor:pointer}
+.modal-box select{width:100%;margin-top:14px;height:40px}
+.modal-cancel{background:var(--bg2);border:1px solid var(--border);color:var(--text)}
+.modal-go{background:var(--accent);color:var(--accentText)}
 </style>
 </head>
 <body>
@@ -152,16 +151,17 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
         <button class="tool-btn" id="backBtn" title="Back"><span class="icon" style="--i:url('image/backward.svg')"></span></button>
         <button class="tool-btn" id="forwardBtn" title="Forward"><span class="icon" style="--i:url('image/forward.svg')"></span></button>
         <button class="tool-btn" id="refreshBtn" title="Refresh"><span class="icon" style="--i:url('image/refresh.svg')"></span></button>
+        <button class="tool-btn" id="homeBtn" title="Home"><span class="icon" style="--i:url('image/home.svg')"></span></button>
       </div>
       <div class="address-wrap">
         <span class="address-icon"></span>
         <input id="address" type="text" autocomplete="off" spellcheck="false" placeholder="Search or enter address">
-        <button class="address-bookmark" id="bookmarkBtn" title="Bookmark this page"><span class="icon" style="--i:url('image/bookmarks.svg')"></span></button>
+        <button class="address-bookmark" id="bookmarkBtn" title="Bookmark"><span class="icon" style="--i:url('image/bookmarks.svg')"></span></button>
       </div>
-      <button class="menu-btn" id="homeBtn" title="Home"><span class="icon" style="--i:url('image/home.svg')"></span></button>
-      <button class="menu-btn" id="bookmarksOpenBtn" title="Bookmarks"><span class="icon" style="--i:url('image/bookmarks.svg')"></span></button>
-      <button class="menu-btn" id="settingsOpenBtn" title="Settings"><span class="icon" style="--i:url('image/settings.svg')"></span></button>
-      <button class="menu-btn" id="menuBtn" title="Menu">⋮</button>
+      <div class="right-tools">
+        <button class="menu-btn" id="settingsOpenBtn" title="Settings"><span class="icon" style="--i:url('image/settings.svg')"></span></button>
+        <button class="menu-btn" id="menuBtn" title="Menu">⋮</button>
+      </div>
     </div>
   </header>
   <main class="viewport" id="viewport"></main>
@@ -169,17 +169,12 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
 
 <div class="menu" id="mainMenu">
   <button class="menu-item" id="menuNewTab"><span class="menu-icon">＋</span>New tab</button>
-  <button class="menu-item" id="menuBookmark"><span class="menu-icon">☆</span>Bookmark this page</button>
   <button class="menu-item" id="menuBookmarks"><span class="menu-icon">★</span>Bookmarks</button>
-  <button class="menu-item" id="menuRename"><span class="menu-icon">✎</span>Rename current tab</button>
+  <button class="menu-item" id="menuRename"><span class="menu-icon">✎</span>Rename tab</button>
   <div class="menu-separator"></div>
-  <button class="menu-item" id="menuSettings"><span class="menu-icon">⚙</span>Settings</button>
-  <button class="menu-item" id="menuAboutBlank"><span class="menu-icon">⬚</span>Open in about:blank</button>
+  <button class="menu-item" id="menuAboutBlank"><span class="menu-icon">⬚</span>Launch options</button>
 </div>
-<div class="launch-menu" id="launchMenu">
-  <button type="button" id="launchAB">Open browser in about:blank</button>
-  <button type="button" id="launchSame">Continue in this tab</button>
-</div>
+
 <div class="backdrop" id="backdrop"></div>
 
 <aside class="panel" id="settingsPanel">
@@ -188,7 +183,7 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
     <section class="setting-section">
       <div class="setting-title">Themes</div>
       <div class="preset-grid">
-        <button class="preset" data-theme="matte"><div class="preset-name">Matte</div><div class="preset-preview"><i class="preset-dot" style="background:#101010"></i><i class="preset-dot" style="background:#1b1b1b"></i><i class="preset-dot" style="background:#ffffff"></i></div></button>
+        <button class="preset" data-theme="matte"><div class="preset-name">Matte</div><div class="preset-preview"><i class="preset-dot" style="background:#101010"></i><i class="preset-dot" style="background:#1b1b1b"></i><i class="preset-dot" style="background:#fff"></i></div></button>
         <button class="preset" data-theme="ember"><div class="preset-name">Ember</div><div class="preset-preview"><i class="preset-dot" style="background:#1a0a0a"></i><i class="preset-dot" style="background:#3a1212"></i><i class="preset-dot" style="background:#ff4d4d"></i></div></button>
         <button class="preset" data-theme="sunlight"><div class="preset-name">Sunlight</div><div class="preset-preview"><i class="preset-dot" style="background:#191108"></i><i class="preset-dot" style="background:#32200c"></i><i class="preset-dot" style="background:#ffb84d"></i></div></button>
         <button class="preset" data-theme="forest"><div class="preset-name">Forest</div><div class="preset-preview"><i class="preset-dot" style="background:#0b140e"></i><i class="preset-dot" style="background:#17291b"></i><i class="preset-dot" style="background:#73c982"></i></div></button>
@@ -214,29 +209,51 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
     </section>
 
     <section class="setting-section">
-      <div class="setting-title">Tab cloak</div>
-      <div class="input-row"><input class="text-input" id="cloakTitle" placeholder="Browser title (e.g. Google Docs)"></div>
+      <div class="setting-title">Tab cloak presets</div>
+      <div class="cloak-grid">
+        <button class="cloak-preset" data-cloak="docs">Google Docs</button>
+        <button class="cloak-preset" data-cloak="classroom">Classroom</button>
+        <button class="cloak-preset" data-cloak="drive">Drive</button>
+        <button class="cloak-preset" data-cloak="canvas">Canvas</button>
+        <button class="cloak-preset" data-cloak="veil">Veil</button>
+      </div>
+      <div class="input-row" style="margin-top:10px"><input class="text-input" id="cloakTitle" placeholder="Custom title"></div>
       <div class="input-row"><input class="text-input" id="cloakIcon" placeholder="Favicon URL"></div>
       <button class="primary-btn" id="applyCloak">Apply cloak</button>
-      <p class="hint">Changes the real browser tab name and icon — not in-app tabs.</p>
     </section>
 
     <section class="setting-section">
       <div class="setting-title">Panic key</div>
-      <div class="input-row"><label class="input-label">Key</label><input class="text-input" id="panicKey" placeholder="Click and press a key" readonly></div>
+      <div class="input-row"><label class="input-label">Key</label><input class="text-input" id="panicKey" placeholder="Click Bind, then press a key" readonly></div>
       <div class="input-row"><label class="input-label">Redirect</label><input class="text-input" id="panicUrl" placeholder="https://classroom.google.com"></div>
       <button class="primary-btn" id="bindPanic">Bind key</button>
       <button class="secondary-btn" id="unbindPanic">Unbind</button>
-      <p class="hint">Ignored while typing in inputs. Instant redirect when pressed.</p>
+      <p class="hint">Does nothing while you are typing in a text box.</p>
     </section>
 
     <section class="setting-section">
-      <div class="setting-title">Transport</div>
+      <div class="setting-title">Launch (about:blank)</div>
+      <div class="transport-row">
+        <button class="transport-btn" id="launchManual" type="button">Manual</button>
+        <button class="transport-btn" id="launchAuto" type="button">Auto on open</button>
+      </div>
+      <p class="hint">Manual (default): you choose when to cloak. Auto: open about:blank as soon as Veil loads.</p>
+    </section>
+
+    <section class="setting-section">
+      <div class="setting-title">Wisp server</div>
+      <select class="text-input" id="wispSelect"></select>
+      <div class="input-row" style="margin-top:8px"><input class="text-input" id="wispCustom" placeholder="wss://your-wisp-server"></div>
+      <button class="primary-btn" id="applyWisp">Apply server</button>
+    </section>
+
+    <section class="setting-section">
+      <div class="setting-title">Browser engine</div>
       <div class="transport-row">
         <button class="transport-btn" id="transportEpoxy" type="button">Epoxy</button>
         <button class="transport-btn" id="transportLibcurl" type="button">Libcurl</button>
       </div>
-      <p class="hint">Epoxy is default. Switch to Libcurl if a site fails to load.</p>
+      <p class="hint">Epoxy is default. Use Libcurl if a site fails. Ad blocker is on in the service worker.</p>
       <div class="status" id="engineStatus">Initializing browser engine…</div>
     </section>
 
@@ -251,6 +268,7 @@ button,input{font:inherit}button{border:0;outline:0}button:focus,input:focus{out
   <div class="panel-header"><h2>Bookmarks</h2><button class="close-panel" data-close-panel>×</button></div>
   <div class="panel-body" id="bookmarkList"></div>
 </aside>
+
 <script src="veil-app.js"></script>
 </body>
 </html>
