@@ -184,28 +184,30 @@ async function initEngine() {
       if (!("serviceWorker" in navigator)) throw new Error("Service workers unavailable.");
 
       if (status) status.textContent = "Checking Scramjet DB…";
-      try {
-        await ensureScramjetDB();
-      } catch (err) {
-        console.warn("DB check failed", err);
-      }
+      try { await ensureScramjetDB(); } catch (err) { console.warn("DB check failed", err); }
 
-      if (status) status.textContent = "Starting Scramjet…";
-      engineController = buildController();
-      await runControllerInit();
-
+      // Register SW first so a later init() can postMessage config into it
       if (status) status.textContent = "Registering service worker…";
       const reg = await navigator.serviceWorker.register(REPO_PATH + "sw.js", {
         scope: SW_SCOPE,
         updateViaCache: "none"
       });
       await navigator.serviceWorker.ready;
-      if (!navigator.serviceWorker.controller && reg.active) {
-        await new Promise((r) => setTimeout(r, 50));
+
+      // First load: page is not controlled until reload — required for Scramjet config postMessage
+      if (!navigator.serviceWorker.controller) {
+        if (!sessionStorage.getItem("veil_sw_claimed")) {
+          sessionStorage.setItem("veil_sw_claimed", "1");
+          if (status) status.textContent = "Activating service worker…";
+          location.reload();
+          return false;
+        }
+      } else {
+        sessionStorage.removeItem("veil_sw_claimed");
       }
 
-      // Second init: push config into the now-active SW via postMessage
-      if (status) status.textContent = "Syncing Scramjet config…";
+      if (status) status.textContent = "Starting Scramjet…";
+      engineController = buildController();
       await runControllerInit();
 
       if (status) status.textContent = "Connecting transport…";
@@ -339,17 +341,42 @@ function imgIcon(name) { return '<img src="' + IMG + name + '" alt="">'; }
 function normalizeUrl(input) {
   let value = String(input || "").trim();
   if (!value) return null;
+  // If user pasted a proxy URL, show/use the real site URL
+  value = unwrapProxyUrl(value) || value;
   if (/^https?:\/\//i.test(value)) return value;
   if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return value;
   if (/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(value)) return "https://" + value;
   return "https://duckduckgo.com/?q=" + encodeURIComponent(value);
 }
 
+/** Never show https://…github.io/veil/service/… in the address bar */
+function unwrapProxyUrl(href) {
+  if (!href || href === "about:blank") return href;
+  try {
+    const u = new URL(href, location.origin);
+    const marker = "/service/";
+    const idx = u.pathname.indexOf(marker);
+    if (idx === -1) return href;
+    let rest = u.pathname.slice(idx + marker.length);
+    if (!rest) return href;
+    for (let i = 0; i < 4; i++) {
+      try {
+        const next = decodeURIComponent(rest);
+        if (next === rest) break;
+        rest = next;
+      } catch { break; }
+    }
+    if (rest.startsWith("http://") || rest.startsWith("https://")) return rest;
+  } catch {}
+  return href;
+}
+
 function bindFrameEvents(page, frameObj) {
   const el = frameObj.element || frameObj.frame || frameObj;
   const onUrl = (e) => {
-    const u = (e && (e.url || e.detail && e.detail.url)) || "";
+    let u = (e && (e.url || e.detail && e.detail.url)) || "";
     if (!u || u === "about:blank") return;
+    u = unwrapProxyUrl(u) || u;
     page.url = u;
     try { page.title = new URL(u).hostname; } catch {}
     page.favicon = faviconFor(u);
