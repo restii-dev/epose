@@ -81,10 +81,30 @@ function currentWisp() {
   if (!/^wss?:\/\//i.test(url)) {
     url = url.replace(/^https:\/\//i, "wss://").replace(/^http:\/\//i, "ws://");
   }
-  if (typeof settings !== "undefined" && settings.transport === "libcurl" && !url.endsWith("/")) {
-    url += "/";
-  }
+  // Both epoxy and libcurl expect a trailing slash on Wisp URLs
+  if (!url.endsWith("/")) url += "/";
   return url;
+}
+
+function absUrl(path) {
+  if (!path) return path;
+  if (/^https?:\/\//i.test(path)) return path;
+  return location.origin + (path.startsWith("/") ? path : "/" + path);
+}
+
+function serverDisplayName() {
+  try {
+    const all = allWispServers();
+    const found = all.find((w) => w.id === (settings && settings.wispId));
+    return (found && found.name) || "Server";
+  } catch {
+    return "Server";
+  }
+}
+
+function engineStatusReady() {
+  const tname = (settings && settings.transport === "libcurl") ? "Libcurl" : "Epoxy";
+  return "Ready • " + tname + " • " + serverDisplayName();
 }
 
 function transportModule() {
@@ -215,21 +235,10 @@ async function initEngine() {
       console.info("[veil] Scramjet IDB config OK, prefix=", SCRAMJET_PREFIX);
 
       if (status) status.textContent = "Connecting transport…";
-      muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
-      try {
-        await muxConnection.setTransport(EPOXY_MODULE, [{ wisp: currentWisp() }]);
-      } catch (err) {
-        console.warn("[veil] epoxy failed, trying libcurl", err);
-        let wisp = currentWisp();
-        if (!wisp.endsWith("/")) wisp += "/";
-        await muxConnection.setTransport(LIBCURL_MODULE, [{ wisp }]);
-      }
+      await applyMuxTransport();
 
       engineReady = true;
-      if (status) {
-        const tname = (typeof settings !== "undefined" && settings.transport === "libcurl") ? "Libcurl" : "Epoxy";
-        status.textContent = "Ready • " + tname + " • " + currentWisp();
-      }
+      if (status) status.textContent = engineStatusReady();
       return true;
     } catch (error) {
       console.error(error);
@@ -244,15 +253,21 @@ async function initEngine() {
 }
 
 async function applyMuxTransport() {
-  if (!muxConnection) muxConnection = new BareMux.BareMuxConnection(BAREMUX_WORKER);
+  const wisp = currentWisp();
+  const preferred = transportModule();
+  const fallback = preferred === LIBCURL_MODULE ? EPOXY_MODULE : LIBCURL_MODULE;
+  // Fresh connection avoids dead MuxTask / stale MessagePort after Wisp drops
+  muxConnection = new BareMux.BareMuxConnection(absUrl(BAREMUX_WORKER));
   try {
-    await muxConnection.setTransport(transportModule(), [{ wisp: currentWisp() }]);
+    await muxConnection.setTransport(absUrl(preferred), [{ wisp }]);
+    return preferred;
   } catch (err) {
-    console.warn("[veil] preferred transport failed, trying fallback", err);
-    const fallback = transportModule() === LIBCURL_MODULE ? EPOXY_MODULE : LIBCURL_MODULE;
-    let wisp = currentWisp();
-    if (fallback === LIBCURL_MODULE && !wisp.endsWith("/")) wisp += "/";
-    await muxConnection.setTransport(fallback, [{ wisp }]);
+    console.warn("[veil] transport failed, trying fallback", err);
+    muxConnection = new BareMux.BareMuxConnection(absUrl(BAREMUX_WORKER));
+    await muxConnection.setTransport(absUrl(fallback), [{ wisp }]);
+    if (fallback === LIBCURL_MODULE) settings.transport = "libcurl";
+    else settings.transport = "epoxy";
+    return fallback;
   }
 }
 
@@ -260,9 +275,11 @@ async function reconnectTransport() {
   try {
     await applyMuxTransport();
     const status = document.getElementById("engineStatus");
-    if (status) status.textContent = "Reconnected • " + ((typeof settings !== "undefined" && settings.transport === "libcurl") ? "Libcurl" : "Epoxy");
+    if (status) status.textContent = engineStatusReady();
   } catch (e) {
     console.warn("reconnect failed", e);
+    const status = document.getElementById("engineStatus");
+    if (status) status.textContent = "Server offline — try another server";
   }
 }
 
@@ -497,20 +514,34 @@ async function createEngineFrame(page, wrapper) {
 async function goFrame(page, url) {
   const frameObj = page.engineFrame;
   if (!frameObj || !url) return;
-  try {
+  const attempt = async () => {
     if (typeof frameObj.go === "function") await frameObj.go(url);
     else if (typeof frameObj.navigate === "function") await frameObj.navigate(url);
     else {
       const el = frameObj.element || frameObj.frame || frameObj;
       if (el instanceof HTMLIFrameElement) el.src = SCRAMJET_PREFIX + encodeURIComponent(url);
     }
+  };
+  try {
+    await attempt();
   } catch (e) {
     const msg = String(e && e.message || e);
-    if (/MuxTaskEnded|Invalid URL|Failed to fetch|network/i.test(msg)) {
-      await reconnectTransport();
+    if (/MuxTaskEnded|headers is not iterable|Invalid URL|Failed to fetch|network|Wisp|WebSocket/i.test(msg)) {
+      console.warn("[veil] navigation transport error, reconnecting…", msg);
       try {
-        if (typeof frameObj.go === "function") await frameObj.go(url);
-      } catch (e2) { console.warn(e2); }
+        // flip transport once if epoxy is flaky
+        if (/headers is not iterable|MuxTaskEnded/i.test(msg) && settings.transport !== "libcurl") {
+          settings.transport = "libcurl";
+        }
+        await reconnectTransport();
+        await attempt();
+      } catch (e2) {
+        console.warn("[veil] retry failed", e2);
+        const status = document.getElementById("engineStatus");
+        if (status) status.textContent = "Connection lost — pick another server";
+      }
+    } else {
+      console.warn(e);
     }
   }
 }
@@ -989,7 +1020,7 @@ function fillWispSelect() {
       fillWispSelect();
       applyMuxTransport().catch(() => {});
       const st = document.getElementById("engineStatus");
-      if (st) st.textContent = "Server: " + (allWispServers().find((x) => x.id === settings.wispId) || {}).name;
+      if (st) st.textContent = engineStatusReady();
     });
   });
   box.querySelectorAll("[data-edit]").forEach((el) => {
@@ -1385,18 +1416,15 @@ function resetSettings() {
 async function setTransport(kind) {
   settings.transport = kind === "libcurl" ? "libcurl" : "epoxy";
   save(); highlightTheme();
-  engineReady = false; engineController = null; engineInitPromise = null; muxConnection = null;
-  document.getElementById("engineStatus").textContent = "Switching engine…";
-  await initEngine();
-}
-
-async function applyWisp() {
-  settings.wispId = document.getElementById("wispSelect").value;
-  settings.wispCustom = document.getElementById("wispCustom").value.trim();
-  save();
-  engineReady = false; engineController = null; engineInitPromise = null; muxConnection = null;
-  document.getElementById("engineStatus").textContent = "Switching server…";
-  await initEngine();
+  const st1 = document.getElementById("engineStatus");
+  if (st1) st1.textContent = "Switching engine…";
+  try {
+    await applyMuxTransport();
+    if (st1) st1.textContent = engineStatusReady();
+  } catch (e) {
+    console.warn(e);
+    if (st1) st1.textContent = "Engine switch failed — try the other one";
+  }
 }
 
 function isTypingTarget(el) {
