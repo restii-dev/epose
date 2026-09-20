@@ -177,8 +177,24 @@ async function initEngine() {
         },
         flags: {
           captureErrors: true,
-          strictRewrites: true,
-          rewriterLogs: false
+          cleanErrors: true,
+          // false = fewer broken SPAs (Discord/X/Reddit login shells)
+          strictRewrites: false,
+          rewriterLogs: false,
+          allowInvalidJs: true,
+          allowFailedIntercepts: true,
+          // some sites register their own SW inside the proxy
+          serviceworkers: true
+        },
+        siteFlags: {
+          "discord.com": { strictRewrites: false, allowInvalidJs: true, serviceworkers: true },
+          "discordapp.com": { strictRewrites: false, allowInvalidJs: true },
+          "reddit.com": { strictRewrites: false, allowInvalidJs: true, allowFailedIntercepts: true },
+          "www.reddit.com": { strictRewrites: false, allowInvalidJs: true },
+          "x.com": { strictRewrites: false, allowInvalidJs: true, allowFailedIntercepts: true },
+          "twitter.com": { strictRewrites: false, allowInvalidJs: true },
+          "accounts.google.com": { strictRewrites: false, allowInvalidJs: true },
+          "play.geforcenow.com": { strictRewrites: false, allowInvalidJs: true, allowFailedIntercepts: true }
         }
       });
 
@@ -527,7 +543,21 @@ async function createEngineFrame(page, wrapper) {
     if (!frameObj) throw new Error("Scramjet frame API unavailable.");
     const frame = frameObj.element || frameObj.frame || frameObj;
     if (frame.classList) frame.classList.add("engine-frame");
-    if (frame.style) { frame.style.width = "100%"; frame.style.height = "100%"; frame.style.border = "0"; }
+    if (frame.style) {
+      frame.style.width = "100%";
+      frame.style.height = "100%";
+      frame.style.border = "0";
+      frame.style.background = "#fff";
+    }
+    // Do not sandbox the frame - login cookies and OAuth need a normal iframe
+    try {
+      frame.setAttribute(
+        "allow",
+        "fullscreen; clipboard-read; clipboard-write; autoplay; encrypted-media; picture-in-picture; payment"
+      );
+      frame.setAttribute("allowfullscreen", "true");
+      frame.setAttribute("referrerpolicy", "no-referrer");
+    } catch {}
     wrapper.innerHTML = "";
     wrapper.appendChild(frame);
     page.engineFrame = frameObj;
