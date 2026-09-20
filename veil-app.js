@@ -27,6 +27,7 @@ const SW_URL = BASE + "/sw.js";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {
+  duckduckgo: { id: "duckduckgo", name: "DuckDuckGo", prefix: "https://duckduckgo.com/?q=" },
   google: { id: "google", name: "Google", prefix: "https://www.google.com/search?q=" },
   bing: { id: "bing", name: "Bing", prefix: "https://www.bing.com/search?pglt=299&q=" },
   brave: { id: "brave", name: "Brave", prefix: "https://search.brave.com/search?q=" }
@@ -234,7 +235,7 @@ const THEMES = {
 
 const DEFAULT_SETTINGS = {
   theme: "matte", transport: "epoxy", wispId: "default", wispCustom: "",
-  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 8, searchEngine: "google", ...THEMES.matte
+  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 8, searchEngine: "duckduckgo", lockUnload: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", ...THEMES.matte
 };
 const DEFAULT_PANIC = { key: "", code: "", url: "https://classroom.google.com" };
 
@@ -337,8 +338,8 @@ function applyNewTabBackground() {
 function imgIcon(name) { return '<img src="' + IMG + name + '" alt="">'; }
 
 function searchPrefix() {
-  const id = (settings && settings.searchEngine) || "google";
-  const eng = SEARCH_ENGINES[id] || SEARCH_ENGINES.google;
+  const id = (settings && settings.searchEngine) || "duckduckgo";
+  const eng = SEARCH_ENGINES[id] || SEARCH_ENGINES.duckduckgo;
   return eng.prefix;
 }
 
@@ -521,15 +522,14 @@ function engineOptionsHTML() {
 
 function homepageHTML(pageId) {
   return (
-    '<div class="newtab-page"><div class="newtab-overlay">' +
+    '<div class="newtab-page"><canvas class="home-fx" data-home-fx></canvas><div class="newtab-overlay">' +
     welcomeHTML() +
     '<div class="newtab-center">' +
     '<div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div>' +
     '<div class="newtab-title">Veil</div>' +
     '<div class="newtab-sub">Browse quietly. Stay undetected.</div>' +
     '<div class="search-row">' +
-    '<select class="engine-select" data-engine-select aria-label="Search engine">' + engineOptionsHTML() + '</select>' +
-    '<div class="search-box"><span class="home-search-icon"></span>' +
+    '<div class="search-box" style="width:100%"><span class="home-search-icon"></span>' +
     '<input class="newtab-search" data-page="' + pageId + '" placeholder="Search or enter a site…" autocomplete="off" spellcheck="false">' +
     '</div></div>' +
     '<div class="quick-links">' +
@@ -551,16 +551,7 @@ function homepageHTML(pageId) {
 function wireHome(wrapper, page) {
   applyNewTabBackground();
   startWelcomeClock();
-  wrapper.querySelectorAll("[data-engine-select]").forEach((sel) => {
-    sel.value = settings.searchEngine || "google";
-    sel.addEventListener("change", () => {
-      settings.searchEngine = sel.value;
-      save();
-      document.querySelectorAll("[data-engine-select]").forEach((s) => { s.value = sel.value; });
-      const settingsSel = document.getElementById("searchEngineSelect");
-      if (settingsSel) settingsSel.value = sel.value;
-    });
-  });
+  setupHomeFx(wrapper);
   wrapper.querySelectorAll(".newtab-search").forEach(input => {
     input.addEventListener("keydown", e => {
       if (e.key === "Enter") { activeTabId = page.id; navigate(input.value); }
@@ -893,6 +884,208 @@ function fillWispSelect() {
   ).join("");
   document.getElementById("wispCustom").value = settings.wispCustom || "";
 }
+
+const homeFxLoops = new WeakMap();
+
+function hexToRgb(hex) {
+  const h = String(hex || "").replace("#", "");
+  if (h.length !== 6) return { r: 122, g: 162, b: 255 };
+  return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
+}
+
+function stopHomeFx(wrapper) {
+  const prev = homeFxLoops.get(wrapper);
+  if (prev && prev.raf) cancelAnimationFrame(prev.raf);
+  homeFxLoops.delete(wrapper);
+}
+
+function setupHomeFx(wrapper) {
+  stopHomeFx(wrapper);
+  const canvas = wrapper.querySelector("[data-home-fx]");
+  if (!canvas) return;
+  if (!settings.animEnabled) {
+    canvas.style.display = "none";
+    return;
+  }
+  canvas.style.display = "block";
+  const ctx = canvas.getContext("2d");
+  const state = { raf: 0, t: 0, particles: [] };
+  const resize = () => {
+    const r = wrapper.getBoundingClientRect();
+    canvas.width = Math.max(1, Math.floor(r.width * (window.devicePixelRatio || 1)));
+    canvas.height = Math.max(1, Math.floor(r.height * (window.devicePixelRatio || 1)));
+    canvas.style.width = r.width + "px";
+    canvas.style.height = r.height + "px";
+  };
+  resize();
+  const style = settings.animStyle || "orbs";
+  const n = style === "constellation" ? 48 : style === "aurora" ? 6 : 18;
+  for (let i = 0; i < n; i++) {
+    state.particles.push({
+      x: Math.random(), y: Math.random(),
+      r: 0.02 + Math.random() * 0.08,
+      vx: (Math.random() - 0.5) * 0.0004,
+      vy: (Math.random() - 0.5) * 0.00035,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+  const draw = () => {
+    if (!settings.animEnabled) return;
+    const speed = Number(settings.animSpeed) || 1;
+    state.t += 0.016 * speed;
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    const a = hexToRgb(settings.animColorA);
+    const b = hexToRgb(settings.animColorB);
+    if (style === "aurora") {
+      for (let i = 0; i < state.particles.length; i++) {
+        const p = state.particles[i];
+        const y = (0.2 + i * 0.12 + Math.sin(state.t * 0.6 + p.phase) * 0.08) * h;
+        const grd = ctx.createLinearGradient(0, y, w, y + 40);
+        grd.addColorStop(0, "rgba(" + a.r + "," + a.g + "," + a.b + ",0)");
+        grd.addColorStop(0.5, "rgba(" + a.r + "," + a.g + "," + a.b + ",0.18)");
+        grd.addColorStop(1, "rgba(" + b.r + "," + b.g + "," + b.b + ",0)");
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        for (let x = 0; x <= w; x += 24) {
+          const yy = y + Math.sin(state.t + x * 0.004 + p.phase) * (18 + i * 4);
+          ctx.lineTo(x, yy);
+        }
+        ctx.lineTo(w, y + 80);
+        ctx.lineTo(0, y + 80);
+        ctx.closePath();
+        ctx.fill();
+      }
+    } else if (style === "constellation") {
+      const pts = state.particles;
+      pts.forEach((p) => {
+        p.x += p.vx * speed; p.y += p.vy * speed;
+        if (p.x < 0 || p.x > 1) p.vx *= -1;
+        if (p.y < 0 || p.y > 1) p.vy *= -1;
+      });
+      for (let i = 0; i < pts.length; i++) {
+        for (let j = i + 1; j < pts.length; j++) {
+          const dx = pts[i].x - pts[j].x, dy = pts[i].y - pts[j].y;
+          const d = Math.hypot(dx, dy);
+          if (d < 0.18) {
+            ctx.strokeStyle = "rgba(" + a.r + "," + a.g + "," + a.b + "," + (0.22 * (1 - d / 0.18)) + ")";
+            ctx.beginPath();
+            ctx.moveTo(pts[i].x * w, pts[i].y * h);
+            ctx.lineTo(pts[j].x * w, pts[j].y * h);
+            ctx.stroke();
+          }
+        }
+      }
+      pts.forEach((p) => {
+        ctx.fillStyle = "rgba(" + b.r + "," + b.g + "," + b.b + ",0.85)";
+        ctx.beginPath();
+        ctx.arc(p.x * w, p.y * h, 2.2 * (window.devicePixelRatio || 1), 0, Math.PI * 2);
+        ctx.fill();
+      });
+    } else {
+      state.particles.forEach((p, i) => {
+        p.x += p.vx * speed;
+        p.y += p.vy * speed;
+        if (p.x < -0.1) p.x = 1.1;
+        if (p.x > 1.1) p.x = -0.1;
+        if (p.y < -0.1) p.y = 1.1;
+        if (p.y > 1.1) p.y = -0.1;
+        const pulse = 0.55 + Math.sin(state.t * 1.2 + p.phase) * 0.35;
+        const rad = p.r * Math.min(w, h) * pulse;
+        const col = i % 2 ? a : b;
+        const g = ctx.createRadialGradient(p.x * w, p.y * h, 0, p.x * w, p.y * h, rad);
+        g.addColorStop(0, "rgba(" + col.r + "," + col.g + "," + col.b + ",0.35)");
+        g.addColorStop(1, "rgba(" + col.r + "," + col.g + "," + col.b + ",0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(p.x * w, p.y * h, rad, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+    state.raf = requestAnimationFrame(draw);
+  };
+  state.raf = requestAnimationFrame(draw);
+  homeFxLoops.set(wrapper, state);
+  const ro = new ResizeObserver(resize);
+  ro.observe(wrapper);
+}
+
+function setSwitch(el, on) {
+  if (!el) return;
+  el.classList.toggle("on", !!on);
+  el.setAttribute("aria-checked", on ? "true" : "false");
+}
+
+function refreshHomeFxAll() {
+  document.querySelectorAll(".page").forEach((pageEl) => {
+    const id = pageEl.dataset.pageId;
+    const tab = tabs.find((x) => x.id === id);
+    if (tab && tab.newTab) setupHomeFx(pageEl);
+  });
+}
+
+function lockVeil() {
+  closeMenu();
+  if (!profile.password) {
+    alert("Set a password on first-run sign up before locking.");
+    return;
+  }
+  if (settings.lockUnload) {
+    const ok = confirm("Lock and unload open pages? Unsaved page state may be lost.");
+    if (!ok) return;
+    tabs.forEach((tab) => {
+      if (tab.engineFrame) {
+        try {
+          const f = tab.engineFrame.element || tab.engineFrame.frame;
+          if (f && f.remove) f.remove();
+        } catch {}
+        tab.engineFrame = null;
+      }
+    });
+  }
+  const existing = document.querySelector(".lock-overlay");
+  if (existing) existing.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "lock-overlay";
+  overlay.innerHTML =
+    '<div class="lock-card">' +
+    "<h2>Veil is locked</h2>" +
+    "<p>Enter your password to continue.</p>" +
+    '<div class="lock-err" id="lockErr"></div>' +
+    '<input type="password" id="lockPass" placeholder="Password" autocomplete="current-password">' +
+    '<button type="button" class="lock-go" id="lockGo">Unlock</button>' +
+    "</div>";
+  document.body.appendChild(overlay);
+  const input = overlay.querySelector("#lockPass");
+  const err = overlay.querySelector("#lockErr");
+  input.focus();
+  const tryUnlock = () => {
+    if (input.value === profile.password) {
+      overlay.remove();
+      if (settings.lockUnload) {
+        const tab = getActiveTab();
+        if (tab && !tab.newTab && tab.url) {
+          const pageEl = document.querySelector('.page[data-page-id="' + tab.id + '"]');
+          if (pageEl && !tab.engineFrame) {
+            pageEl.innerHTML = "";
+            const frame = document.createElement("div");
+            frame.style.cssText = "width:100%;height:100%";
+            pageEl.appendChild(frame);
+            createEngineFrame(tab, frame);
+          }
+        }
+      }
+      return;
+    }
+    err.textContent = "Wrong password.";
+    input.value = "";
+    input.focus();
+  };
+  overlay.querySelector("#lockGo").onclick = tryUnlock;
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") tryUnlock(); });
+}
+
 function highlightTheme() {
   document.querySelectorAll("[data-theme]").forEach(b => b.classList.toggle("active", b.dataset.theme === settings.theme));
   const customCard = document.getElementById("customThemeCard");
@@ -901,14 +1094,12 @@ function highlightTheme() {
   if (editor) editor.classList.toggle("open", settings.theme === "custom" || editor.classList.contains("force-open"));
   document.getElementById("transportEpoxy").classList.toggle("active", settings.transport !== "libcurl");
   document.getElementById("transportLibcurl").classList.toggle("active", settings.transport === "libcurl");
-  document.getElementById("launchManual").classList.toggle("active", settings.launchMode !== "auto");
-  document.getElementById("launchAuto").classList.toggle("active", settings.launchMode === "auto");
-  const abOn = document.getElementById("adblockOn");
-  const abOff = document.getElementById("adblockOff");
-  if (abOn && abOff) {
-    abOn.classList.toggle("active", settings.adBlocker !== false);
-    abOff.classList.toggle("active", settings.adBlocker === false);
-  }
+  setSwitch(document.getElementById("launchAutoSwitch"), settings.launchMode === "auto");
+  setSwitch(document.getElementById("adblockSwitch"), settings.adBlocker !== false);
+  setSwitch(document.getElementById("animEnabledSwitch"), !!settings.animEnabled);
+  setSwitch(document.getElementById("lockUnloadSwitch"), !!settings.lockUnload);
+  const animOpts = document.getElementById("animOpts");
+  if (animOpts) animOpts.classList.toggle("enabled", !!settings.animEnabled);
   const range = document.getElementById("maxLoadedTabs");
   const rangeVal = document.getElementById("maxLoadedTabsVal");
   if (range) {
@@ -916,7 +1107,19 @@ function highlightTheme() {
     if (rangeVal) rangeVal.textContent = String(maxLoaded());
   }
   const engSel = document.getElementById("searchEngineSelect");
-  if (engSel) engSel.value = settings.searchEngine || "google";
+  if (engSel) engSel.value = settings.searchEngine || "duckduckgo";
+  const style = document.getElementById("animStyle");
+  if (style) style.value = settings.animStyle || "orbs";
+  const speed = document.getElementById("animSpeed");
+  const speedVal = document.getElementById("animSpeedVal");
+  if (speed) {
+    speed.value = String(settings.animSpeed || 1);
+    if (speedVal) speedVal.textContent = Number(settings.animSpeed || 1).toFixed(2) + "×";
+  }
+  const ca = document.getElementById("animColorA");
+  const cb = document.getElementById("animColorB");
+  if (ca) ca.value = settings.animColorA || "#7aa2ff";
+  if (cb) cb.value = settings.animColorB || "#b88cff";
 }
 
 function pushAdblockToSW() {
@@ -930,7 +1133,7 @@ function pushAdblockToSW() {
 
 function applyTheme(name) {
   if (!THEMES[name]) return;
-  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine };
+  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB };
   settings = Object.assign({}, settings, THEMES[name], keep, { theme: name });
   const editor = document.getElementById("customColorCard");
   if (editor) editor.classList.remove("open", "force-open");
@@ -1139,15 +1342,55 @@ document.getElementById("bookmarkBtn").onclick = toggleBookmark;
 document.getElementById("address").addEventListener("keydown", e => { if (e.key === "Enter") navigate(e.target.value); });
 document.getElementById("menuBtn").onclick = e => { e.stopPropagation(); document.getElementById("mainMenu").classList.toggle("open"); };
 document.getElementById("menuRename").onclick = () => { closeMenu(); renameCurrentTab(); };
+document.getElementById("menuLock").onclick = () => lockVeil();
 document.getElementById("menuBookmarks").onclick = () => { closeMenu(); openPanel("bookmarksPanel"); };
 const launchNowBtn = document.getElementById("launchNowBtn");
 if (launchNowBtn) launchNowBtn.onclick = () => openLaunchModal();
-document.getElementById("adblockOn").onclick = () => {
-  settings.adBlocker = true; save(); highlightTheme(); pushAdblockToSW();
+document.getElementById("adblockSwitch").onclick = () => {
+  settings.adBlocker = !(settings.adBlocker !== false);
+  save(); highlightTheme(); pushAdblockToSW();
 };
-document.getElementById("adblockOff").onclick = () => {
-  settings.adBlocker = false; save(); highlightTheme(); pushAdblockToSW();
+document.getElementById("launchAutoSwitch").onclick = () => {
+  settings.launchMode = settings.launchMode === "auto" ? "manual" : "auto";
+  save(); highlightTheme();
 };
+document.getElementById("animEnabledSwitch").onclick = () => {
+  settings.animEnabled = !settings.animEnabled;
+  save(); highlightTheme(); refreshHomeFxAll();
+};
+document.getElementById("lockUnloadSwitch").onclick = () => {
+  settings.lockUnload = !settings.lockUnload;
+  save(); highlightTheme();
+};
+const animStyle = document.getElementById("animStyle");
+if (animStyle) animStyle.addEventListener("change", () => {
+  settings.animStyle = animStyle.value; save(); refreshHomeFxAll();
+});
+const animSpeed = document.getElementById("animSpeed");
+if (animSpeed) {
+  animSpeed.addEventListener("input", () => {
+    settings.animSpeed = Number(animSpeed.value) || 1;
+    const v = document.getElementById("animSpeedVal");
+    if (v) v.textContent = Number(settings.animSpeed).toFixed(2) + "×";
+  });
+  animSpeed.addEventListener("change", () => {
+    settings.animSpeed = Number(animSpeed.value) || 1;
+    save(); refreshHomeFxAll();
+  });
+}
+["animColorA", "animColorB"].forEach((id) => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener("input", () => {
+    settings[id] = el.value;
+    refreshHomeFxAll();
+  });
+  el.addEventListener("change", () => {
+    settings[id] = el.value;
+    save();
+    refreshHomeFxAll();
+  });
+});
 const maxRange = document.getElementById("maxLoadedTabs");
 if (maxRange) {
   maxRange.addEventListener("input", () => {
@@ -1174,8 +1417,6 @@ document.getElementById("customThemeCard").onclick = () => {
 document.getElementById("applyColors").onclick = applyCustomColors;
 document.getElementById("transportEpoxy").onclick = () => setTransport("epoxy");
 document.getElementById("transportLibcurl").onclick = () => setTransport("libcurl");
-document.getElementById("launchManual").onclick = () => { settings.launchMode = "manual"; save(); highlightTheme(); };
-document.getElementById("launchAuto").onclick = () => { settings.launchMode = "auto"; save(); highlightTheme(); };
 document.getElementById("applyBackground").onclick = applyBackground;
 document.getElementById("applyCloak").onclick = applyCloak;
 document.getElementById("applyWisp").onclick = applyWisp;

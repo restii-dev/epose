@@ -75,9 +75,9 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
   radial-gradient(circle at 85% 70%, rgba(255,255,255,.025), transparent 40%);
   pointer-events:none}
 .newtab-overlay{position:relative;z-index:1;width:100%;min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 20px 88px}
-.welcome-bar{width:min(640px,100%);margin-bottom:28px;padding:14px 18px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(12px);text-align:left}
-.welcome-bar .welcome-line{font-size:14px;font-weight:600;letter-spacing:.01em;color:var(--text);margin-bottom:4px}
-.welcome-bar .welcome-time{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.welcome-bar{width:min(640px,100%);margin-bottom:28px;padding:14px 18px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(12px);text-align:center}
+.welcome-bar .welcome-line{font-size:14px;font-weight:600;letter-spacing:.01em;color:var(--text);margin-bottom:4px;text-align:center}
+.welcome-bar .welcome-time{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:center}
 .newtab-center{width:min(640px,100%);text-align:center;display:flex;flex-direction:column;align-items:center}
 .veil-mark{width:92px;height:92px;margin:0 auto 16px;border-radius:28px;background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.12);box-shadow:0 12px 40px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;overflow:hidden}
 .veil-mark img{width:56px;height:56px;object-fit:contain;display:block}
@@ -106,6 +106,14 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .signup-card input{width:100%;height:42px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 12px;font-size:14px}
 .signup-card .signup-go{width:100%;height:44px;margin-top:20px;border-radius:10px;background:var(--accent);color:var(--accentText);font-weight:600;font-size:14px;cursor:pointer}
 .signup-card .signup-err{color:var(--danger);font-size:12px;margin-top:10px;min-height:16px}
+.lock-overlay{position:fixed;inset:0;z-index:6000;background:rgba(8,8,10,.92);backdrop-filter:blur(16px);display:flex;align-items:center;justify-content:center;padding:20px}
+.lock-card{width:min(380px,100%);background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:28px 24px;text-align:center}
+.lock-card h2{font-size:18px;margin-bottom:8px}
+.lock-card p{font-size:13px;color:var(--muted);margin-bottom:16px}
+.lock-card input{width:100%;height:42px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 12px;margin-bottom:10px}
+.lock-card .lock-go{width:100%;height:42px;border-radius:10px;background:var(--accent);color:var(--accentText);font-weight:600;cursor:pointer}
+.lock-card .lock-err{color:var(--danger);font-size:12px;min-height:16px;margin-bottom:8px}
+
 .time-bar{position:absolute;left:0;right:0;bottom:0;height:36px;padding:0 14px;display:flex;align-items:center;background:rgba(0,0,0,.35);border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
 
 .menu{position:fixed;top:88px;right:10px;width:245px;background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:7px;z-index:1000;display:none}
@@ -140,6 +148,18 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .primary-btn{width:100%;height:38px;border-radius:9px;background:var(--accent);color:var(--accentText);cursor:pointer;font-size:12px;font-weight:600;margin-top:4px}
 .secondary-btn{width:100%;height:38px;border-radius:9px;background:var(--bg2);border:1px solid var(--border);color:var(--text);cursor:pointer;font-size:12px;margin-top:6px}
 .hint{font-size:11px;color:var(--muted);line-height:1.5;margin-top:6px}
+.switch-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0}
+.switch-row .switch-label{font-size:13px;color:var(--text);flex:1}
+.switch{position:relative;width:48px;height:28px;flex:0 0 48px;border-radius:999px;border:none;padding:0;cursor:pointer;background:var(--bg3);transition:background .25s ease}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25);transition:transform .25s cubic-bezier(.4,.0,.2,1)}
+.switch.on{background:var(--accent)}
+.switch.on::after{transform:translateX(20px)}
+.switch:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.switch:active::after{width:26px}
+.anim-opts{opacity:.45;pointer-events:none;transition:opacity .2s ease}
+.anim-opts.enabled{opacity:1;pointer-events:auto}
+.home-fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+
 .transport-row,.cloak-grid{display:flex;flex-wrap:wrap;gap:8px}
 .transport-btn,.cloak-preset{flex:1;min-width:90px;height:36px;border-radius:9px;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;font-size:12px}
 .transport-btn.active,.cloak-preset.active{border-color:var(--accent);background:var(--panel2)}
@@ -199,6 +219,8 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 <div class="menu" id="mainMenu">
   <button class="menu-item" id="menuBookmarks"><span class="menu-icon">★</span>Bookmarks</button>
   <button class="menu-item" id="menuRename"><span class="menu-icon">✎</span>Rename tab</button>
+  <div class="menu-separator"></div>
+  <button class="menu-item" id="menuLock"><span class="menu-icon">🔒</span>Lock Veil</button>
 </div>
 
 <div class="backdrop" id="backdrop"></div>
@@ -259,11 +281,11 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 
     <section class="setting-section">
       <div class="setting-title">Launch (about:blank)</div>
-      <div class="transport-row">
-        <button class="transport-btn" id="launchManual" type="button">Manual</button>
-        <button class="transport-btn" id="launchAuto" type="button">Auto on open</button>
+      <div class="switch-row">
+        <span class="switch-label">Auto-open about:blank once</span>
+        <button type="button" class="switch" id="launchAutoSwitch" role="switch" aria-checked="false"></button>
       </div>
-      <p class="hint">Manual: open from Launch Options. Auto: one about:blank on first open (skips if already inside about:blank — no loop).</p>
+      <p class="hint">Off = manual from Launch Options. On = one about:blank on first open (never loops if already cloaked).</p>
       <button class="primary-btn" id="launchNowBtn" type="button" style="margin-top:8px">Launch options…</button>
     </section>
 
@@ -287,6 +309,7 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
     <section class="setting-section">
       <div class="setting-title">Search engine</div>
       <select class="text-input" id="searchEngineSelect">
+        <option value="duckduckgo">DuckDuckGo</option>
         <option value="google">Google</option>
         <option value="bing">Bing</option>
         <option value="brave">Brave</option>
@@ -296,11 +319,45 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 
     <section class="setting-section">
       <div class="setting-title">Ad blocker</div>
-      <div class="transport-row">
-        <button class="transport-btn" id="adblockOn" type="button">On</button>
-        <button class="transport-btn" id="adblockOff" type="button">Off</button>
+      <div class="switch-row">
+        <span class="switch-label">Block ads &amp; trackers</span>
+        <button type="button" class="switch" id="adblockSwitch" role="switch" aria-checked="true"></button>
       </div>
       <p class="hint">Blocks common ad / tracker hosts in the proxy service worker.</p>
+    </section>
+
+    <section class="setting-section">
+      <div class="setting-title">Home page animations</div>
+      <div class="switch-row">
+        <span class="switch-label">Enable animations</span>
+        <button type="button" class="switch" id="animEnabledSwitch" role="switch" aria-checked="false"></button>
+      </div>
+      <div class="anim-opts" id="animOpts">
+        <div class="input-row" style="margin-top:10px"><label class="input-label">Style</label>
+          <select class="text-input" id="animStyle">
+            <option value="orbs">Floating orbs</option>
+            <option value="aurora">Aurora ribbons</option>
+            <option value="constellation">Constellation drift</option>
+          </select>
+        </div>
+        <div class="range-row">
+          <span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Speed</span>
+          <input type="range" id="animSpeed" min="0.25" max="2.5" step="0.05" value="1">
+          <span class="range-val" id="animSpeedVal">1.0×</span>
+        </div>
+        <div class="input-row"><label class="input-label">Color A</label><input class="color-input" type="color" id="animColorA" value="#7aa2ff"></div>
+        <div class="input-row"><label class="input-label">Color B</label><input class="color-input" type="color" id="animColorB" value="#b88cff"></div>
+        <p class="hint">Soft background motion on new tabs only. Off by default.</p>
+      </div>
+    </section>
+
+    <section class="setting-section">
+      <div class="setting-title">Lock</div>
+      <div class="switch-row">
+        <span class="switch-label">Unload pages when locking</span>
+        <button type="button" class="switch" id="lockUnloadSwitch" role="switch" aria-checked="false"></button>
+      </div>
+      <p class="hint">Off = keep Veil and sites loaded under the lock screen. On = unload engines (warning: open pages may be lost).</p>
     </section>
 
     <section class="setting-section">
