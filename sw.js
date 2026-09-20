@@ -1,10 +1,7 @@
 // sw.js — Scramjet service worker for Veil
 importScripts("./scramjet/scramjet.all.js");
 
-const { ScramjetServiceWorker } = $scramjetLoadWorker();
-const scramjet = new ScramjetServiceWorker();
-
-const BASE = self.location.pathname.replace(/sw\.js$/i, "");
+const BASE = self.location.pathname.replace(/sw\.js$/i, "").replace(/\?.*$/, "");
 const PROXY_PREFIX = BASE + "service/";
 const ORIGIN = self.location.origin;
 
@@ -20,8 +17,66 @@ const AD_HOSTS = [
   "casalemedia.com", "smartadserver.com", "yieldmo.com"
 ];
 
-self.addEventListener("install", () => self.skipWaiting());
-self.addEventListener("activate", (e) => e.waitUntil(self.clients.claim()));
+let scramjet = null;
+
+function deleteIdb(name) {
+  return new Promise((resolve) => {
+    try {
+      const req = indexedDB.deleteDatabase(name);
+      const done = () => resolve();
+      req.onsuccess = done;
+      req.onerror = done;
+      req.onblocked = done;
+      setTimeout(done, 1200);
+    } catch {
+      resolve();
+    }
+  });
+}
+
+async function getScramjet() {
+  if (!scramjet) {
+    const { ScramjetServiceWorker } = $scramjetLoadWorker();
+    scramjet = new ScramjetServiceWorker();
+  }
+  try {
+    await scramjet.loadConfig();
+  } catch (err) {
+    const msg = String(err && err.message || err);
+    if (/object stores was not found|NotFoundError|IDBDatabase|Failed to execute 'transaction'/i.test(msg)) {
+      console.warn("[SW] repairing $scramjet IndexedDB");
+      await deleteIdb("$scramjet");
+      const { ScramjetServiceWorker } = $scramjetLoadWorker();
+      scramjet = new ScramjetServiceWorker();
+      await scramjet.loadConfig();
+    } else {
+      throw err;
+    }
+  }
+  return scramjet;
+}
+
+self.addEventListener("install", (e) => {
+  e.waitUntil((async () => {
+    await deleteIdb("$scramjet");
+    await self.skipWaiting();
+  })());
+});
+
+self.addEventListener("activate", (e) => {
+  e.waitUntil((async () => {
+    await deleteIdb("$scramjet");
+    await self.clients.claim();
+  })());
+});
+
+self.addEventListener("message", (e) => {
+  if (e.data && e.data.type === "veil-reset-db") {
+    e.waitUntil(deleteIdb("$scramjet").then(() => {
+      scramjet = null;
+    }));
+  }
+});
 
 function isStaticAsset(path) {
   if (path === BASE + "SW.js" || path === BASE + "sw.js") return true;
@@ -101,7 +156,6 @@ function proxiedOriginFromReferrer(referrer) {
   return null;
 }
 
-/** Relative leaks like /service/Granule.html */
 function resolveRelativeProxy(request) {
   const url = new URL(request.url);
   if (!url.pathname.startsWith(PROXY_PREFIX)) return null;
@@ -147,10 +201,10 @@ self.addEventListener("fetch", (event) => {
         if (isAdUrl(rest)) return emptyAd();
       }
 
-      await scramjet.loadConfig();
-      if (scramjet.route(event)) {
+      const sj = await getScramjet();
+      if (sj.route(event)) {
         try {
-          return await scramjet.fetch(event);
+          return await sj.fetch(event);
         } catch (err) {
           const msg = String(err && err.message || err);
           if (/Invalid URL/i.test(msg)) {

@@ -91,21 +91,6 @@ function deleteScramjetDB() {
   });
 }
 
-async function ensureScramjetDB() {
-  if (!indexedDB.databases) {
-    await deleteScramjetDB();
-    return;
-  }
-  try {
-    const dbs = await indexedDB.databases();
-    const hit = dbs.find((d) => d && d.name === "$scramjet");
-    if (!hit) return;
-  } catch {
-    /* ignore */
-  }
-  await deleteScramjetDB();
-}
-
 async function createController() {
   if (typeof window.$scramjetLoadController === "function") {
     const loaded = window.$scramjetLoadController();
@@ -122,14 +107,31 @@ async function createController() {
       await engineController.init();
     } catch (err) {
       const msg = String(err && err.message || err);
-      if (/object stores was not found|NotFoundError|IDBDatabase/i.test(msg)) {
+      if (/object stores was not found|NotFoundError|IDBDatabase|Failed to execute 'transaction'/i.test(msg)) {
+        if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({ type: "veil-reset-db" });
+        }
         await deleteScramjetDB();
-        await new Promise((r) => setTimeout(r, 200));
+        await new Promise((r) => setTimeout(r, 300));
         await engineController.init();
       } else {
         throw err;
       }
     }
+  }
+}
+
+async function registerServiceWorker() {
+  // Wipe corrupt DB *before* the SW opens it
+  await deleteScramjetDB();
+  const reg = await navigator.serviceWorker.register(REPO_PATH + "sw.js?v=3", {
+    scope: SCRAMJET_PREFIX,
+    updateViaCache: "none"
+  });
+  try { await reg.update(); } catch {}
+  await navigator.serviceWorker.ready;
+  if (reg.active) {
+    reg.active.postMessage({ type: "veil-reset-db" });
   }
 }
 
@@ -143,11 +145,10 @@ async function initEngine() {
         await loadScript(SCRAMJET_FILES.all);
       }
       if (!("serviceWorker" in navigator)) throw new Error("Service workers unavailable.");
-      await navigator.serviceWorker.register(REPO_PATH + "sw.js", { scope: SCRAMJET_PREFIX });
       if (!window.BareMux) throw new Error("BareMux did not load.");
 
       if (status) status.textContent = "Resetting Scramjet DB…";
-      await ensureScramjetDB();
+      await registerServiceWorker();
 
       if (status) status.textContent = "Connecting transport…";
       await applyMuxTransport();
