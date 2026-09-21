@@ -247,9 +247,28 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .modal-box select{width:100%;margin-top:14px;height:40px}
 .modal-cancel{background:var(--bg2);border:1px solid var(--border);color:var(--text)}
 .modal-go{background:var(--accent);color:var(--accentText)}
+
+#accessGate{position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;background:#050508;flex-direction:column;padding:24px}
+#accessGate .box{width:min(400px,100%);background:#141418;border:1px solid #2a2a32;border-radius:16px;padding:28px 22px;text-align:center}
+#accessGate h1{font-size:22px;margin-bottom:6px}
+#accessGate p{font-size:13px;color:#9aa;margin-bottom:16px}
+#accessGate input{width:100%;height:44px;border-radius:10px;border:1px solid #2a2a32;background:#0e0e12;color:#fff;padding:0 12px;margin-bottom:10px;text-align:center;letter-spacing:.08em}
+#accessGate button{width:100%;height:44px;border:0;border-radius:10px;background:#7aa2ff;color:#0a0a12;font-weight:700;cursor:pointer}
+#accessGate .amsg{font-size:12px;min-height:18px;margin-top:10px;color:#9aa}
+body.gate-lock #app{display:none!important}
 </style>
 </head>
-<body>
+<body class="gate-lock">
+<div id="accessGate">
+  <div class="box">
+    <h1>Veil</h1>
+    <p>Enter an access key to continue. The browser will not load until a valid key is accepted.</p>
+    <input id="accessKey" type="text" placeholder="ACCESS KEY" autocomplete="off" spellcheck="false" />
+    <button type="button" id="accessSubmit">Enter</button>
+    <div class="amsg" id="accessMsg"></div>
+  </div>
+</div>
+
 <div id="browser">
   <header class="chrome">
     <div class="tabs-row">
@@ -451,6 +470,11 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
       <p class="hint" id="passwordMsg"></p>
     </section>
     <section class="setting-section">
+      <div class="setting-title">Admin</div>
+      <button class="secondary-btn" id="openAdminPanel" type="button">Open admin panel</button>
+      <p class="hint">Opens the admin panel in a Veil tab. Requires worker password.</p>
+    </section>
+    <section class="setting-section">
       <div class="setting-title">Factory reset</div>
       <button class="secondary-btn" id="resetSettings" type="button">Factory reset</button>
       <p class="hint">Clears theme and browser settings. Profile password is kept unless you clear site data.</p>
@@ -463,6 +487,9 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
   <div class="panel-body" id="bookmarkList"></div>
 </aside>
 
+</div>
+<script src="access-guard.js"></script>
+<script src="access-gate.js"></script>
 <script src="baremux/index.js"></script>
 <script src="scramjet/scramjet.all.js"></script>
 <script src="veil-app.js"></script>

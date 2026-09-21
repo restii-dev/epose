@@ -1980,7 +1980,7 @@ function showSignup() {
   });
 }
 
-(async function init() {
+async function bootVeilApp() {
   loadProfile();
   const consent = COOKIE.get("veil_cookie_consent");
   if (consent === "yes") { COOKIE.consent = true; loadSavedData(); }
@@ -2005,4 +2005,39 @@ function showSignup() {
       setTimeout(() => openAboutBlank("tab"), 500);
     }
   }
+}
+
+// Do not load browser until access gate passes
+(function waitForAccess() {
+  if (window.__VEIL_ACCESS_OK) {
+    bootVeilApp();
+    return;
+  }
+  window.addEventListener("veil-access-ok", function once() {
+    window.removeEventListener("veil-access-ok", once);
+    bootVeilApp();
+  });
 })();
+
+on("openAdminPanel", () => {
+  closePanels();
+  const base = location.origin + (location.pathname.replace(/\/[^/]*$/, "/") || "/");
+  const adminUrl = base + "admin/";
+  // open as normal Veil tab (proxied only if user types external - admin is same origin static)
+  const page = createTab(false);
+  page.url = adminUrl;
+  page.title = "Admin";
+  page.newTab = false;
+  // load directly in iframe without proxy for same-origin admin
+  const wrap = ensurePage(page);
+  wrap.innerHTML = "";
+  const fr = document.createElement("iframe");
+  fr.className = "engine-frame";
+  fr.style.cssText = "width:100%;height:100%;border:0;background:#0a0a0c";
+  fr.src = adminUrl;
+  wrap.appendChild(fr);
+  page.engineFrame = { frame: fr, element: fr };
+  switchTab(page.id);
+  renderChrome();
+});
+

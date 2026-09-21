@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Veil Admin</title>
+  <link rel="icon" href="../image/favi.png" />
+  <style>
+    :root { --bg:#0a0a0c; --panel:#141418; --border:#2a2a32; --text:#f0f0f5; --muted:#9a9aa8; --accent:#7aa2ff; --danger:#ff5c5c; --ok:#5dcc7a; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px 60px; }
+    h1 { font-size: 22px; margin-bottom: 6px; }
+    .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
+    .card h2 { font-size: 14px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    input, select, button, textarea { font: inherit; }
+    input, select { width: 100%; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: #0e0e12; color: var(--text); padding: 0 12px; margin-bottom: 10px; }
+    button { height: 40px; border-radius: 10px; border: 0; background: var(--accent); color: #0a0a12; font-weight: 600; padding: 0 14px; cursor: pointer; }
+    button.secondary { background: #22222a; color: var(--text); border: 1px solid var(--border); }
+    button.danger { background: var(--danger); color: #fff; }
+    button:disabled { opacity: .4; cursor: default; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .row input { flex: 1; min-width: 120px; margin-bottom: 0; }
+    .msg { font-size: 13px; color: var(--muted); margin-top: 8px; min-height: 18px; }
+    .msg.err { color: var(--danger); }
+    .msg.ok { color: var(--ok); }
+    .key-out { font-family: ui-monospace, monospace; font-size: 18px; letter-spacing: .12em; padding: 12px; background: #0e0e12; border-radius: 10px; border: 1px dashed var(--border); margin-top: 10px; word-break: break-all; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; }
+    .tag.ok { background: rgba(93,204,122,.15); color: var(--ok); }
+    .tag.bad { background: rgba(255,92,92,.15); color: var(--danger); }
+    .tag.mute { background: rgba(255,255,255,.06); color: var(--muted); }
+    .actions button { height: 30px; font-size: 11px; margin: 2px; }
+    #loginView, #appView { display: none; }
+    #loginView.show, #appView.show { display: block; }
+    iframe.map { width: 100%; height: 220px; border: 0; border-radius: 10px; margin-top: 8px; background: #111; }
+    .detail { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Veil Admin</h1>
+    <p class="sub">Key generation, IP logs, blocks, global sign-out</p>
+
+    <div id="loginView">
+      <div class="card">
+        <h2>Admin login</h2>
+        <label>Password</label>
+        <input id="adminPass" type="password" placeholder="Admin password" />
+        <button id="loginBtn" type="button">Login</button>
+        <div class="msg" id="loginMsg"></div>
+      </div>
+    </div>
+
+    <div id="appView">
+      <div class="card">
+        <h2>Generate one-time key</h2>
+        <label>Duration (examples: 30m, 2h, 1d, 2d;30m;10s, inf)</label>
+        <div class="row">
+          <input id="keyDur" value="1h" />
+          <button id="genKey" type="button">Generate</button>
+        </div>
+        <div class="key-out" id="keyOut">No key yet</div>
+        <div class="msg" id="keyMsg"></div>
+      </div>
+
+      <div class="card">
+        <h2>Global</h2>
+        <button class="danger" id="signoutAll" type="button">Sign everyone out</button>
+        <div class="msg" id="globalMsg"></div>
+      </div>
+
+      <div class="card">
+        <h2>IP log</h2>
+        <button class="secondary" id="refreshIps" type="button">Refresh</button>
+        <div style="overflow-x:auto;margin-top:10px">
+          <table>
+            <thead>
+              <tr>
+                <th>IP</th>
+                <th>Status</th>
+                <th>Access</th>
+                <th>Time left</th>
+                <th>Key</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="ipBody"></tbody>
+          </table>
+        </div>
+        <div id="ipDetail" class="card" style="display:none;margin-top:12px">
+          <h2>IP detail</h2>
+          <div class="detail" id="ipDetailText"></div>
+          <iframe class="map" id="ipMap" title="Map"></iframe>
+          <div class="row" style="margin-top:10px">
+            <input id="blockDur" placeholder="Block duration e.g. 15m" value="15m" />
+            <button class="danger" id="blockBtn" type="button">Block</button>
+            <button class="secondary" id="unblockBtn" type="button">Unblock</button>
+          </div>
+          <div class="msg" id="blockMsg"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+  <script src="../access-guard.js"></script>
+</body>
+</html>
