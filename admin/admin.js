@@ -1,4 +1,4 @@
-/* admin.js — talks to Cloudflare Worker */
+/* Veil Control — admin client */
 (function () {
   try {
     const q = new URLSearchParams(location.search);
@@ -14,7 +14,6 @@ const WORKER_URL = (
 ).replace(/\/$/, "");
 
 const TOKEN_KEY = "veil_admin_token";
-
 const $ = (id) => document.getElementById(id);
 
 function token() {
@@ -35,7 +34,7 @@ function showApp(ok) {
 }
 
 $("loginBtn").onclick = async () => {
-  $("loginMsg").textContent = "Checking...";
+  $("loginMsg").textContent = "Verifying credentials…";
   $("loginMsg").className = "msg";
   try {
     const { data } = await api("/api/admin/login", {
@@ -43,7 +42,7 @@ $("loginBtn").onclick = async () => {
       body: JSON.stringify({ password: $("adminPass").value }),
     });
     if (!data.ok) {
-      $("loginMsg").textContent = data.error || "Login failed";
+      $("loginMsg").textContent = data.error || "Authentication failed";
       $("loginMsg").className = "msg err";
       return;
     }
@@ -52,10 +51,14 @@ $("loginBtn").onclick = async () => {
     showApp(true);
     loadIps();
   } catch (e) {
-    $("loginMsg").textContent = "Could not reach worker: " + WORKER_URL;
+    $("loginMsg").textContent = "Unable to reach control service";
     $("loginMsg").className = "msg err";
   }
 };
+
+$("adminPass").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") $("loginBtn").click();
+});
 
 $("genKey").onclick = async () => {
   $("keyMsg").textContent = "";
@@ -64,20 +67,20 @@ $("genKey").onclick = async () => {
     body: JSON.stringify({ duration: $("keyDur").value }),
   });
   if (!data.ok) {
-    $("keyMsg").textContent = data.error || "Failed";
+    $("keyMsg").textContent = data.error || "Issuance failed";
     $("keyMsg").className = "msg err";
     return;
   }
   $("keyOut").textContent = data.key;
   $("keyMsg").textContent =
-    "Duration: " + data.duration + (data.infinite ? " (infinite)" : "") + " — one-time use";
+    "Issued · validity " + data.duration + (data.infinite ? " (unlimited)" : "") + " · single use";
   $("keyMsg").className = "msg ok";
 };
 
 $("signoutAll").onclick = async () => {
-  if (!confirm("Sign out ALL users?")) return;
+  if (!confirm("Revoke every active Veil session?")) return;
   const { data } = await api("/api/admin/signout-all", { method: "POST", body: "{}" });
-  $("globalMsg").textContent = data.ok ? "Everyone signed out." : data.error || "Failed";
+  $("globalMsg").textContent = data.ok ? "All sessions revoked." : data.error || "Failed";
   $("globalMsg").className = data.ok ? "msg ok" : "msg err";
   loadIps();
 };
@@ -91,35 +94,31 @@ async function loadIps() {
   const body = $("ipBody");
   body.innerHTML = "";
   if (!data.ok) {
-    body.innerHTML = "<tr><td colspan=6>" + (data.error || "Failed") + "</td></tr>";
+    body.innerHTML = "<tr><td colspan=6>" + (data.error || "Unable to load ledger") + "</td></tr>";
+    return;
+  }
+  if (!(data.ips || []).length) {
+    body.innerHTML = "<tr><td colspan=6 style='color:var(--muted)'>No identities recorded yet.</td></tr>";
     return;
   }
   for (const row of data.ips || []) {
     const tr = document.createElement("tr");
     const accessOk = row.access && row.access.valid;
     tr.innerHTML =
-      "<td>" +
-      row.ip +
-      "</td>" +
+      "<td style='font-family:ui-monospace,monospace'>" + row.ip + "</td>" +
       "<td>" +
       (row.blocked
-        ? "<span class='tag bad'>blocked</span>"
+        ? "<span class='tag bad'>restricted</span>"
         : accessOk
-          ? "<span class='tag ok'>access</span>"
-          : "<span class='tag mute'>none</span>") +
+          ? "<span class='tag ok'>active</span>"
+          : "<span class='tag mute'>idle</span>") +
       "</td>" +
-      "<td>" +
-      (accessOk ? "yes" : "no") +
+      "<td>" + (accessOk ? "granted" : "none") + "</td>" +
+      "<td>" + (row.blocked ? row.blockLeft : (row.access && row.access.timeLeft) || "—") + "</td>" +
+      "<td style='font-family:ui-monospace,monospace;font-size:11px'>" +
+      (row.access && row.access.key ? row.access.key : "—") +
       "</td>" +
-      "<td>" +
-      (row.blocked ? row.blockLeft : (row.access && row.access.timeLeft) || "-") +
-      "</td>" +
-      "<td>" +
-      (row.access && row.access.key ? row.access.key : "-") +
-      "</td>" +
-      "<td class='actions'><button type='button' data-ip='" +
-      row.ip +
-      "'>View</button></td>";
+      "<td class='actions'><button type='button' data-ip='" + row.ip + "'>Inspect</button></td>";
     body.appendChild(tr);
   }
   body.querySelectorAll("button[data-ip]").forEach((btn) => {
@@ -132,47 +131,24 @@ async function viewIp(ip) {
   $("ipDetail").style.display = "block";
   const { data } = await api("/api/admin/ip/" + encodeURIComponent(ip));
   if (!data.ok) {
-    $("ipDetailText").textContent = data.error || "Failed";
+    $("ipDetailText").textContent = data.error || "Lookup failed";
     return;
   }
   const r = data.ip;
   const g = r.geo || {};
   $("ipDetailText").innerHTML =
-    "<div><b>IP:</b> " +
-    r.ip +
+    "<div><b>Address</b> — " + r.ip + "</div>" +
+    "<div><b>Requests</b> — " + (r.hits || 0) + "</div>" +
+    "<div><b>First observed</b> — " + new Date(r.firstSeen).toLocaleString() + "</div>" +
+    "<div><b>Last observed</b> — " + new Date(r.lastSeen).toLocaleString() + "</div>" +
+    "<div><b>Locale</b> — " +
+    [g.city, g.region, g.country].filter(Boolean).join(", ") +
+    (g.asOrganization ? " · " + g.asOrganization : "") +
     "</div>" +
-    "<div><b>Hits:</b> " +
-    (r.hits || 0) +
-    "</div>" +
-    "<div><b>First seen:</b> " +
-    new Date(r.firstSeen).toLocaleString() +
-    "</div>" +
-    "<div><b>Last seen:</b> " +
-    new Date(r.lastSeen).toLocaleString() +
-    "</div>" +
-    "<div><b>Country:</b> " +
-    (g.country || "?") +
-    " <b>Region:</b> " +
-    (g.region || "?") +
-    " <b>City:</b> " +
-    (g.city || "?") +
-    "</div>" +
-    "<div><b>Org:</b> " +
-    (g.asOrganization || "?") +
-    "</div>" +
-    "<div><b>Blocked:</b> " +
-    (data.blocked ? "yes (" + data.blockLeft + ")" : "no") +
-    "</div>" +
-    "<div><b>Access key:</b> " +
-    (r.access && r.access.key ? r.access.key : "none") +
-    "</div>" +
-    "<div><b>Access started:</b> " +
-    (r.access ? new Date(r.access.started).toLocaleString() : "-") +
-    "</div>" +
-    "<div><b>Access duration:</b> " +
-    (r.access && r.access.durationLabel ? r.access.durationLabel : "-") +
-    "</div>";
-  if (data.mapUrl) $("ipMap").src = data.mapUrl;
+    "<div><b>Restriction</b> — " + (data.blocked ? "yes (" + data.blockLeft + ")" : "none") + "</div>" +
+    "<div><b>Credential</b> — " + (r.access && r.access.key ? r.access.key : "none") + "</div>" +
+    "<div><b>Access began</b> — " + (r.access ? new Date(r.access.started).toLocaleString() : "—") + "</div>" +
+    "<div><b>Granted for</b> — " + (r.access && r.access.durationLabel ? r.access.durationLabel : "—") + "</div>";
 }
 
 $("blockBtn").onclick = async () => {
@@ -181,7 +157,7 @@ $("blockBtn").onclick = async () => {
     method: "POST",
     body: JSON.stringify({ ip: selectedIp, duration: $("blockDur").value }),
   });
-  $("blockMsg").textContent = data.ok ? "Blocked for " + data.blockLeft : data.error || "Failed";
+  $("blockMsg").textContent = data.ok ? "Restriction applied · " + data.blockLeft : data.error || "Failed";
   $("blockMsg").className = data.ok ? "msg ok" : "msg err";
   loadIps();
   viewIp(selectedIp);
@@ -193,7 +169,7 @@ $("unblockBtn").onclick = async () => {
     method: "POST",
     body: JSON.stringify({ ip: selectedIp }),
   });
-  $("blockMsg").textContent = data.ok ? "Unblocked" : data.error || "Failed";
+  $("blockMsg").textContent = data.ok ? "Restriction lifted" : data.error || "Failed";
   $("blockMsg").className = data.ok ? "msg ok" : "msg err";
   loadIps();
   viewIp(selectedIp);

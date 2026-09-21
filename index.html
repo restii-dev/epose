@@ -258,6 +258,25 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 body.gate-lock #browser,body.gate-lock #app{display:none!important}
 body.gate-lock{background:#050508}
 #accessGate.checking .box{visibility:hidden}
+#accessGate.is-blocked .box{transition:opacity .35s ease,filter .35s ease}
+#accessBlocked{
+  display:none;position:fixed;inset:0;z-index:100000;
+  align-items:center;justify-content:center;padding:24px;
+  background:rgba(5,5,8,.75);backdrop-filter:blur(10px);
+}
+#accessBlocked .blocked-panel{
+  max-width:440px;width:100%;text-align:center;padding:40px 28px;
+  background:#141418;border:1px solid #3a3a44;border-radius:18px;
+  box-shadow:0 24px 80px rgba(0,0,0,.5);
+}
+#accessBlocked .blocked-badge{
+  display:inline-block;font-size:10px;font-weight:800;letter-spacing:.16em;
+  color:#ff8a8a;border:1px solid rgba(255,92,92,.35);background:rgba(255,92,92,.1);
+  padding:6px 12px;border-radius:999px;margin-bottom:16px;
+}
+#accessBlocked h2{font-size:20px;font-weight:650;margin:0 0 12px;color:#f0f0f5}
+#accessBlocked .blocked-time{font-size:14px;line-height:1.55;color:#9a9aa8;margin:0}
+
 #accessGate{background:#050508}
 </style>
 </head>

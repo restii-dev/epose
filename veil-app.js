@@ -292,15 +292,25 @@ const COOKIE = {
   consent: false,
   set(name, value, days = 365) {
     if (!this.consent) return;
-    const expires = new Date(Date.now() + days * 86400000).toUTCString();
-    document.cookie = encodeURIComponent(name) + "=" + encodeURIComponent(value) + "; expires=" + expires + "; path=/; SameSite=Lax";
+    try {
+      const expires = new Date(Date.now() + days * 86400000).toUTCString();
+      document.cookie = encodeURIComponent(name) + "=" + encodeURIComponent(value) + "; expires=" + expires + "; path=/; SameSite=Lax";
+    } catch (e) {}
+    try {
+      localStorage.setItem("veil_c_" + name, value);
+    } catch (e) {}
   },
   get(name) {
-    const target = encodeURIComponent(name) + "=";
-    for (const part of document.cookie.split(";")) {
-      const p = part.trim();
-      if (p.startsWith(target)) return decodeURIComponent(p.slice(target.length));
-    }
+    try {
+      const target = encodeURIComponent(name) + "=";
+      for (const part of document.cookie.split(";")) {
+        const p = part.trim();
+        if (p.startsWith(target)) return decodeURIComponent(p.slice(target.length));
+      }
+    } catch (e) {}
+    try {
+      return localStorage.getItem("veil_c_" + name);
+    } catch (e) {}
     return null;
   }
 };
@@ -330,10 +340,20 @@ function faviconFor(url) {
 function save() {
   if (!COOKIE.consent) return;
   try {
-    COOKIE.set(STORAGE.bookmarks, JSON.stringify(bookmarks));
-    COOKIE.set(STORAGE.settings, JSON.stringify(settings));
-    COOKIE.set(STORAGE.cloak, JSON.stringify(cloak));
-    COOKIE.set(STORAGE.panic, JSON.stringify(panic));
+    const b = JSON.stringify(bookmarks);
+    const s = JSON.stringify(settings);
+    const c = JSON.stringify(cloak);
+    const p = JSON.stringify(panic);
+    COOKIE.set(STORAGE.bookmarks, b);
+    COOKIE.set(STORAGE.settings, s);
+    COOKIE.set(STORAGE.cloak, c);
+    COOKIE.set(STORAGE.panic, p);
+    try {
+      localStorage.setItem(STORAGE.bookmarks, b);
+      localStorage.setItem(STORAGE.settings, s);
+      localStorage.setItem(STORAGE.cloak, c);
+      localStorage.setItem(STORAGE.panic, p);
+    } catch (e2) {}
   } catch (e) { console.warn("save failed", e); }
 }
 function loadProfile() {
@@ -371,8 +391,10 @@ function migrateSettings() {
 function loadSavedData() {
   loadProfile();
   try {
-    const b = COOKIE.get(STORAGE.bookmarks), s = COOKIE.get(STORAGE.settings);
-    const c = COOKIE.get(STORAGE.cloak), p = COOKIE.get(STORAGE.panic);
+    const b = COOKIE.get(STORAGE.bookmarks) || localStorage.getItem(STORAGE.bookmarks);
+    const s = COOKIE.get(STORAGE.settings) || localStorage.getItem(STORAGE.settings);
+    const c = COOKIE.get(STORAGE.cloak) || localStorage.getItem(STORAGE.cloak);
+    const p = COOKIE.get(STORAGE.panic) || localStorage.getItem(STORAGE.panic);
     if (b) bookmarks = JSON.parse(b) || [];
     if (s) settings = { ...DEFAULT_SETTINGS, ...JSON.parse(s) };
     migrateSettings();

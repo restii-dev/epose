@@ -1,113 +1,147 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang=\"en\">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Veil Admin</title>
-  <link rel="icon" href="../image/favi.png" />
+  <meta charset=\"UTF-8\" />
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+  <title>Veil · Control</title>
+  <link rel=\"icon\" href=\"../image/favi.png\" />
   <style>
-    :root { --bg:#0a0a0c; --panel:#141418; --border:#2a2a32; --text:#f0f0f5; --muted:#9a9aa8; --accent:#7aa2ff; --danger:#ff5c5c; --ok:#5dcc7a; }
+    :root {
+      --bg: #0a0a0c; --bg2: #121216; --bg3: #1a1a20; --panel: #141418;
+      --border: #2a2a32; --text: #f0f0f5; --muted: #8b8b9a;
+      --accent: #c8c8d0; --accentText: #0a0a0c; --ok: #5dcc7a; --bad: #ff5c5c;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
-    .wrap { max-width: 960px; margin: 0 auto; padding: 24px 16px 60px; }
-    h1 { font-size: 22px; margin-bottom: 6px; }
-    .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
-    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 16px; }
-    .card h2 { font-size: 14px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
-    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
-    input, select, button, textarea { font: inherit; }
-    input, select { width: 100%; height: 40px; border-radius: 10px; border: 1px solid var(--border); background: #0e0e12; color: var(--text); padding: 0 12px; margin-bottom: 10px; }
-    button { height: 40px; border-radius: 10px; border: 0; background: var(--accent); color: #0a0a12; font-weight: 600; padding: 0 14px; cursor: pointer; }
-    button.secondary { background: #22222a; color: var(--text); border: 1px solid var(--border); }
-    button.danger { background: var(--danger); color: #fff; }
-    button:disabled { opacity: .4; cursor: default; }
-    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .row input { flex: 1; min-width: 120px; margin-bottom: 0; }
-    .msg { font-size: 13px; color: var(--muted); margin-top: 8px; min-height: 18px; }
-    .msg.err { color: var(--danger); }
+    html, body { min-height: 100%; background: var(--bg); color: var(--text);
+      font-family: system-ui, -apple-system, \"Segoe UI\", sans-serif; }
+    body {
+      background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(200,200,210,.06), transparent 50%), var(--bg);
+    }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 28px 18px 80px; }
+    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; animation: rise .5s ease both; }
+    .brand-mark {
+      width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(145deg, #2a2a32, #121216);
+      border: 1px solid var(--border); display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 14px;
+    }
+    .brand h1 { font-size: 18px; font-weight: 650; }
+    .brand p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+      padding: 22px; margin-bottom: 16px; animation: rise .55s ease both;
+      transition: border-color .2s ease;
+    }
+    .card:hover { border-color: #3a3a44; }
+    .card h2 {
+      font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 14px;
+    }
+    label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+    input, select {
+      width: 100%; height: 42px; border-radius: 10px; border: 1px solid var(--border);
+      background: var(--bg2); color: var(--text); padding: 0 12px; font-size: 13px; outline: none;
+    }
+    input:focus { border-color: #5a5a68; box-shadow: 0 0 0 3px rgba(200,200,210,.08); }
+    button {
+      height: 42px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg3);
+      color: var(--text); font-size: 13px; font-weight: 600; padding: 0 16px; cursor: pointer;
+      transition: background .2s, border-color .2s, transform .12s;
+    }
+    button:hover { background: #22222a; border-color: #4a4a54; }
+    button:active { transform: scale(.98); }
+    button.primary { background: var(--accent); color: var(--accentText); border-color: transparent; }
+    button.danger { background: rgba(255,92,92,.12); border-color: rgba(255,92,92,.35); color: #ff8a8a; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .row input { flex: 1; min-width: 140px; }
+    .msg { font-size: 12px; color: var(--muted); margin-top: 10px; min-height: 16px; }
+    .msg.err { color: var(--bad); }
     .msg.ok { color: var(--ok); }
-    .key-out { font-family: ui-monospace, monospace; font-size: 18px; letter-spacing: .12em; padding: 12px; background: #0e0e12; border-radius: 10px; border: 1px dashed var(--border); margin-top: 10px; word-break: break-all; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
-    th { color: var(--muted); font-weight: 600; }
-    .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; }
-    .tag.ok { background: rgba(93,204,122,.15); color: var(--ok); }
-    .tag.bad { background: rgba(255,92,92,.15); color: var(--danger); }
-    .tag.mute { background: rgba(255,255,255,.06); color: var(--muted); }
-    .actions button { height: 30px; font-size: 11px; margin: 2px; }
+    .key-out {
+      margin-top: 12px; padding: 14px 16px; border-radius: 12px; background: var(--bg2);
+      border: 1px dashed var(--border); font-family: ui-monospace, monospace;
+      font-size: 16px; letter-spacing: .1em; word-break: break-all;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+    .tag { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .tag.ok { background: rgba(93,204,122,.12); color: var(--ok); }
+    .tag.bad { background: rgba(255,92,92,.12); color: var(--bad); }
+    .tag.mute { background: rgba(255,255,255,.05); color: var(--muted); }
+    .actions button { height: 32px; font-size: 11px; padding: 0 10px; }
     #loginView, #appView { display: none; }
     #loginView.show, #appView.show { display: block; }
-    iframe.map { width: 100%; height: 220px; border: 0; border-radius: 10px; margin-top: 8px; background: #111; }
-    .detail { font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .detail { font-size: 12px; color: var(--muted); line-height: 1.65; display: grid; gap: 6px; }
+    .detail b { color: var(--text); font-weight: 600; }
+    .login-card { max-width: 400px; margin: 12vh auto 0; text-align: center; }
+    .login-card h1 { font-size: 22px; margin-bottom: 8px; }
+    .login-card .sub { color: var(--muted); font-size: 13px; margin-bottom: 22px; line-height: 1.5; }
+    @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Veil Admin</h1>
-    <p class="sub">Key generation, IP logs, blocks, global sign-out</p>
-
-    <div id="loginView">
-      <div class="card">
-        <h2>Admin login</h2>
-        <label>Password</label>
-        <input id="adminPass" type="password" placeholder="Admin password" />
-        <button id="loginBtn" type="button">Login</button>
-        <div class="msg" id="loginMsg"></div>
+  <div class=\"wrap\">
+    <div class=\"brand\">
+      <div class=\"brand-mark\">V</div>
+      <div>
+        <h1>Veil Control</h1>
+        <p>Access authority · session administration</p>
       </div>
     </div>
-
-    <div id="appView">
-      <div class="card">
-        <h2>Generate one-time key</h2>
-        <label>Duration (examples: 30m, 2h, 1d, 2d;30m;10s, inf)</label>
-        <div class="row">
-          <input id="keyDur" value="1h" />
-          <button id="genKey" type="button">Generate</button>
+    <div id=\"loginView\">
+      <div class=\"card login-card\">
+        <h1>Authorization required</h1>
+        <p class=\"sub\">Authenticate with the control password to manage keys, sessions, and network identity records.</p>
+        <label style=\"text-align:left\">Control password</label>
+        <input id=\"adminPass\" type=\"password\" placeholder=\"Enter control password\" autocomplete=\"current-password\" />
+        <button class=\"primary\" id=\"loginBtn\" type=\"button\" style=\"width:100%;margin-top:12px\">Authenticate</button>
+        <div class=\"msg\" id=\"loginMsg\"></div>
+      </div>
+    </div>
+    <div id=\"appView\">
+      <div class=\"card\">
+        <h2>Issue access credential</h2>
+        <label>Validity period</label>
+        <div class=\"row\">
+          <input id=\"keyDur\" value=\"1h\" placeholder=\"e.g. 30m, 2h, 1d, 2d;30m, inf\" />
+          <button class=\"primary\" id=\"genKey\" type=\"button\">Generate credential</button>
         </div>
-        <div class="key-out" id="keyOut">No key yet</div>
-        <div class="msg" id="keyMsg"></div>
+        <p class=\"msg\" style=\"margin-top:6px\">Formats: 30s · 15m · 2h · 1d · 2d;30m;10s · inf</p>
+        <div class=\"key-out\" id=\"keyOut\">No credential issued yet</div>
+        <div class=\"msg\" id=\"keyMsg\"></div>
       </div>
-
-      <div class="card">
-        <h2>Global</h2>
-        <button class="danger" id="signoutAll" type="button">Sign everyone out</button>
-        <div class="msg" id="globalMsg"></div>
+      <div class=\"card\">
+        <h2>Global session control</h2>
+        <p class=\"msg\" style=\"margin-top:0;margin-bottom:12px\">Invalidate every active session. All clients return to the access gate.</p>
+        <button class=\"danger\" id=\"signoutAll\" type=\"button\">Revoke all sessions</button>
+        <div class=\"msg\" id=\"globalMsg\"></div>
       </div>
-
-      <div class="card">
-        <h2>IP log</h2>
-        <button class="secondary" id="refreshIps" type="button">Refresh</button>
-        <div style="overflow-x:auto;margin-top:10px">
+      <div class=\"card\">
+        <h2>Network identity log</h2>
+        <button id=\"refreshIps\" type=\"button\">Refresh ledger</button>
+        <div style=\"overflow-x:auto\">
           <table>
             <thead>
               <tr>
-                <th>IP</th>
-                <th>Status</th>
-                <th>Access</th>
-                <th>Time left</th>
-                <th>Key</th>
-                <th></th>
+                <th>Address</th><th>State</th><th>Access</th><th>Remaining</th><th>Credential</th><th></th>
               </tr>
             </thead>
-            <tbody id="ipBody"></tbody>
+            <tbody id=\"ipBody\"></tbody>
           </table>
         </div>
-        <div id="ipDetail" class="card" style="display:none;margin-top:12px">
-          <h2>IP detail</h2>
-          <div class="detail" id="ipDetailText"></div>
-          <iframe class="map" id="ipMap" title="Map"></iframe>
-          <div class="row" style="margin-top:10px">
-            <input id="blockDur" placeholder="Block duration e.g. 15m" value="15m" />
-            <button class="danger" id="blockBtn" type="button">Block</button>
-            <button class="secondary" id="unblockBtn" type="button">Unblock</button>
+        <div id=\"ipDetail\" class=\"card\" style=\"display:none;margin-top:14px;background:var(--bg2)\">
+          <h2>Identity dossier</h2>
+          <div class=\"detail\" id=\"ipDetailText\"></div>
+          <div class=\"row\" style=\"margin-top:14px\">
+            <input id=\"blockDur\" placeholder=\"Duration e.g. 30m, 2h, 1d, inf\" />
+            <button class=\"danger\" id=\"blockBtn\" type=\"button\">Restrict address</button>
+            <button id=\"unblockBtn\" type=\"button\">Lift restriction</button>
           </div>
-          <div class="msg" id="blockMsg"></div>
+          <div class=\"msg\" id=\"blockMsg\"></div>
         </div>
       </div>
     </div>
   </div>
-
-  <script src="admin.js"></script>
-  
+  <script src=\"admin.js\"></script>
 </body>
 </html>

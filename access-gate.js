@@ -1,7 +1,5 @@
 /**
- * Veil access gate
- * Boot: black screen → check session → valid: Veil | invalid: key entry
- * Expire: full unload back to key entry
+ * Veil access gate — black boot, key entry, blocked lockout
  */
 (function () {
   try {
@@ -20,9 +18,7 @@
   const SESSION_META = "veil_access_meta";
 
   const gate = document.getElementById("accessGate");
-  const appRoot =
-    document.getElementById("browser") ||
-    document.getElementById("app");
+  const appRoot = document.getElementById("browser") || document.getElementById("app");
   const keyInput = document.getElementById("accessKey");
   const keyBtn = document.getElementById("accessSubmit");
   const keyMsg = document.getElementById("accessMsg");
@@ -39,13 +35,30 @@
     document.body.classList.toggle("gate-lock", !!locked);
   }
 
-  /** Black screen only — no key form yet */
+  function ensureBlockedLayer() {
+    let el = document.getElementById("accessBlocked");
+    if (el) return el;
+    el = document.createElement("div");
+    el.id = "accessBlocked";
+    el.innerHTML =
+      '<div class="blocked-panel">' +
+      '<div class="blocked-badge">ACCESS DENIED</div>' +
+      '<h2>You are blocked from entering Veil</h2>' +
+      '<p class="blocked-time" id="blockedTimeMsg"></p>' +
+      "</div>";
+    document.body.appendChild(el);
+    return el;
+  }
+
   function showBlack() {
     setBodyLocked(true);
     if (appRoot) appRoot.style.display = "none";
+    const bl = document.getElementById("accessBlocked");
+    if (bl) bl.style.display = "none";
     if (gate) {
       gate.style.display = "flex";
       gate.classList.add("checking");
+      gate.classList.remove("is-blocked");
     }
     if (gateBox) gateBox.style.visibility = "hidden";
     if (keyMsg) keyMsg.textContent = "";
@@ -54,11 +67,20 @@
   function showGate(msg, isErr) {
     setBodyLocked(true);
     if (appRoot) appRoot.style.display = "none";
+    const bl = document.getElementById("accessBlocked");
+    if (bl) bl.style.display = "none";
     if (gate) {
       gate.style.display = "flex";
-      gate.classList.remove("checking");
+      gate.classList.remove("checking", "is-blocked");
     }
-    if (gateBox) gateBox.style.visibility = "visible";
+    if (gateBox) {
+      gateBox.style.visibility = "visible";
+      gateBox.style.pointerEvents = "";
+      gateBox.style.opacity = "";
+      gateBox.style.filter = "";
+    }
+    if (keyInput) keyInput.disabled = false;
+    if (keyBtn) keyBtn.disabled = false;
     if (keyMsg) {
       keyMsg.textContent = msg || "";
       keyMsg.style.color = isErr ? "#ff6b6b" : "#9aa";
@@ -66,48 +88,62 @@
     window.__VEIL_ACCESS_OK = false;
   }
 
+  function showBlocked(message) {
+    setBodyLocked(true);
+    if (appRoot) appRoot.style.display = "none";
+    if (gate) {
+      gate.style.display = "flex";
+      gate.classList.remove("checking");
+      gate.classList.add("is-blocked");
+    }
+    if (gateBox) {
+      gateBox.style.visibility = "visible";
+      gateBox.style.pointerEvents = "none";
+      gateBox.style.opacity = "0.22";
+      gateBox.style.filter = "grayscale(1)";
+    }
+    if (keyInput) {
+      keyInput.disabled = true;
+      keyInput.value = "";
+    }
+    if (keyBtn) keyBtn.disabled = true;
+    if (keyMsg) keyMsg.textContent = "";
+
+    const layer = ensureBlockedLayer();
+    layer.style.display = "flex";
+    const tm = document.getElementById("blockedTimeMsg");
+    if (tm) tm.textContent = message || "You are blocked from entering Veil.";
+    window.__VEIL_ACCESS_OK = false;
+  }
+
   function showApp() {
     setBodyLocked(false);
     if (gate) {
       gate.style.display = "none";
-      gate.classList.remove("checking");
+      gate.classList.remove("checking", "is-blocked");
     }
+    const bl = document.getElementById("accessBlocked");
+    if (bl) bl.style.display = "none";
     if (appRoot) appRoot.style.display = "";
     window.__VEIL_ACCESS_OK = true;
     window.dispatchEvent(new Event("veil-access-ok"));
-    window.dispatchEvent(
-      new CustomEvent("veil-session-meta", { detail: sessionMeta })
-    );
+    window.dispatchEvent(new CustomEvent("veil-session-meta", { detail: sessionMeta }));
   }
 
-  /** Hard unload Veil UI when session dies */
-  function forceUnloadToGate(msg) {
+  function forceUnloadToGate(msg, blocked) {
     localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(SESSION_META);
     sessionMeta = null;
     window.__VEIL_ACCESS_OK = false;
     try {
-      // Tear down engine frames
-      document.querySelectorAll(".engine-frame, iframe").forEach((el) => {
-        try {
-          el.src = "about:blank";
-        } catch (_) {}
-        try {
-          el.remove();
-        } catch (_) {}
+      document.querySelectorAll(".engine-frame, #browser iframe").forEach((el) => {
+        try { el.src = "about:blank"; } catch (_) {}
+        try { el.remove(); } catch (_) {}
       });
     } catch (_) {}
-    if (appRoot) {
-      // hide only; don't destroy so reopen still works after re-key
-      appRoot.style.display = "none";
-    }
-    showGate(msg || "Session ended. Enter a new key.", true);
-    // Full reload clears SW frames / RAM cleanly
-    try {
-      sessionStorage.setItem("veil_force_gate", "1");
-    } catch (_) {}
-    // Soft path first; user can hard refresh. Optional full reload:
-    // location.reload();
+    if (appRoot) appRoot.style.display = "none";
+    if (blocked) showBlocked(msg);
+    else showGate(msg || "Session ended. Enter a new key.", true);
   }
 
   function saveMeta(data) {
@@ -120,9 +156,7 @@
     try {
       localStorage.setItem(SESSION_META, JSON.stringify(sessionMeta));
     } catch (_) {}
-    window.dispatchEvent(
-      new CustomEvent("veil-session-meta", { detail: sessionMeta })
-    );
+    window.dispatchEvent(new CustomEvent("veil-session-meta", { detail: sessionMeta }));
   }
 
   async function checkSession() {
@@ -136,12 +170,10 @@
       });
       const data = await res.json();
       if (data.blocked) {
-        forceUnloadToGate(data.error || "Blocked");
+        forceUnloadToGate(data.error || "You are blocked from entering Veil.", true);
         return "blocked";
       }
-      if (!data.ok) {
-        return false;
-      }
+      if (!data.ok) return false;
       saveMeta(data);
       return true;
     } catch (e) {
@@ -165,7 +197,7 @@
       });
       const data = await res.json().catch(() => ({}));
       if (data.blocked) {
-        showGate(data.error || "Blocked", true);
+        showBlocked(data.error || "You are blocked from entering Veil.");
         return;
       }
       if (!data.ok || !data.token) {
@@ -192,7 +224,7 @@
       const ok = await checkSession();
       if (ok === true) return;
       if (ok === "blocked") return;
-      forceUnloadToGate("Session ended. Enter a new key.");
+      forceUnloadToGate("Session ended. Enter a new key.", false);
     }, 15000);
   }
 
@@ -217,12 +249,8 @@
 
   window.VeilAccess = {
     workerUrl: WORKER_URL,
-    getMeta() {
-      return sessionMeta;
-    },
-    logout() {
-      forceUnloadToGate("Signed out.");
-    },
+    getMeta() { return sessionMeta; },
+    logout() { forceUnloadToGate("Signed out.", false); },
   };
 
   boot();
