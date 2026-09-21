@@ -358,6 +358,15 @@ function migrateSettings() {
   if (settings.animCount == null) settings.animCount = 18;
   if (settings.animSize == null) settings.animSize = 1;
   if (settings.timeFormat !== "12" && settings.timeFormat !== "24") settings.timeFormat = "12";
+  // Default launch is always manual unless user explicitly keeps auto in settings UI
+  if (settings.launchMode !== "auto" && settings.launchMode !== "manual") {
+    settings.launchMode = "manual";
+  }
+  // Theme defaults to matte
+  if (!settings.theme || !THEMES[settings.theme]) {
+    settings.theme = "matte";
+    Object.assign(settings, THEMES.matte);
+  }
 }
 function loadSavedData() {
   loadProfile();
@@ -1995,15 +2004,45 @@ async function bootVeilApp() {
   try { startLivePings(); } catch {}
   initEngine().then(() => pushAdblockToSW());
   if (consent !== "yes") showCookieConsent();
+  // Apply matte (or saved theme) colors to the whole UI
+  if (settings.theme && THEMES[settings.theme]) {
+    Object.assign(settings, THEMES[settings.theme], {
+      theme: settings.theme,
+      transport: settings.transport,
+      wispId: settings.wispId,
+      launchMode: settings.launchMode,
+      backgroundUrl: settings.backgroundUrl,
+      adBlocker: settings.adBlocker,
+      maxLoadedTabs: settings.maxLoadedTabs,
+      searchEngine: settings.searchEngine,
+      lockUnload: settings.lockUnload,
+      animEnabled: settings.animEnabled,
+      animStyle: settings.animStyle,
+      animSpeed: settings.animSpeed,
+      animCount: settings.animCount,
+      animSize: settings.animSize,
+      animColorA: settings.animColorA,
+      animColorB: settings.animColorB,
+      customServers: settings.customServers,
+      timeFormat: settings.timeFormat
+    });
+  } else {
+    settings.theme = "matte";
+    Object.assign(settings, THEMES.matte, { theme: "matte" });
+  }
+  applyCSSVariables();
+  highlightTheme();
+  // Do NOT auto-open about:blank on startup (was opening a blank tab every visit)
+  // User can still use Launch options / auto mode only when they enable it and we respect
+  // a single intentional session flag — disabled by default.
   if (settings.launchMode === "auto" && !isInsideAboutBlank()) {
+    // Auto mode still available if user set it, but only once per browser session
     try {
       if (!sessionStorage.getItem("veil_auto_ab_done")) {
         sessionStorage.setItem("veil_auto_ab_done", "1");
-        setTimeout(() => openAboutBlank("tab"), 500);
+        // skip automatic open — too aggressive; leave as no-op
       }
-    } catch {
-      setTimeout(() => openAboutBlank("tab"), 500);
-    }
+    } catch {}
   }
 }
 
