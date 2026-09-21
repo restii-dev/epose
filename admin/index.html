@@ -7,13 +7,15 @@
 <link rel="icon" href="../image/favi.png">
 <style>
   :root {
-    --bg: #0a0a0c;
-    --bg2: #121216;
-    --panel: #141418;
-    --border: #2a2a32;
-    --text: #f0f0f5;
-    --muted: #8b8b9a;
-    --accent: #c8c8d0;
+    --bg: #101010;
+    --bg2: #151515;
+    --panel: #181818;
+    --panel2: #202020;
+    --border: #2b2b2b;
+    --text: #f2f2f2;
+    --muted: #888888;
+    --accent: #ffffff;
+    --accentText: #111111;
     --ok: #5dcc7a;
     --bad: #ff5c5c;
   }
@@ -24,164 +26,60 @@
     color: var(--text);
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   }
-  body {
-    background:
-      radial-gradient(ellipse 70% 40% at 50% -10%, rgba(200,200,210,.05), transparent 55%),
-      var(--bg);
-  }
-  .wrap {
-    max-width: 880px;
-    margin: 0 auto;
-    padding: 32px 16px 64px;
-  }
-  .top {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 28px;
-    animation: fadeUp .4s ease both;
-  }
-  .logo {
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
-    border: 1px solid var(--border);
-    background: var(--panel);
-    display: grid;
-    place-items: center;
-    font-weight: 700;
-    font-size: 13px;
-  }
-  .top h1 { font-size: 17px; font-weight: 600; }
-  .top span { font-size: 12px; color: var(--muted); }
-
+  .wrap { max-width: 860px; margin: 0 auto; padding: 28px 16px 60px; }
+  .top { margin-bottom: 22px; animation: fadeUp .35s ease both; }
+  .top h1 { font-size: 18px; font-weight: 650; }
+  .top p { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .card {
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 14px;
-    padding: 20px;
-    margin-bottom: 14px;
-    animation: fadeUp .45s ease both;
-  }
-  .card:nth-child(2) { animation-delay: .04s; }
-  .card:nth-child(3) { animation-delay: .08s; }
-  .card:nth-child(4) { animation-delay: .12s; }
-
-  .card h2 {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--muted);
+    padding: 18px;
     margin-bottom: 12px;
+    animation: fadeUp .4s ease both;
   }
-
-  label {
-    display: block;
-    font-size: 12px;
-    color: var(--muted);
-    margin-bottom: 6px;
-  }
+  .card h2 { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 12px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
   input {
-    width: 100%;
-    height: 40px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--bg2);
-    color: var(--text);
-    padding: 0 12px;
-    font-size: 13px;
-    outline: none;
+    width: 100%; height: 40px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg2); color: var(--text); padding: 0 12px; font-size: 13px; outline: none;
   }
-  input:focus { border-color: #4a4a54; }
-
+  input:focus { border-color: #444; }
   button {
-    height: 40px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--bg2);
-    color: var(--text);
-    font-size: 13px;
-    font-weight: 600;
-    padding: 0 14px;
-    cursor: pointer;
+    height: 40px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--panel2); color: var(--text); font-size: 13px; font-weight: 600;
+    padding: 0 14px; cursor: pointer;
   }
-  button:hover { border-color: #4a4a54; background: #1a1a20; }
-  button.main {
-    background: var(--accent);
-    color: #0a0a0c;
-    border-color: transparent;
-  }
-  button.main:hover { filter: brightness(1.06); }
-  button.red {
-    background: rgba(255,92,92,.1);
-    border-color: rgba(255,92,92,.3);
-    color: #ff8a8a;
-  }
-
+  button:hover { border-color: #444; }
+  button.main { background: var(--accent); color: var(--accentText); border-color: transparent; }
+  button.red { background: rgba(255,92,92,.1); border-color: rgba(255,92,92,.28); color: #ff8a8a; }
   .row { display: flex; gap: 8px; flex-wrap: wrap; }
-  .row input { flex: 1; min-width: 160px; }
-
+  .row input { flex: 1; min-width: 150px; }
   .msg { font-size: 12px; color: var(--muted); margin-top: 10px; min-height: 16px; }
   .msg.err { color: var(--bad); }
   .msg.ok { color: var(--ok); }
-
   .keybox {
-    margin-top: 12px;
-    padding: 12px 14px;
-    border-radius: 10px;
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    font-family: ui-monospace, monospace;
-    font-size: 14px;
+    margin-top: 12px; padding: 12px; border-radius: 10px; background: var(--bg2);
+    border: 1px solid var(--border); font-family: ui-monospace, monospace; font-size: 14px;
     word-break: break-all;
-    letter-spacing: .04em;
   }
-
   table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
   th, td { text-align: left; padding: 9px 6px; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 600; font-size: 11px; }
-  .tag {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 11px;
-    font-weight: 600;
-  }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
   .tag.ok { background: rgba(93,204,122,.12); color: var(--ok); }
   .tag.bad { background: rgba(255,92,92,.12); color: var(--bad); }
   .tag.mute { background: rgba(255,255,255,.05); color: var(--muted); }
   .actions button { height: 30px; font-size: 11px; padding: 0 10px; }
-
   #loginView, #appView { display: none; }
   #loginView.show, #appView.show { display: block; }
-
-  .login {
-    max-width: 360px;
-    margin: 14vh auto 0;
-    text-align: center;
-  }
-  .login h2 {
-    font-size: 20px;
-    color: var(--text);
-    margin-bottom: 6px;
-  }
-  .login p {
-    font-size: 13px;
-    color: var(--muted);
-    margin-bottom: 18px;
-    line-height: 1.5;
-  }
-
-  .detail {
-    font-size: 12px;
-    color: var(--muted);
-    line-height: 1.6;
-    display: grid;
-    gap: 4px;
-  }
-  .detail b { color: var(--text); font-weight: 600; }
-
+  .login { max-width: 380px; margin: 12vh auto 0; text-align: center; }
+  .login h2 { font-size: 20px; color: var(--text); margin-bottom: 6px; }
+  .login p { font-size: 13px; color: var(--muted); margin-bottom: 16px; line-height: 1.5; }
+  .detail { font-size: 12px; color: var(--muted); line-height: 1.6; display: grid; gap: 4px; }
+  .detail b { color: var(--text); }
   @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(10px); }
+    from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: none; }
   }
 </style>
@@ -189,17 +87,14 @@
 <body>
 <div class="wrap">
   <div class="top">
-    <div class="logo">V</div>
-    <div>
-      <h1>Veil Admin</h1>
-      <span>Keys · IPs · sessions</span>
-    </div>
+    <h1>Veil Admin</h1>
+    <p>Keys, IPs, and sessions</p>
   </div>
 
   <div id="loginView">
     <div class="card login">
       <h2>Admin login</h2>
-      <p>Enter the admin password to manage access keys and IPs.</p>
+      <p>Enter the admin password. You will need it again if this page reloads.</p>
       <label style="text-align:left">Password</label>
       <input id="adminPass" type="password" placeholder="Admin password" autocomplete="current-password">
       <button class="main" id="loginBtn" type="button" style="width:100%;margin-top:12px">Log in</button>
@@ -210,7 +105,7 @@
   <div id="appView">
     <div class="card">
       <h2>Create key</h2>
-      <label>How long it lasts</label>
+      <label>Duration</label>
       <div class="row">
         <input id="keyDur" value="1h" placeholder="30m, 2h, 1d, 2d;30m, inf">
         <button class="main" id="genKey" type="button">Create key</button>
@@ -222,7 +117,7 @@
 
     <div class="card">
       <h2>Sign everyone out</h2>
-      <p class="msg" style="margin:0 0 12px">Ends all active sessions. Users will need a new key.</p>
+      <p class="msg" style="margin:0 0 12px">Ends all sessions. Users need a new key.</p>
       <button class="red" id="signoutAll" type="button">Sign everyone out</button>
       <div class="msg" id="globalMsg"></div>
     </div>
@@ -233,19 +128,11 @@
       <div style="overflow-x:auto">
         <table>
           <thead>
-            <tr>
-              <th>IP</th>
-              <th>Status</th>
-              <th>Access</th>
-              <th>Time left</th>
-              <th>Key</th>
-              <th></th>
-            </tr>
+            <tr><th>IP</th><th>Status</th><th>Access</th><th>Time left</th><th>Key</th><th></th></tr>
           </thead>
           <tbody id="ipBody"></tbody>
         </table>
       </div>
-
       <div id="ipDetail" class="card" style="display:none;margin-top:12px;background:var(--bg2)">
         <h2>IP details</h2>
         <div class="detail" id="ipDetailText"></div>

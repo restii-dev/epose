@@ -1,4 +1,3 @@
-/* Veil Admin */
 (function () {
   try {
     var q = new URLSearchParams(location.search);
@@ -13,21 +12,15 @@ var WORKER_URL = (
   "https://veil-access.retropixel404.workers.dev"
 ).replace(/\/$/, "");
 
-var TOKEN_KEY = "veil_admin_token";
+/* Require password every page load — do not restore token */
+var adminToken = "";
 
 function $(id) { return document.getElementById(id); }
-
-function token() {
-  return sessionStorage.getItem(TOKEN_KEY) || "";
-}
 
 function api(path, opts) {
   opts = opts || {};
   var headers = { "content-type": "application/json" };
-  if (token()) headers["x-veil-admin"] = token();
-  if (opts.headers) {
-    for (var k in opts.headers) headers[k] = opts.headers[k];
-  }
+  if (adminToken) headers["x-veil-admin"] = adminToken;
   return fetch(WORKER_URL + path, {
     method: opts.method || "GET",
     headers: headers,
@@ -56,7 +49,8 @@ $("loginBtn").onclick = function () {
       $("loginMsg").className = "msg err";
       return;
     }
-    sessionStorage.setItem(TOKEN_KEY, r.data.token);
+    adminToken = r.data.token || "";
+    $("adminPass").value = "";
     $("loginMsg").textContent = "";
     showApp(true);
     loadIps();
@@ -82,7 +76,7 @@ $("genKey").onclick = function () {
       return;
     }
     $("keyOut").textContent = r.data.key;
-    $("keyMsg").textContent = "Key created · " + r.data.duration + (r.data.infinite ? " (unlimited)" : "") + " · one-time use";
+    $("keyMsg").textContent = "Created · " + r.data.duration + (r.data.infinite ? " (unlimited)" : "") + " · one-time";
     $("keyMsg").className = "msg ok";
   });
 };
@@ -105,7 +99,7 @@ function loadIps() {
     var body = $("ipBody");
     body.innerHTML = "";
     if (!r.data.ok) {
-      body.innerHTML = "<tr><td colspan='6'>" + (r.data.error || "Failed to load") + "</td></tr>";
+      body.innerHTML = "<tr><td colspan='6'>" + (r.data.error || "Failed") + "</td></tr>";
       return;
     }
     var ips = r.data.ips || [];
@@ -183,9 +177,5 @@ $("unblockBtn").onclick = function () {
   });
 };
 
-if (token()) {
-  showApp(true);
-  loadIps();
-} else {
-  showApp(false);
-}
+/* Always show login on load */
+showApp(false);

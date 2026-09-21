@@ -282,6 +282,7 @@ let profile = { name: "", password: "" }; // client-side welcome only
 let welcomeClockTimer = null;
 let panic = { ...DEFAULT_PANIC };
 let bookmarks = [];
+let visitHistory = [];
 let cloak = { title: "Veil", icon: FAVI };
 let tabs = [];
 let activeTabId = null;
@@ -314,7 +315,7 @@ const COOKIE = {
     return null;
   }
 };
-const STORAGE = { bookmarks: "veil_bookmarks", settings: "veil_settings", cloak: "veil_cloak", panic: "veil_panic", profile: "veil_profile" };
+const STORAGE = { bookmarks: "veil_bookmarks", settings: "veil_settings", cloak: "veil_cloak", panic: "veil_panic", profile: "veil_profile", history: "veil_history" };
 
 function uid() { return "tab_" + Date.now().toString(36) + "_" + (++tabCounter).toString(36); }
 function escapeHTML(v) {
@@ -344,15 +345,18 @@ function save() {
     const s = JSON.stringify(settings);
     const c = JSON.stringify(cloak);
     const p = JSON.stringify(panic);
+    const h = JSON.stringify(visitHistory.slice(0, 200));
     COOKIE.set(STORAGE.bookmarks, b);
     COOKIE.set(STORAGE.settings, s);
     COOKIE.set(STORAGE.cloak, c);
     COOKIE.set(STORAGE.panic, p);
+    COOKIE.set(STORAGE.history, h);
     try {
       localStorage.setItem(STORAGE.bookmarks, b);
       localStorage.setItem(STORAGE.settings, s);
       localStorage.setItem(STORAGE.cloak, c);
       localStorage.setItem(STORAGE.panic, p);
+      localStorage.setItem(STORAGE.history, h);
     } catch (e2) {}
   } catch (e) { console.warn("save failed", e); }
 }
@@ -400,6 +404,10 @@ function loadSavedData() {
     migrateSettings();
     if (c) cloak = { ...cloak, ...JSON.parse(c) };
     if (p) panic = { ...DEFAULT_PANIC, ...JSON.parse(p) };
+    try {
+      const h = COOKIE.get(STORAGE.history) || localStorage.getItem(STORAGE.history);
+      if (h) visitHistory = JSON.parse(h) || [];
+    } catch {}
   } catch (e) { console.warn("load failed", e); }
 }
 
@@ -826,6 +834,7 @@ async function navigate(raw) {
   page.newTab = false;
   page.favicon = faviconFor(value);
   try { page.title = new URL(value).hostname; } catch { page.title = "Veil"; }
+  pushVisitHistory(value, page.title);
   if (page.historyIndex < page.history.length - 1) page.history = page.history.slice(0, page.historyIndex + 1);
   page.history.push(value);
   page.historyIndex = page.history.length - 1;
@@ -894,6 +903,64 @@ function reload() {
   if (p.engineFrame && typeof p.engineFrame.reload === "function") p.engineFrame.reload();
   else goFrame(p, p.url);
 }
+
+
+function pushVisitHistory(url, title) {
+  if (!url || url === "about:blank") return;
+  try {
+    const u = new URL(url, location.href).href;
+    visitHistory = visitHistory.filter((x) => x.url !== u);
+    visitHistory.unshift({ id: uid(), url: u, title: title || u, at: Date.now() });
+    if (visitHistory.length > 200) visitHistory.length = 200;
+    save();
+  } catch {}
+}
+
+function renderHistory() {
+  const list = document.getElementById("historyList");
+  if (!list) return;
+  list.innerHTML = "";
+  if (!visitHistory.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px">No history yet</div>';
+    return;
+  }
+  visitHistory.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "history-item";
+    const a = document.createElement("a");
+    a.href = "#";
+    a.textContent = item.title || item.url;
+    a.title = item.url;
+    a.onclick = (e) => {
+      e.preventDefault();
+      closeHistory();
+      navigate(item.url);
+    };
+    const del = document.createElement("button");
+    del.type = "button";
+    del.innerHTML = '<img src="image/exit.svg" alt="Remove">';
+    del.onclick = () => {
+      visitHistory = visitHistory.filter((x) => x.id !== item.id);
+      save();
+      renderHistory();
+    };
+    row.appendChild(a);
+    row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+
+function openHistory() {
+  closeMenu();
+  closePanels();
+  document.getElementById("historyPanel")?.classList.add("open");
+  renderHistory();
+}
+
+function closeHistory() {
+  document.getElementById("historyPanel")?.classList.remove("open");
+}
+
 
 function createTab(newTab) {
   if (newTab === undefined) newTab = true;
@@ -1019,6 +1086,10 @@ function openPanel(id) {
   }
 }
 function closePanels() {
+  try { closeHistory(); } catch {}
+  return closePanelsInner();
+}
+function closePanelsInner() {
   document.getElementById("backdrop").classList.remove("open");
   document.querySelectorAll(".panel").forEach(p => p.classList.remove("open"));
 }
@@ -1512,6 +1583,7 @@ function applyCloakPreset(id) {
   cloak = { title: p.title, icon: p.icon };
   document.title = cloak.title;
   document.getElementById("favicon").href = cloak.icon;
+  syncAboutBlankChrome();
   loadCloakInputs();
   save();
 }
@@ -1520,6 +1592,7 @@ function applyCloak() {
   cloak.icon = document.getElementById("cloakIcon").value.trim() || FAVI;
   document.title = cloak.title;
   document.getElementById("favicon").href = cloak.icon;
+  syncAboutBlankChrome();
   save();
 }
 function resetSettings() {
@@ -1650,6 +1723,35 @@ function updateDevtoolsMenuState() {
   btn.setAttribute("aria-disabled", disabled ? "true" : "false");
 }
 
+
+function syncAboutBlankChrome() {
+  const title = (cloak && cloak.title) || "Veil";
+  let icon = (cloak && cloak.icon) || FAVI;
+  try {
+    if (icon && icon.startsWith("/") && !icon.startsWith("//")) icon = location.origin + icon;
+    else if (icon && !/^https?:\/\//i.test(icon) && !icon.startsWith("data:")) {
+      icon = location.origin + (typeof REPO_PATH !== "undefined" ? REPO_PATH : "") + String(icon).replace(/^\.\//, "");
+    }
+  } catch {}
+  try {
+    document.title = title;
+    const fav = document.getElementById("favicon");
+    if (fav) fav.href = icon;
+  } catch {}
+  // Parent about:blank shell (iframe case)
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: "veil-chrome", title: title, icon: icon }, "*");
+    }
+  } catch {}
+  try {
+    if (window.top && window.top !== window) {
+      window.top.postMessage({ type: "veil-chrome", title: title, icon: icon }, "*");
+    }
+  } catch {}
+}
+
+
 function openAboutBlank(kind) {
   if (isInsideAboutBlank()) {
     console.info("[veil] already inside about:blank - skip");
@@ -1683,7 +1785,21 @@ iframe {
 </style>
 </head>
 <body>
-<iframe src="${appUrl}" allow="fullscreen; clipboard-read; clipboard-write"></iframe>
+<iframe id="veilFrame" src="${appUrl}" allow="fullscreen; clipboard-read; clipboard-write"></iframe>
+<script>
+window.addEventListener("message", function (e) {
+  if (!e.data || e.data.type !== "veil-chrome") return;
+  try {
+    if (e.data.title) document.title = e.data.title;
+    if (e.data.icon) {
+      var link = document.querySelector("link[rel~='icon']") || document.createElement("link");
+      link.rel = "icon";
+      link.href = e.data.icon;
+      if (!link.parentNode) document.head.appendChild(link);
+    }
+  } catch (err) {}
+});
+</script>
 </body>
 </html>`;
 
@@ -1748,6 +1864,7 @@ document.getElementById("address").addEventListener("keydown", e => { if (e.key 
 on("menuBtn", e => { e.stopPropagation(); updateDevtoolsMenuState(); document.getElementById("mainMenu")?.classList.toggle("open"); });
 on("menuRename", () => { closeMenu(); renameCurrentTab(); });
 on("menuLock", () => lockVeil());
+on("menuHistory", () => { openHistory(); });
 on("menuBookmarks", () => { closeMenu(); openPanel("bookmarksPanel"); });
 on("menuDevtools", () => toggleEruda());
 const launchNowBtn = document.getElementById("launchNowBtn");
@@ -1925,6 +2042,16 @@ on("transportLibcurl", () => setTransport("libcurl"));
 on("applyBackground", applyBackground);
 on("applyCloak", applyCloak);
 on("resetSettings", resetSettings);
+document.getElementById("clearHistory")?.addEventListener("click", () => {
+  if (!confirm("Are you sure you want to clear all history?")) return;
+  visitHistory = [];
+  save();
+  renderHistory();
+});
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#historyPanel") || e.target.closest("#menuHistory")) return;
+  if (document.getElementById("historyPanel")?.classList.contains("open")) closeHistory();
+});
 document.querySelectorAll("[data-cloak]").forEach(b => { b.onclick = () => applyCloakPreset(b.dataset.cloak); });
 document.addEventListener("click", e => {
   if (!e.target.closest("#mainMenu") && !e.target.closest("#menuBtn")) closeMenu();
@@ -1945,32 +2072,54 @@ document.addEventListener("visibilitychange", () => {
 });
 
 function showCookieConsent() {
-  if (document.getElementById("veilCookieOverlay")) return;
-  const overlay = document.createElement("div");
-  overlay.id = "veilCookieOverlay";
-  overlay.className = "cookie-overlay";
-  overlay.style.zIndex = "100001";
-  overlay.innerHTML = '<div class="cookie-box"><h2>Allow cookies?</h2><p>Veil uses cookies to save your theme, bookmarks, cloak, and settings on this device.</p><div class="cookie-buttons"><button class="cookie-no" id="cookieNo" type="button">No</button><button class="cookie-yes" id="cookieYes" type="button">Yes</button></div></div>';
-  document.body.appendChild(overlay);
-  document.getElementById("cookieYes").onclick = () => {
-    COOKIE.consent = true;
-    try { localStorage.setItem("veil_cookie_consent", "yes"); } catch (e) {}
-    COOKIE.set("veil_cookie_consent", "yes");
-    loadSavedData();
-    save();
-    overlay.remove();
-    applyCSSVariables();
-    document.title = cloak.title || "Veil";
-    const fav = document.getElementById("favicon");
-    if (fav) fav.href = cloak.icon || FAVI;
-    renderChrome();
-  };
-  document.getElementById("cookieNo").onclick = () => {
-    COOKIE.consent = false;
-    try { localStorage.setItem("veil_cookie_consent", "no"); } catch (e) {}
-    overlay.remove();
-    renderChrome();
-  };
+  return new Promise((resolve) => {
+    let consent = null;
+    try { consent = localStorage.getItem("veil_cookie_consent"); } catch (e) {}
+    if (!consent) consent = COOKIE.get("veil_cookie_consent");
+    if (consent === "yes") {
+      COOKIE.consent = true;
+      loadSavedData();
+      resolve(true);
+      return;
+    }
+    if (consent === "no") {
+      COOKIE.consent = false;
+      resolve(false);
+      return;
+    }
+    if (document.getElementById("veilCookieOverlay")) {
+      resolve(false);
+      return;
+    }
+    const overlay = document.createElement("div");
+    overlay.id = "veilCookieOverlay";
+    overlay.className = "cookie-overlay";
+    overlay.style.zIndex = "100001";
+    overlay.innerHTML = '<div class="cookie-box"><h2>Allow cookies?</h2><p>Veil uses cookies to save your theme, bookmarks, cloak, and settings on this device.</p><div class="cookie-buttons"><button class="cookie-no" id="cookieNo" type="button">No</button><button class="cookie-yes" id="cookieYes" type="button">Yes</button></div></div>';
+    document.body.appendChild(overlay);
+    document.getElementById("cookieYes").onclick = () => {
+      COOKIE.consent = true;
+      try { localStorage.setItem("veil_cookie_consent", "yes"); } catch (e) {}
+      COOKIE.set("veil_cookie_consent", "yes");
+      loadSavedData();
+      save();
+      overlay.remove();
+      applyCSSVariables();
+      document.title = cloak.title || "Veil";
+      syncAboutBlankChrome();
+      const fav = document.getElementById("favicon");
+      if (fav) fav.href = cloak.icon || FAVI;
+      renderChrome();
+      resolve(true);
+    };
+    document.getElementById("cookieNo").onclick = () => {
+      COOKIE.consent = false;
+      try { localStorage.setItem("veil_cookie_consent", "no"); } catch (e) {}
+      overlay.remove();
+      renderChrome();
+      resolve(false);
+    };
+  });
 }
 
 
@@ -2071,12 +2220,13 @@ async function bootVeilApp() {
   document.title = cloak.title || "Veil";
   document.getElementById("favicon").href = cloak.icon || FAVI;
   markAboutBlankSession();
+  syncAboutBlankChrome();
+  await showCookieConsent();
   await showSignup();
   createTab(true);
   startWelcomeClock();
   try { startLivePings(); } catch {}
   initEngine().then(() => pushAdblockToSW());
-  if (consent !== "yes") showCookieConsent();
   // Apply matte (or saved theme) colors to the whole UI
   if (settings.theme && THEMES[settings.theme]) {
     Object.assign(settings, THEMES[settings.theme], {
@@ -2146,7 +2296,8 @@ window.addEventListener("veil-access-ok", function onAccessCookie() {
 on("openAdminPanel", () => {
   closePanels();
   closeMenu();
-  const path = location.pathname.replace(/\/?(index\.html)?$/, "/");
+  closeHistory();
+  const path = location.pathname.replace(/\/?index\.html$/i, "/").replace(/\/?$/, "/");
   const adminUrl = location.origin + path + "admin/index.html";
   const page = createTab(false);
   page.url = adminUrl;
@@ -2159,13 +2310,13 @@ on("openAdminPanel", () => {
   const fr = document.createElement("iframe");
   fr.className = "engine-frame";
   fr.setAttribute("title", "Admin");
-  fr.style.cssText = "width:100%;height:100%;border:0;background:#0a0a0c";
+  fr.style.cssText = "width:100%;height:100%;border:0;background:#101010";
   fr.src = adminUrl;
   wrap.appendChild(fr);
   page.engineFrame = { frame: fr, element: fr };
   switchTab(page.id);
   renderChrome();
   const addr = document.getElementById("address");
-  if (addr) addr.value = adminUrl;
+  if (addr) addr.value = "Admin";
 });
 

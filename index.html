@@ -248,52 +248,72 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .modal-cancel{background:var(--bg2);border:1px solid var(--border);color:var(--text)}
 .modal-go{background:var(--accent);color:var(--accentText)}
 
+
+
+/* Access gate — matte (matches THEMES.matte) */
 #accessGate{
   position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;
-  background:#0a0a0c;
-  flex-direction:column;padding:24px;
+  background:#101010;flex-direction:column;padding:24px;
 }
+#gateStarCanvas{
+  position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;
+}
+#gateStarToggle{
+  position:absolute;top:14px;right:14px;z-index:2;height:32px;padding:0 12px;
+  border-radius:8px;border:1px solid #2b2b2b;background:#181818;color:#888;
+  font-size:11px;font-weight:600;cursor:pointer;
+}
+#gateStarToggle:hover{color:#f2f2f2;border-color:#444}
 #accessGate .box{
-  width:min(380px,100%);background:#141418;border:1px solid #2a2a32;border-radius:16px;
-  padding:32px 24px 28px;text-align:center;box-shadow:none;
-  animation:riseGate .45s ease both;
+  position:relative;z-index:1;width:min(440px,92vw);background:#181818;border:1px solid #2b2b2b;
+  border-radius:14px;padding:36px 28px 32px;text-align:center;
+  animation:riseGate .4s ease both;
 }
-#accessGate h1{font-size:22px;font-weight:650;margin-bottom:8px;color:#f0f0f5}
-#accessGate p{font-size:13px;color:#8b8b9a;margin-bottom:20px;line-height:1.55}
+#accessGate h1{font-size:24px;font-weight:650;margin-bottom:10px;color:#f2f2f2}
+#accessGate p{font-size:14px;color:#888;margin-bottom:22px;line-height:1.55}
 #accessGate input{
-  width:100%;height:44px;border-radius:10px;border:1px solid #2a2a32;background:#121216;
-  color:#f0f0f5;padding:0 12px;margin-bottom:10px;text-align:center;letter-spacing:.1em;
-  font-size:14px;outline:none;
+  width:100%;height:48px;border-radius:10px;border:1px solid #2b2b2b;background:#151515;
+  color:#f2f2f2;padding:0 14px;margin-bottom:12px;text-align:center;letter-spacing:.08em;
+  font-size:15px;outline:none;
 }
-#accessGate input:focus{border-color:#4a4a54}
-#accessGate button{
-  width:100%;height:44px;border:0;border-radius:10px;background:#c8c8d0;color:#0a0a0c;
-  font-weight:700;cursor:pointer;font-size:13px;transition:filter .2s,transform .12s;
+#accessGate input:focus{border-color:#444}
+#accessGate button#accessSubmit{
+  width:100%;height:48px;border:0;border-radius:10px;background:#ffffff;color:#111111;
+  font-weight:700;cursor:pointer;font-size:14px;
 }
-#accessGate button:hover{filter:brightness(1.05)}
-#accessGate button:active{transform:scale(.98)}
-#accessGate .amsg{font-size:12px;min-height:18px;margin-top:12px;color:#8b8b9a}
-body.gate-lock #browser,body.gate-lock #app{display:none!important}
-body.gate-lock{background:#050508}
+#accessGate button#accessSubmit:hover{filter:brightness(.95)}
+#accessGate .amsg{font-size:13px;min-height:18px;margin-top:12px;color:#888}
 #accessGate.checking .box{visibility:hidden}
-#accessGate.is-blocked .box{transition:opacity .35s ease,filter .35s ease}
+#accessGate.is-blocked .box{transition:opacity .3s ease,filter .3s ease}
 #accessBlocked{
   display:none;position:fixed;inset:0;z-index:100000;
   align-items:center;justify-content:center;padding:24px;
-  background:rgba(10,10,12,.92);
+  background:rgba(16,16,16,.92);
 }
 #accessBlocked .blocked-panel{
-  max-width:440px;width:100%;text-align:center;padding:40px 28px;
-  background:#141418;border:1px solid #3a3a44;border-radius:18px;
-  box-shadow:0 24px 80px rgba(0,0,0,.5);
+  max-width:440px;width:100%;text-align:center;padding:36px 28px;
+  background:#181818;border:1px solid #2b2b2b;border-radius:14px;
 }
-#accessBlocked .blocked-badge{
-  display:inline-block;font-size:10px;font-weight:800;letter-spacing:.16em;
-  color:#ff8a8a;border:1px solid rgba(255,92,92,.35);background:rgba(255,92,92,.1);
-  padding:6px 12px;border-radius:999px;margin-bottom:16px;
-}
-#accessBlocked h2{font-size:20px;font-weight:650;margin:0 0 12px;color:#f0f0f5}
-#accessBlocked .blocked-time{font-size:14px;line-height:1.55;color:#9a9aa8;margin:0}
+#accessBlocked h2{font-size:20px;font-weight:650;margin:0 0 12px;color:#f2f2f2}
+#accessBlocked .blocked-time{font-size:14px;line-height:1.55;color:#888;margin:0}
+@keyframes riseGate{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+body.gate-lock #browser,body.gate-lock #app{display:none!important}
+body.gate-lock{background:#101010}
+
+/* History panel */
+.history-panel{position:fixed;top:0;right:0;width:min(360px,100%);height:100%;background:var(--panel);
+  border-left:1px solid var(--border);z-index:1200;display:none;flex-direction:column;padding:16px;
+  animation:riseGate .3s ease}
+.history-panel.open{display:flex}
+.history-panel h3{font-size:15px;margin-bottom:12px}
+.history-list{flex:1;overflow:auto}
+.history-item{display:flex;align-items:center;gap:8px;padding:10px 8px;border-radius:10px;border:1px solid transparent}
+.history-item:hover{background:var(--panel2);border-color:var(--border)}
+.history-item a{flex:1;color:var(--text);text-decoration:none;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.history-item button{width:28px;height:28px;border:0;background:transparent;cursor:pointer;padding:4px}
+.history-item button img{width:14px;height:14px;opacity:.7}
+.history-clear{margin-top:12px;width:100%;height:40px;border-radius:10px;border:1px solid var(--border);
+  background:var(--bg2);color:var(--text);font-weight:600;cursor:pointer}
 
 </style>
 </head>
@@ -335,6 +355,7 @@ body.gate-lock{background:#050508}
 </div>
 
 <div class="menu" id="mainMenu">
+  <button class="menu-item" id="menuHistory"><span class="menu-icon"><img src="image/history.svg" alt=""></span>History</button>
   <button class="menu-item" id="menuBookmarks"><span class="menu-icon"><img src="image/bookmarks.svg" alt=""></span>Bookmarks</button>
   <button class="menu-item" id="menuRename"><span class="menu-icon"><img src="image/pencil.svg" alt=""></span>Rename tab</button>
   <button class="menu-item" id="menuDevtools"><span class="menu-icon"><img src="image/settings.svg" alt=""></span>DevTools</button>
@@ -521,6 +542,11 @@ body.gate-lock{background:#050508}
   </div>
 </aside>
 
+<aside class="history-panel" id="historyPanel">
+  <h3>History</h3>
+  <div class="history-list" id="historyList"></div>
+  <button type="button" class="history-clear" id="clearHistory">Clear history</button>
+</aside>
 <aside class="panel" id="bookmarksPanel">
   <div class="panel-header"><h2>Bookmarks</h2><button type="button" class="close-panel" data-close-panel title="Close"><img src="image/exit.svg" alt="Close"></button></div>
   <div class="panel-body" id="bookmarkList"></div>
