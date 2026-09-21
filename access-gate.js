@@ -1,9 +1,20 @@
 /**
  * Veil access gate — must pass before browser engine loads.
- * Session token stored in localStorage (works cross-device until expiry / global sign-out).
  */
 (function () {
-  const WORKER_URL = (localStorage.getItem("veil_worker_url") || "").replace(/\/$/, "") || "https://YOUR-WORKER.workers.dev";
+  // Read ?worker= FIRST so the first visit works without a second reload
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.get("worker")) {
+      localStorage.setItem("veil_worker_url", q.get("worker").replace(/\/$/, ""));
+    }
+  } catch (_) {}
+
+  const WORKER_URL = (
+    localStorage.getItem("veil_worker_url") ||
+    "https://veil-access.retropixel404.workers.dev"
+  ).replace(/\/$/, "");
+
   const SESSION_KEY = "veil_access_token";
 
   const gate = document.getElementById("accessGate");
@@ -19,7 +30,6 @@
       keyMsg.textContent = msg || "";
       keyMsg.style.color = isErr ? "#ff6b6b" : "#9aa";
     }
-    // prevent engine scripts from mattering — app hidden
   }
 
   function showApp() {
@@ -50,26 +60,25 @@
       }
       return true;
     } catch (e) {
-      console.warn("[veil-access]", e);
-      // fail closed if worker unreachable after having a token? fail open for offline workers during setup:
+      console.warn("[veil-access] check", e);
       return false;
     }
   }
 
   async function redeem() {
-    const key = (keyInput && keyInput.value || "").trim();
+    const key = ((keyInput && keyInput.value) || "").trim();
     if (!key) {
       showGate("Enter a key", true);
       return;
     }
-    keyBtn.disabled = true;
+    if (keyBtn) keyBtn.disabled = true;
     try {
       const res = await fetch(WORKER_URL + "/api/redeem", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ key }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (data.blocked) {
         showGate(data.error || "Blocked", true);
         return;
@@ -80,12 +89,12 @@
       }
       localStorage.setItem(SESSION_KEY, data.token);
       showApp();
-      // re-check periodically
       startWatch();
     } catch (e) {
-      showGate("Could not reach access server", true);
+      console.warn("[veil-access] redeem", e);
+      showGate("Could not reach access server (" + WORKER_URL + ")", true);
     } finally {
-      keyBtn.disabled = false;
+      if (keyBtn) keyBtn.disabled = false;
     }
   }
 
@@ -98,13 +107,6 @@
       if (ok === "blocked") return;
       localStorage.removeItem(SESSION_KEY);
       showGate("Session ended. Enter a new key.", true);
-      // hard stop engine
-      try {
-        if (navigator.serviceWorker) {
-          const regs = await navigator.serviceWorker.getRegistrations();
-          // do not unregister SW globally; just hide UI
-        }
-      } catch (_) {}
     }, 20000);
   }
 
@@ -125,12 +127,6 @@
     keyInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") redeem();
     });
-  }
-
-  // optional worker override
-  const q = new URLSearchParams(location.search);
-  if (q.get("worker")) {
-    localStorage.setItem("veil_worker_url", q.get("worker"));
   }
 
   window.VeilAccess = {

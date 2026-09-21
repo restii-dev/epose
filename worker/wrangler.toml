@@ -3,7 +3,7 @@ main = "src/worker.js"
 compatibility_date = "2024-09-01"
 
 # Set these in the Cloudflare dashboard or via `wrangler secret put`
-# ADMIN_PASSWORD = "change-me"
+# ADMIN_PASSWORD = "H@rdt0reachp@ssw0rd"
 # ADMIN_SECRET = "random-long-string-for-hmac"
 
 [[kv_namespaces]]
