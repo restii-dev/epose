@@ -255,7 +255,10 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 #accessGate input{width:100%;height:44px;border-radius:10px;border:1px solid #2a2a32;background:#0e0e12;color:#fff;padding:0 12px;margin-bottom:10px;text-align:center;letter-spacing:.08em}
 #accessGate button{width:100%;height:44px;border:0;border-radius:10px;background:#7aa2ff;color:#0a0a12;font-weight:700;cursor:pointer}
 #accessGate .amsg{font-size:12px;min-height:18px;margin-top:10px;color:#9aa}
-body.gate-lock #app{display:none!important}
+body.gate-lock #browser,body.gate-lock #app{display:none!important}
+body.gate-lock{background:#050508}
+#accessGate.checking .box{visibility:hidden}
+#accessGate{background:#050508}
 </style>
 </head>
 <body class="gate-lock">
@@ -470,14 +473,14 @@ body.gate-lock #app{display:none!important}
       <p class="hint" id="passwordMsg"></p>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Admin</div>
-      <button class="secondary-btn" id="openAdminPanel" type="button">Open admin panel</button>
-      <p class="hint">Opens the admin panel in a Veil tab. Requires worker password.</p>
-    </section>
-    <section class="setting-section">
       <div class="setting-title">Factory reset</div>
       <button class="secondary-btn" id="resetSettings" type="button">Factory reset</button>
       <p class="hint">Clears theme and browser settings. Profile password is kept unless you clear site data.</p>
+    </section>
+    <section class="setting-section">
+      <div class="setting-title">Admin</div>
+      <button class="secondary-btn" id="openAdminPanel" type="button">Open admin panel</button>
+      <p class="hint">Opens the admin panel in a Veil tab. Requires worker password.</p>
     </section>
   </div>
 </aside>

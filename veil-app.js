@@ -665,7 +665,7 @@ function homepageHTML(pageId) {
     '</div>' +
     '<button class="launch-btn" id="launchOptionsBtn" type="button">Launch Options...</button>' +
     '</div></div>' +
-    '<div class="time-bar" id="timeBar">Time Remaining: - (auth coming soon)</div></div>'
+    '<div class="time-bar" id="timeBar">Time Remaining: …</div></div>'
   );
 }
 
@@ -1988,6 +1988,42 @@ function showSignup() {
     nameEl.addEventListener("keydown", (e) => { if (e.key === "Enter") passEl.focus(); });
   });
 }
+
+
+function formatAccessLeft(meta) {
+  if (!meta) return "—";
+  if (meta.infinite) return "Unlimited";
+  if (meta.expires) {
+    const ms = Number(meta.expires) - Date.now();
+    if (ms <= 0) return "Expired";
+    const s = Math.floor(ms / 1000);
+    const d = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    const parts = [];
+    if (d) parts.push(d + "d");
+    if (h) parts.push(h + "h");
+    if (m) parts.push(m + "m");
+    if (!d && !h) parts.push(sec + "s");
+    else if (sec && parts.length < 2) parts.push(sec + "s");
+    return parts.join(" ") || "0s";
+  }
+  return meta.timeLeft || "—";
+}
+
+function updateAccessTimeBar() {
+  const bars = document.querySelectorAll("#timeBar, .time-bar");
+  if (!bars.length) return;
+  const meta = (window.VeilAccess && window.VeilAccess.getMeta && window.VeilAccess.getMeta()) || null;
+  const text = "Time Remaining: " + formatAccessLeft(meta);
+  bars.forEach((el) => { el.textContent = text; });
+}
+
+setInterval(updateAccessTimeBar, 1000);
+window.addEventListener("veil-session-meta", updateAccessTimeBar);
+window.addEventListener("veil-access-ok", updateAccessTimeBar);
+
 
 async function bootVeilApp() {
   loadProfile();

@@ -1,8 +1,9 @@
 /**
- * Veil access gate — must pass before browser engine loads.
+ * Veil access gate
+ * Boot: black screen → check session → valid: Veil | invalid: key entry
+ * Expire: full unload back to key entry
  */
 (function () {
-  // Read ?worker= FIRST so the first visit works without a second reload
   try {
     const q = new URLSearchParams(location.search);
     if (q.get("worker")) {
@@ -16,27 +17,112 @@
   ).replace(/\/$/, "");
 
   const SESSION_KEY = "veil_access_token";
+  const SESSION_META = "veil_access_meta";
 
   const gate = document.getElementById("accessGate");
-  const appRoot = document.getElementById("app");
+  const appRoot =
+    document.getElementById("browser") ||
+    document.getElementById("app");
   const keyInput = document.getElementById("accessKey");
   const keyBtn = document.getElementById("accessSubmit");
   const keyMsg = document.getElementById("accessMsg");
+  const gateBox = gate && gate.querySelector(".box");
+
+  let sessionMeta = null;
+  try {
+    sessionMeta = JSON.parse(localStorage.getItem(SESSION_META) || "null");
+  } catch (_) {
+    sessionMeta = null;
+  }
+
+  function setBodyLocked(locked) {
+    document.body.classList.toggle("gate-lock", !!locked);
+  }
+
+  /** Black screen only — no key form yet */
+  function showBlack() {
+    setBodyLocked(true);
+    if (appRoot) appRoot.style.display = "none";
+    if (gate) {
+      gate.style.display = "flex";
+      gate.classList.add("checking");
+    }
+    if (gateBox) gateBox.style.visibility = "hidden";
+    if (keyMsg) keyMsg.textContent = "";
+  }
 
   function showGate(msg, isErr) {
+    setBodyLocked(true);
     if (appRoot) appRoot.style.display = "none";
-    if (gate) gate.style.display = "flex";
+    if (gate) {
+      gate.style.display = "flex";
+      gate.classList.remove("checking");
+    }
+    if (gateBox) gateBox.style.visibility = "visible";
     if (keyMsg) {
       keyMsg.textContent = msg || "";
       keyMsg.style.color = isErr ? "#ff6b6b" : "#9aa";
     }
+    window.__VEIL_ACCESS_OK = false;
   }
 
   function showApp() {
-    if (gate) gate.style.display = "none";
+    setBodyLocked(false);
+    if (gate) {
+      gate.style.display = "none";
+      gate.classList.remove("checking");
+    }
     if (appRoot) appRoot.style.display = "";
     window.__VEIL_ACCESS_OK = true;
     window.dispatchEvent(new Event("veil-access-ok"));
+    window.dispatchEvent(
+      new CustomEvent("veil-session-meta", { detail: sessionMeta })
+    );
+  }
+
+  /** Hard unload Veil UI when session dies */
+  function forceUnloadToGate(msg) {
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(SESSION_META);
+    sessionMeta = null;
+    window.__VEIL_ACCESS_OK = false;
+    try {
+      // Tear down engine frames
+      document.querySelectorAll(".engine-frame, iframe").forEach((el) => {
+        try {
+          el.src = "about:blank";
+        } catch (_) {}
+        try {
+          el.remove();
+        } catch (_) {}
+      });
+    } catch (_) {}
+    if (appRoot) {
+      // hide only; don't destroy so reopen still works after re-key
+      appRoot.style.display = "none";
+    }
+    showGate(msg || "Session ended. Enter a new key.", true);
+    // Full reload clears SW frames / RAM cleanly
+    try {
+      sessionStorage.setItem("veil_force_gate", "1");
+    } catch (_) {}
+    // Soft path first; user can hard refresh. Optional full reload:
+    // location.reload();
+  }
+
+  function saveMeta(data) {
+    sessionMeta = {
+      expires: data.expires || null,
+      infinite: !!data.infinite,
+      timeLeft: data.timeLeft || null,
+      key: data.key || null,
+    };
+    try {
+      localStorage.setItem(SESSION_META, JSON.stringify(sessionMeta));
+    } catch (_) {}
+    window.dispatchEvent(
+      new CustomEvent("veil-session-meta", { detail: sessionMeta })
+    );
   }
 
   async function checkSession() {
@@ -50,14 +136,13 @@
       });
       const data = await res.json();
       if (data.blocked) {
-        localStorage.removeItem(SESSION_KEY);
-        showGate(data.error || "Blocked", true);
+        forceUnloadToGate(data.error || "Blocked");
         return "blocked";
       }
       if (!data.ok) {
-        localStorage.removeItem(SESSION_KEY);
         return false;
       }
+      saveMeta(data);
       return true;
     } catch (e) {
       console.warn("[veil-access] check", e);
@@ -88,11 +173,13 @@
         return;
       }
       localStorage.setItem(SESSION_KEY, data.token);
+      saveMeta(data);
+      if (keyInput) keyInput.value = "";
       showApp();
       startWatch();
     } catch (e) {
       console.warn("[veil-access] redeem", e);
-      showGate("Could not reach access server (" + WORKER_URL + ")", true);
+      showGate("Could not reach access server", true);
     } finally {
       if (keyBtn) keyBtn.disabled = false;
     }
@@ -105,13 +192,12 @@
       const ok = await checkSession();
       if (ok === true) return;
       if (ok === "blocked") return;
-      localStorage.removeItem(SESSION_KEY);
-      showGate("Session ended. Enter a new key.", true);
-    }, 20000);
+      forceUnloadToGate("Session ended. Enter a new key.");
+    }, 15000);
   }
 
   async function boot() {
-    showGate("Checking access...", false);
+    showBlack();
     const ok = await checkSession();
     if (ok === true) {
       showApp();
@@ -131,9 +217,11 @@
 
   window.VeilAccess = {
     workerUrl: WORKER_URL,
+    getMeta() {
+      return sessionMeta;
+    },
     logout() {
-      localStorage.removeItem(SESSION_KEY);
-      location.reload();
+      forceUnloadToGate("Signed out.");
     },
   };
 
