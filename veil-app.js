@@ -816,11 +816,19 @@ async function navigate(raw) {
 
 async function goBack() {
   const p = getActiveTab();
-  if (!p) return;
+  if (!p || p.newTab) return;
   if (p.engineFrame && typeof p.engineFrame.back === "function") {
-    try { await p.engineFrame.back(); return; } catch {}
+    try { await p.engineFrame.back(); renderChrome(); return; } catch {}
   }
-  if (p.historyIndex <= 0) return;
+  try {
+    const el = p.engineFrame && (p.engineFrame.element || p.engineFrame.frame);
+    if (el && el.contentWindow && el.contentWindow.history) {
+      el.contentWindow.history.back();
+      renderChrome();
+      return;
+    }
+  } catch {}
+  if (!p.history || p.historyIndex <= 0) return;
   p.historyIndex--;
   p.url = p.history[p.historyIndex];
   p.newTab = false;
@@ -829,11 +837,19 @@ async function goBack() {
 }
 async function goForward() {
   const p = getActiveTab();
-  if (!p) return;
+  if (!p || p.newTab) return;
   if (p.engineFrame && typeof p.engineFrame.forward === "function") {
-    try { await p.engineFrame.forward(); return; } catch {}
+    try { await p.engineFrame.forward(); renderChrome(); return; } catch {}
   }
-  if (p.historyIndex >= p.history.length - 1) return;
+  try {
+    const el = p.engineFrame && (p.engineFrame.element || p.engineFrame.frame);
+    if (el && el.contentWindow && el.contentWindow.history) {
+      el.contentWindow.history.forward();
+      renderChrome();
+      return;
+    }
+  } catch {}
+  if (!p.history || p.historyIndex >= p.history.length - 1) return;
   p.historyIndex++;
   p.url = p.history[p.historyIndex];
   p.newTab = false;
@@ -967,6 +983,9 @@ function openPanel(id) {
   closeMenu();
   document.getElementById("backdrop").classList.add("open");
   document.getElementById(id).classList.add("open");
+  if (id === "settingsPanel") {
+    try { fillWispSelect(); startLivePings(); } catch {}
+  }
 }
 function closePanels() {
   document.getElementById("backdrop").classList.remove("open");
@@ -1029,20 +1048,20 @@ function fillWispSelect() {
   const servers = allWispServers();
   box.innerHTML = servers.map((s) => {
     const sel = settings.wispId === s.id ? " selected" : "";
-    const custom = s.custom ? ' data-custom="1"' : "";
     return (
-      '<button type="button" class="server-row' + sel + '" data-server-id="' + s.id + '"' + custom + '>' +
+      '<button type="button" class="server-row' + sel + '" data-server-id="' + s.id + '">' +
       '<span class="server-dot ping-mid" data-dot="' + s.id + '"></span>' +
       '<span class="server-name">' + escapeHTML(s.name) + '</span>' +
       '<span class="server-ping" data-ping="' + s.id + '">...</span>' +
-      (s.custom ? '<span class="server-edit" data-edit="' + s.id + '" title="Rename"><img src="' + IMG + 'pencil.svg" alt="Rename"></span>' : "") +
+      (s.custom ? '<span class="server-edit" data-edit="' + s.id + '" title="Rename"><img src="' + IMG + 'pencil.svg" alt=""></span>' : "") +
+      (s.custom ? '<span class="server-del" data-del="' + s.id + '" title="Remove"><img src="' + IMG + 'exit.svg" alt=""></span>' : "") +
       "</button>"
     );
   }).join("");
 
   box.querySelectorAll("[data-server-id]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
-      if (e.target.closest("[data-edit]")) return;
+      if (e.target.closest("[data-edit], [data-del]")) return;
       settings.wispId = btn.dataset.serverId;
       save();
       fillWispSelect();
@@ -1055,8 +1074,7 @@ function fillWispSelect() {
     el.addEventListener("click", (e) => {
       e.stopPropagation();
       const id = el.dataset.edit;
-      const list = settings.customServers || [];
-      const item = list.find((x) => x.id === id);
+      const item = (settings.customServers || []).find((x) => x.id === id);
       if (!item) return;
       const name = prompt("Server name", item.name);
       if (name && name.trim()) {
@@ -1066,20 +1084,41 @@ function fillWispSelect() {
       }
     });
   });
+  box.querySelectorAll("[data-del]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = el.dataset.del;
+      settings.customServers = (settings.customServers || []).filter((x) => x.id !== id);
+      if (settings.wispId === id) settings.wispId = "va1";
+      save();
+      fillWispSelect();
+      applyMuxTransport().catch(() => {});
+    });
+  });
 
-  // async pings
+  updateServerPings();
+}
+
+let _pingTimer = null;
+function updateServerPings() {
+  const box = document.getElementById("serverList");
+  if (!box) return;
+  const servers = allWispServers();
   servers.forEach(async (s) => {
     const res = await pingWisp(s.url);
     const pingEl = box.querySelector('[data-ping="' + s.id + '"]');
     const dot = box.querySelector('[data-dot="' + s.id + '"]');
-    if (pingEl) {
-      pingEl.textContent = res.offline ? "offline" : (res.ms + " ms");
-      pingEl.className = "server-ping " + pingClass(res.ms, res.offline);
-    }
+    if (!pingEl) return;
+    pingEl.textContent = res.offline ? "offline" : (res.ms + " ms");
+    pingEl.className = "server-ping " + pingClass(res.ms, res.offline);
     if (dot) dot.className = "server-dot " + pingClass(res.ms, res.offline);
   });
 }
-
+function startLivePings() {
+  if (_pingTimer) clearInterval(_pingTimer);
+  updateServerPings();
+  _pingTimer = setInterval(updateServerPings, 12000);
+}
 
 const homeFxLoops = new WeakMap();
 
@@ -1120,7 +1159,7 @@ function setupHomeFx(wrapper) {
   if (!Number.isFinite(n)) n = 18;
   n = Math.max(4, Math.min(80, Math.round(n)));
   if (style === "pulse") n = Math.min(n, 12);
-  if (style === "stars") n = Math.max(n, 30);
+  if (style === "stars") n = Math.max(n, 12);
   if (style === "waves") n = Math.min(n, 8);
   state.shooters = [];
   for (let i = 0; i < n; i++) {
@@ -1143,9 +1182,10 @@ function setupHomeFx(wrapper) {
     const a = hexToRgb(settings.animColorA);
     const b = hexToRgb(settings.animColorB);
     if (style === "waves") {
-      for (let i = 0; i < 5; i++) {
-        const y = (0.25 + i * 0.12) * h;
-        const amp = (12 + i * 6) * sizeMul;
+      const waveN = Math.max(3, Math.min(12, Math.round(n / 4) + 2));
+      for (let i = 0; i < waveN; i++) {
+        const y = (0.2 + i * (0.55 / waveN)) * h;
+        const amp = (10 + i * 5 + sizeMul * 8) * sizeMul;
         ctx.beginPath();
         for (let x = 0; x <= w; x += 8) {
           const yy = y + Math.sin(state.t * (0.8 + i * 0.15) + x * 0.008 + i) * amp;
@@ -1156,18 +1196,28 @@ function setupHomeFx(wrapper) {
         ctx.stroke();
       }
     } else if (style === "pulse") {
-      const cx = w * 0.5, cy = h * 0.42;
-      const maxR = Math.min(w, h) * 0.45 * sizeMul;
-      for (let i = 0; i < Math.min(n, 8); i++) {
-        const p = (state.t * 0.35 + i / 8) % 1;
-        const rad = p * maxR;
-        const alpha = (1 - p) * 0.35;
-        ctx.strokeStyle = "rgba(" + a.r + "," + a.g + "," + a.b + "," + alpha + ")";
-        ctx.lineWidth = 2 * (window.devicePixelRatio || 1);
+      const cx = w * 0.5, cy = h * 0.45;
+      const maxR = Math.min(w, h) * 0.42 * sizeMul;
+      const rings = Math.max(3, Math.min(n, 14));
+      for (let i = 0; i < rings; i++) {
+        const p = (state.t * 0.28 * speed + i / rings) % 1;
+        const rad = Math.max(4, p * maxR);
+        const alpha = Math.pow(1 - p, 1.4) * 0.55;
+        const col = i % 2 ? a : b;
         ctx.beginPath();
         ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(" + col.r + "," + col.g + "," + col.b + "," + alpha + ")";
+        ctx.lineWidth = Math.max(1.2, (2.2 + sizeMul * 1.2) * (1 - p * 0.5) * (window.devicePixelRatio || 1));
         ctx.stroke();
       }
+      // soft center glow
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.35);
+      g.addColorStop(0, "rgba(" + b.r + "," + b.g + "," + b.b + ",0.18)");
+      g.addColorStop(1, "rgba(" + a.r + "," + a.g + "," + a.b + ",0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(cx, cy, maxR * 0.35, 0, Math.PI * 2);
+      ctx.fill();
     } else if (style === "stars") {
       // Fixed night-sky stars (stay in place) + rare shooting stars
       const pts = state.particles;
@@ -1347,7 +1397,8 @@ function highlightTheme() {
   if (editor) editor.classList.toggle("open", settings.theme === "custom" || editor.classList.contains("force-open"));
   document.getElementById("transportEpoxy").classList.toggle("active", settings.transport !== "libcurl");
   document.getElementById("transportLibcurl").classList.toggle("active", settings.transport === "libcurl");
-  setSwitch(document.getElementById("launchAutoSwitch"), settings.launchMode === "auto");
+  const launchSel = document.getElementById("launchModeSelect");
+  if (launchSel) launchSel.value = settings.launchMode === "auto" ? "auto" : "manual";
   setSwitch(document.getElementById("adblockSwitch"), settings.adBlocker !== false);
   setSwitch(document.getElementById("animEnabledSwitch"), !!settings.animEnabled);
   setSwitch(document.getElementById("lockUnloadSwitch"), !!settings.lockUnload);
@@ -1524,6 +1575,50 @@ function markAboutBlankSession() {
 }
 
 /** RetroPixel-style about:blank shell - full viewport, no scrollbar, school-filter friendly */
+
+function toggleEruda() {
+  closeMenu();
+  const p = getActiveTab();
+  if (!p || p.newTab) return;
+  const frameObj = p.engineFrame;
+  if (!frameObj) {
+    alert("Open a site first.");
+    return;
+  }
+  const win = (frameObj.element || frameObj.frame || frameObj).contentWindow;
+  if (!win) {
+    alert("Page not ready yet.");
+    return;
+  }
+  try {
+    if (win.eruda) {
+      win.eruda.show();
+      return;
+    }
+    const script = win.document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/eruda";
+    script.onload = () => {
+      try {
+        win.eruda.init();
+        win.eruda.show();
+      } catch (e) { console.warn(e); }
+    };
+    win.document.documentElement.appendChild(script);
+  } catch (err) {
+    console.warn(err);
+    alert("DevTools unavailable for this page.");
+  }
+}
+
+function updateDevtoolsMenuState() {
+  const btn = document.getElementById("menuDevtools");
+  if (!btn) return;
+  const p = getActiveTab();
+  const disabled = !p || !!p.newTab;
+  btn.classList.toggle("disabled", disabled);
+  btn.setAttribute("aria-disabled", disabled ? "true" : "false");
+}
+
 function openAboutBlank(kind) {
   if (isInsideAboutBlank()) {
     console.info("[veil] already inside about:blank - skip");
@@ -1619,10 +1714,11 @@ on("homeBtn", goHome);
 on("settingsOpenBtn", () => openPanel("settingsPanel"));
 on("bookmarkBtn", toggleBookmark);
 document.getElementById("address").addEventListener("keydown", e => { if (e.key === "Enter") navigate(e.target.value); });
-on("menuBtn", e => { e.stopPropagation(); document.getElementById("mainMenu")?.classList.toggle("open"); });
+on("menuBtn", e => { e.stopPropagation(); updateDevtoolsMenuState(); document.getElementById("mainMenu")?.classList.toggle("open"); });
 on("menuRename", () => { closeMenu(); renameCurrentTab(); });
 on("menuLock", () => lockVeil());
 on("menuBookmarks", () => { closeMenu(); openPanel("bookmarksPanel"); });
+on("menuDevtools", () => toggleEruda());
 const launchNowBtn = document.getElementById("launchNowBtn");
 if (launchNowBtn) launchNowBtn.onclick = () => openLaunchModal();
 const searchEngineSelect = document.getElementById("searchEngineSelect");
@@ -1637,10 +1733,13 @@ on("adblockSwitch", () => {
   settings.adBlocker = !(settings.adBlocker !== false);
   save(); highlightTheme(); pushAdblockToSW();
 });
-on("launchAutoSwitch", () => {
-  settings.launchMode = settings.launchMode === "auto" ? "manual" : "auto";
-  save(); highlightTheme();
-});
+const launchModeSelect = document.getElementById("launchModeSelect");
+if (launchModeSelect) {
+  launchModeSelect.addEventListener("change", () => {
+    settings.launchMode = launchModeSelect.value === "auto" ? "auto" : "manual";
+    save();
+  });
+}
 on("animEnabledSwitch", () => {
   settings.animEnabled = !settings.animEnabled;
   save(); highlightTheme(); refreshHomeFxAll();
@@ -1737,6 +1836,48 @@ if (maxRange) {
     showActiveOnly();
   });
 }
+
+on("saveUsername", () => {
+  const name = (document.getElementById("newUsername")?.value || "").trim();
+  if (!name) { alert("Enter a name."); return; }
+  profile.name = name;
+  save();
+  const el = document.getElementById("newUsername");
+  if (el) el.value = "";
+  startWelcomeClock();
+  alert("Username updated.");
+});
+on("savePassword", () => {
+  const cur = document.getElementById("curPassword")?.value || "";
+  const n1 = document.getElementById("newPassword")?.value || "";
+  const n2 = document.getElementById("newPassword2")?.value || "";
+  const msg = document.getElementById("passwordMsg");
+  const setMsg = (m, bad) => { if (msg) { msg.textContent = m; msg.style.color = bad ? "var(--danger)" : "var(--muted)"; } };
+  if (!profile.password) {
+    setMsg("No password set yet. Use sign-up first.", true);
+    return;
+  }
+  if (cur !== profile.password) {
+    setMsg("Current password is incorrect.", true);
+    return;
+  }
+  if (n1.length < 3) {
+    setMsg("New password is too short.", true);
+    return;
+  }
+  if (n1 !== n2) {
+    setMsg("New passwords do not match.", true);
+    return;
+  }
+  profile.password = n1;
+  save();
+  ["curPassword", "newPassword", "newPassword2"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  setMsg("Password updated.", false);
+});
+
 on("backdrop", closePanels);
 document.querySelectorAll("[data-close-panel]").forEach(b => { b.onclick = closePanels; });
 document.querySelectorAll("[data-theme]").forEach(b => { b.onclick = () => applyTheme(b.dataset.theme); });
@@ -1851,6 +1992,7 @@ function showSignup() {
   await showSignup();
   createTab(true);
   startWelcomeClock();
+  try { startLivePings(); } catch {}
   initEngine().then(() => pushAdblockToSW());
   if (consent !== "yes") showCookieConsent();
   if (settings.launchMode === "auto" && !isInsideAboutBlank()) {

@@ -171,11 +171,34 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .hint{font-size:11px;color:var(--muted);line-height:1.5;margin-top:6px}
 .switch-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0}
 .switch-row .switch-label{font-size:13px;color:var(--text);flex:1}
-.switch{position:relative;width:46px;height:26px;flex:0 0 46px;border-radius:999px;border:1px solid var(--border);padding:0;cursor:pointer;background:#2a2a2a;transition:background .22s ease,border-color .22s ease;overflow:hidden}
-.switch::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#f0f0f0;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:transform .22s cubic-bezier(.4,0,.2,1),background .22s ease}
-.switch.on{background:var(--accent);border-color:var(--accent)}
+.switch{
+  position:relative;width:48px;height:28px;flex:0 0 48px;
+  border-radius:999px;border:none;padding:0;cursor:pointer;
+  background:rgba(255,255,255,.12);
+  transition:background .35s cubic-bezier(.4,0,.2,1), box-shadow .35s ease;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);
+}
+.switch::after{
+  content:"";position:absolute;top:3px;left:3px;
+  width:22px;height:22px;border-radius:50%;
+  background:#fff;
+  box-shadow:0 2px 8px rgba(0,0,0,.28), 0 0 0 1px rgba(0,0,0,.04);
+  transition:transform .35s cubic-bezier(.34,1.4,.64,1), background .3s ease, width .2s ease;
+}
+.switch.on{background:var(--accent);box-shadow:none}
 .switch.on::after{transform:translateX(20px);background:var(--accentText)}
-.switch:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.switch:active::after{width:26px}
+.switch.on:active::after{width:26px;transform:translateX(16px)}
+.switch:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.menu-item.disabled{opacity:.35;pointer-events:none;cursor:default}
+.server-del{margin-left:auto;width:22px;height:22px;border:0;background:transparent;cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;opacity:.55}
+.server-del:hover{opacity:1}
+.server-del img{width:12px;height:12px;filter:invert(1);display:block}
+
+
+
+
+
 
 .server-list{display:flex;flex-direction:column;gap:6px;margin-top:4px}
 .server-row{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;text-align:left;font-size:13px}
@@ -256,6 +279,7 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 <div class="menu" id="mainMenu">
   <button class="menu-item" id="menuBookmarks"><span class="menu-icon"><img src="image/bookmarks.svg" alt=""></span>Bookmarks</button>
   <button class="menu-item" id="menuRename"><span class="menu-icon"><img src="image/pencil.svg" alt=""></span>Rename tab</button>
+  <button class="menu-item" id="menuDevtools"><span class="menu-icon"><img src="image/settings.svg" alt=""></span>DevTools</button>
   <div class="menu-separator"></div>
   <button class="menu-item" id="menuLock"><span class="menu-icon"><img src="image/lock.svg" alt=""></span>Lock Veil</button>
 </div>
@@ -266,9 +290,9 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
   <div class="panel-head"><span>Settings</span><button type="button" class="close-panel" data-close-panel title="Close"><img src="image/exit.svg" alt="Close"></button></div>
   <div class="panel-body">
 
-    <div class="settings-cat">Appearance</div>
+    <div class="settings-cat">Customization</div>
     <section class="setting-section">
-      <div class="setting-title">Theme</div>
+      <div class="setting-title">Site theme colors</div>
       <div class="preset-grid" id="themeGrid">
         <button class="preset" type="button" data-theme="scarlet"><div class="preset-name">Scarlet</div><div class="preset-preview"><span class="preset-dot" style="background:#1a0606"></span><span class="preset-dot" style="background:#ff2a2a"></span><span class="preset-dot" style="background:#ffe0e0"></span></div></button>
         <button class="preset" type="button" data-theme="crimson"><div class="preset-name">Crimson</div><div class="preset-preview"><span class="preset-dot" style="background:#140808"></span><span class="preset-dot" style="background:#e63232"></span><span class="preset-dot" style="background:#ffd6d6"></span></div></button>
@@ -289,94 +313,20 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
       </div>
       <div class="custom-card" id="customColorCard">
         <div class="input-row"><label class="input-label">Background</label><input class="color-input" type="color" id="colorBg"></div>
-        <div class="input-row"><label class="input-label">Panel</label><input class="color-input" type="color" id="colorPanel"></div>
-        <div class="input-row"><label class="input-label">Accent</label><input class="color-input" type="color" id="colorAccent"></div>
-        <div class="input-row"><label class="input-label">Text</label><input class="color-input" type="color" id="colorText"></div>
-        <button class="primary-btn" id="applyColors" type="button">Apply colors</button>
-      </div>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Home background</div>
+      <div class="setting-title">Home page background</div>
       <div class="input-row"><input class="text-input" id="backgroundUrl" placeholder="Image, GIF, WebP, or video URL"></div>
       <button class="primary-btn" id="applyBackground" type="button">Apply background</button>
       <p class="hint">Supports images, GIF, WebP, and video (mp4 / webm).</p>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Clock</div>
+      <div class="setting-title">24-hour time</div>
       <div class="switch-row">
-        <span class="switch-label">24-hour time</span>
+        <span class="switch-label">Use 24-hour clock</span>
         <button type="button" class="switch" id="time24Switch" role="switch" aria-checked="false"></button>
       </div>
-      <p class="hint">Off uses 12-hour time with AM/PM. On uses 24-hour time.</p>
-    </section>
-
-    <div class="settings-cat">Privacy</div>
-    <section class="setting-section">
-      <div class="setting-title">Tab cloak</div>
-      <div class="cloak-grid">
-        <button class="cloak-preset" type="button" data-cloak="docs">Google Docs</button>
-        <button class="cloak-preset" type="button" data-cloak="classroom">Classroom</button>
-        <button class="cloak-preset" type="button" data-cloak="drive">Drive</button>
-        <button class="cloak-preset" type="button" data-cloak="canvas">Canvas</button>
-        <button class="cloak-preset" type="button" data-cloak="veil">Veil</button>
-      </div>
-      <div class="input-row" style="margin-top:10px"><input class="text-input" id="cloakTitle" placeholder="Custom title"></div>
-      <div class="input-row"><input class="text-input" id="cloakIcon" placeholder="Favicon URL"></div>
-      <button class="primary-btn" id="applyCloak" type="button">Apply cloak</button>
-      <p class="hint">Also applies when you open about:blank.</p>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Panic key</div>
-      <div class="input-row"><label class="input-label">Key</label><input class="text-input" id="panicKey" placeholder="Click Bind, then press a key" readonly></div>
-      <div class="input-row"><label class="input-label">Redirect</label><input class="text-input" id="panicUrl" placeholder="https://classroom.google.com"></div>
-      <button class="primary-btn" id="bindPanic" type="button">Bind key</button>
-      <button class="secondary-btn" id="unbindPanic" type="button">Unbind</button>
-      <p class="hint">Ignored while typing in a text box.</p>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Launch (about:blank)</div>
-      <div class="switch-row">
-        <span class="switch-label">Auto-open about:blank once</span>
-        <button type="button" class="switch" id="launchAutoSwitch" role="switch" aria-checked="false"></button>
-      </div>
-      <p class="hint">Opens a hidden tab once when you start. Skips if already cloaked.</p>
-      <button class="primary-btn" id="launchNowBtn" type="button" style="margin-top:8px">Launch options</button>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Lock</div>
-      <div class="switch-row">
-        <span class="switch-label">Unload pages when locking</span>
-        <button type="button" class="switch" id="lockUnloadSwitch" role="switch" aria-checked="false"></button>
-      </div>
-      <p class="hint">Off keeps pages running under the lock. On closes them to save memory.</p>
-    </section>
-
-    <div class="settings-cat">Browsing</div>
-    <section class="setting-section">
-      <div class="setting-title">Search engine</div>
-      <select class="text-input" id="searchEngineSelect">
-        <option value="duckduckgo">DuckDuckGo</option>
-        <option value="google">Google</option>
-        <option value="bing">Bing</option>
-        <option value="brave">Brave</option>
-      </select>
-      <p class="hint">Used when you type words instead of a full address.</p>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Ad blocker</div>
-      <div class="switch-row">
-        <span class="switch-label">Block ads and trackers</span>
-        <button type="button" class="switch" id="adblockSwitch" role="switch" aria-checked="true"></button>
-      </div>
-      <p class="hint">Hides common ads and trackers while you browse.</p>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Loaded tabs at once</div>
-      <div class="range-row">
-        <input type="range" id="maxLoadedTabs" min="1" max="20" step="1" value="8">
-        <span class="range-val" id="maxLoadedTabsVal">8</span>
-      </div>
-      <p class="hint">How many tabs stay fully loaded. Lower uses less memory.</p>
+      <p class="hint">Off = 12-hour with AM/PM.</p>
     </section>
     <section class="setting-section">
       <div class="setting-title">Home page animations</div>
@@ -399,15 +349,79 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
         <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Size</span><input type="range" id="animSize" min="0.4" max="2.5" step="0.05" value="1"><span class="range-val" id="animSizeVal">1.00x</span></div>
         <div class="input-row"><label class="input-label">Color A</label><input class="color-input" type="color" id="animColorA" value="#7aa2ff"></div>
         <div class="input-row"><label class="input-label">Color B</label><input class="color-input" type="color" id="animColorB" value="#b88cff"></div>
-        <p class="hint">Background motion on the home page only.</p>
       </div>
     </section>
 
-    <div class="settings-cat">Connection</div>
+    <div class="settings-cat">Privacy</div>
+    <section class="setting-section">
+      <div class="setting-title">Tab cloak</div>
+      <div class="cloak-grid">
+        <button class="cloak-preset" type="button" data-cloak="docs">Google Docs</button>
+        <button class="cloak-preset" type="button" data-cloak="classroom">Classroom</button>
+        <button class="cloak-preset" type="button" data-cloak="drive">Drive</button>
+        <button class="cloak-preset" type="button" data-cloak="canvas">Canvas</button>
+        <button class="cloak-preset" type="button" data-cloak="veil">Veil</button>
+      </div>
+      <div class="input-row" style="margin-top:10px"><input class="text-input" id="cloakTitle" placeholder="Custom title"></div>
+      <div class="input-row"><input class="text-input" id="cloakIcon" placeholder="Favicon URL"></div>
+      <button class="primary-btn" id="applyCloak" type="button">Apply cloak</button>
+      <p class="hint">Also applies to about:blank windows and tabs.</p>
+    </section>
+    <section class="setting-section">
+      <div class="setting-title">Panic key</div>
+      <div class="input-row"><label class="input-label">Key</label><input class="text-input" id="panicKey" placeholder="Click Bind, then press a key" readonly></div>
+      <div class="input-row"><label class="input-label">Redirect</label><input class="text-input" id="panicUrl" placeholder="https://classroom.google.com"></div>
+      <button class="primary-btn" id="bindPanic" type="button">Bind key</button>
+      <button class="secondary-btn" id="unbindPanic" type="button">Unbind</button>
+      <p class="hint">Ignored while typing in a text box.</p>
+    </section>
+    <section class="setting-section">
+      <div class="setting-title">About:blank launch</div>
+      <select class="text-input" id="launchModeSelect">
+        <option value="manual">Manual - only when I choose Launch</option>
+        <option value="auto">Auto - open about:blank once on start</option>
+      </select>
+      <p class="hint">Skips if already inside about:blank.</p>
+      <button class="primary-btn" id="launchNowBtn" type="button" style="margin-top:8px">Launch options</button>
+    </section>
+    <section class="setting-section">
+      <div class="setting-title">Page lock</div>
+      <div class="switch-row">
+        <span class="switch-label">Unload pages when locking</span>
+        <button type="button" class="switch" id="lockUnloadSwitch" role="switch" aria-checked="false"></button>
+      </div>
+      <p class="hint">Off keeps pages running under the lock.</p>
+    </section>
+
+    <div class="settings-cat">Browser</div>
+    <section class="setting-section">
+      <div class="setting-title">Search engine</div>
+      <select class="text-input" id="searchEngineSelect">
+        <option value="duckduckgo">DuckDuckGo</option>
+        <option value="google">Google</option>
+        <option value="bing">Bing</option>
+        <option value="brave">Brave</option>
+      </select>
+      <p class="hint">Used when you type words instead of a full address.</p>
+    </section>
+    <section class="setting-section">
+      <div class="setting-title">Ad blocker</div>
+      <div class="switch-row">
+        <span class="switch-label">Block ads and trackers</span>
+        <button type="button" class="switch" id="adblockSwitch" role="switch" aria-checked="true"></button>
+      </div>
+    </section>
+    <section class="setting-section">
+      <div class="setting-title">Loaded tabs at once</div>
+      <div class="range-row">
+        <input type="range" id="maxLoadedTabs" min="1" max="20" step="1" value="8">
+        <span class="range-val" id="maxLoadedTabsVal">8</span>
+      </div>
+    </section>
     <section class="setting-section">
       <div class="setting-title">Proxy servers</div>
       <div class="server-list" id="serverList"></div>
-      <p class="hint">Green = fast, orange = ok, red = slow or offline.</p>
+      <p class="hint">Pings update live. Green = fast, orange = ok, red = slow or offline.</p>
       <div class="input-row" style="margin-top:10px"><input class="text-input" id="customServerName" placeholder="Custom name"></div>
       <div class="input-row"><input class="text-input" id="customServerUrl" placeholder="wss://your-server"></div>
       <button class="primary-btn" id="addCustomServer" type="button">Add custom server</button>
@@ -422,10 +436,24 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
       <div class="status" id="engineStatus">Starting...</div>
     </section>
 
-    <div class="settings-cat">System</div>
+    <div class="settings-cat">Misc</div>
     <section class="setting-section">
-      <div class="setting-title">Reset</div>
-      <button class="secondary-btn" id="resetSettings" type="button">Reset settings</button>
+      <div class="setting-title">Change username</div>
+      <div class="input-row"><input class="text-input" id="newUsername" placeholder="New display name"></div>
+      <button class="primary-btn" id="saveUsername" type="button">Save username</button>
+    </section>
+    <section class="setting-section">
+      <div class="setting-title">Change password</div>
+      <div class="input-row"><input class="text-input" id="curPassword" type="password" placeholder="Current password"></div>
+      <div class="input-row"><input class="text-input" id="newPassword" type="password" placeholder="New password"></div>
+      <div class="input-row"><input class="text-input" id="newPassword2" type="password" placeholder="Confirm new password"></div>
+      <button class="primary-btn" id="savePassword" type="button">Save password</button>
+      <p class="hint" id="passwordMsg"></p>
+    </section>
+    <section class="setting-section">
+      <div class="setting-title">Factory reset</div>
+      <button class="secondary-btn" id="resetSettings" type="button">Factory reset</button>
+      <p class="hint">Clears theme and browser settings. Profile password is kept unless you clear site data.</p>
     </section>
   </div>
 </aside>
