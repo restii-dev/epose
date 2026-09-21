@@ -1945,19 +1945,32 @@ document.addEventListener("visibilitychange", () => {
 });
 
 function showCookieConsent() {
+  if (document.getElementById("veilCookieOverlay")) return;
   const overlay = document.createElement("div");
+  overlay.id = "veilCookieOverlay";
   overlay.className = "cookie-overlay";
-  overlay.innerHTML = '<div class="cookie-box"><h2>Allow cookies?</h2><p>Veil can remember bookmarks, theme, cloak, and panic key.</p><div class="cookie-buttons"><button class="cookie-no" id="cookieNo">No</button><button class="cookie-yes" id="cookieYes">Yes</button></div></div>';
+  overlay.style.zIndex = "100001";
+  overlay.innerHTML = '<div class="cookie-box"><h2>Allow cookies?</h2><p>Veil uses cookies to save your theme, bookmarks, cloak, and settings on this device.</p><div class="cookie-buttons"><button class="cookie-no" id="cookieNo" type="button">No</button><button class="cookie-yes" id="cookieYes" type="button">Yes</button></div></div>';
   document.body.appendChild(overlay);
   document.getElementById("cookieYes").onclick = () => {
-    COOKIE.consent = true; COOKIE.set("veil_cookie_consent", "yes");
-    loadSavedData(); save(); overlay.remove();
+    COOKIE.consent = true;
+    try { localStorage.setItem("veil_cookie_consent", "yes"); } catch (e) {}
+    COOKIE.set("veil_cookie_consent", "yes");
+    loadSavedData();
+    save();
+    overlay.remove();
     applyCSSVariables();
     document.title = cloak.title || "Veil";
-    document.getElementById("favicon").href = cloak.icon || FAVI;
+    const fav = document.getElementById("favicon");
+    if (fav) fav.href = cloak.icon || FAVI;
     renderChrome();
   };
-  document.getElementById("cookieNo").onclick = () => { COOKIE.consent = false; overlay.remove(); renderChrome(); };
+  document.getElementById("cookieNo").onclick = () => {
+    COOKIE.consent = false;
+    try { localStorage.setItem("veil_cookie_consent", "no"); } catch (e) {}
+    overlay.remove();
+    renderChrome();
+  };
 }
 
 
@@ -2049,7 +2062,9 @@ window.addEventListener("veil-access-ok", updateAccessTimeBar);
 
 async function bootVeilApp() {
   loadProfile();
-  const consent = COOKIE.get("veil_cookie_consent");
+  let consent = null;
+  try { consent = localStorage.getItem("veil_cookie_consent"); } catch (e) {}
+  if (!consent) consent = COOKIE.get("veil_cookie_consent");
   if (consent === "yes") { COOKIE.consent = true; loadSavedData(); }
   if (!cloak.icon) cloak.icon = FAVI;
   applyCSSVariables();
@@ -2105,6 +2120,18 @@ async function bootVeilApp() {
 }
 
 // Do not load browser until access gate passes
+
+window.addEventListener("veil-access-ok", function onAccessCookie() {
+  try {
+    var c = localStorage.getItem("veil_cookie_consent") || "";
+    if (c !== "yes" && c !== "no") {
+      setTimeout(function () {
+        if (typeof showCookieConsent === "function") showCookieConsent();
+      }, 400);
+    }
+  } catch (e) {}
+}, { once: true });
+
 (function waitForAccess() {
   if (window.__VEIL_ACCESS_OK) {
     bootVeilApp();
@@ -2118,23 +2145,27 @@ async function bootVeilApp() {
 
 on("openAdminPanel", () => {
   closePanels();
-  const base = location.origin + (location.pathname.replace(/\/[^/]*$/, "/") || "/");
-  const adminUrl = base + "admin/";
-  // open as normal Veil tab (proxied only if user types external - admin is same origin static)
+  closeMenu();
+  const path = location.pathname.replace(/\/?(index\.html)?$/, "/");
+  const adminUrl = location.origin + path + "admin/index.html";
   const page = createTab(false);
   page.url = adminUrl;
   page.title = "Admin";
+  page.favicon = FAVI;
   page.newTab = false;
-  // load directly in iframe without proxy for same-origin admin
+  page.isAdmin = true;
   const wrap = ensurePage(page);
   wrap.innerHTML = "";
   const fr = document.createElement("iframe");
   fr.className = "engine-frame";
+  fr.setAttribute("title", "Admin");
   fr.style.cssText = "width:100%;height:100%;border:0;background:#0a0a0c";
   fr.src = adminUrl;
   wrap.appendChild(fr);
   page.engineFrame = { frame: fr, element: fr };
   switchTab(page.id);
   renderChrome();
+  const addr = document.getElementById("address");
+  if (addr) addr.value = adminUrl;
 });
 
