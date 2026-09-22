@@ -41,6 +41,11 @@ function api(path, opts) {
     return res.json().catch(function () { return {}; }).then(function (data) {
       return { res: res, data: data };
     });
+  }).catch(function (err) {
+    return {
+      res: { ok: false, status: 0 },
+      data: { ok: false, error: "Could not reach server (" + (err && err.message ? err.message : "network") + ")" }
+    };
   });
 }
 
@@ -220,8 +225,6 @@ function toggleDetail(box, ip, forceOpen) {
       }).then(function (res) {
         flash(detail.querySelector(".detail-msg"), res.data.ok ? "Name saved" : (res.data.error || "Failed"), !!res.data.ok);
         if (res.data.ok) loadIps();
-      }).catch(function () {
-        flash(detail.querySelector(".detail-msg"), "Could not reach server", false);
       });
     };
     detail.querySelector(".block-btn").onclick = function () {
@@ -236,8 +239,6 @@ function toggleDetail(box, ip, forceOpen) {
           : (res.data.error || "Failed");
         flash(detail.querySelector(".detail-msg"), okMsg, !!res.data.ok);
         if (res.data.ok) loadIps();
-      }).catch(function () {
-        flash(detail.querySelector(".detail-msg"), "Could not reach server", false);
       });
     };
     detail.querySelector(".unblock-btn").onclick = function () {
@@ -247,8 +248,6 @@ function toggleDetail(box, ip, forceOpen) {
       }).then(function (res) {
         flash(detail.querySelector(".detail-msg"), res.data.ok ? "Unblocked" : (res.data.error || "Failed"), !!res.data.ok);
         if (res.data.ok) loadIps();
-      }).catch(function () {
-        flash(detail.querySelector(".detail-msg"), "Could not reach server", false);
       });
     };
     detail.querySelector(".kill-btn").onclick = function () {
@@ -258,8 +257,6 @@ function toggleDetail(box, ip, forceOpen) {
       }).then(function (res) {
         flash(detail.querySelector(".detail-msg"), res.data.ok ? "Key invalidated — they need a new key" : (res.data.error || "Failed"), !!res.data.ok);
         if (res.data.ok) loadIps();
-      }).catch(function () {
-        flash(detail.querySelector(".detail-msg"), "Could not reach server", false);
       });
     };
   });
