@@ -717,24 +717,28 @@ function wireHome(wrapper, page) {
 
 function ensurePage(page) {
   const viewport = document.getElementById("viewport");
+  if (!viewport) return null;
   let wrapper = viewport.querySelector('.page[data-page-id="' + page.id + '"]');
   if (!wrapper) {
     wrapper = document.createElement("section");
     wrapper.className = "page";
     wrapper.dataset.pageId = page.id;
     viewport.appendChild(wrapper);
-    if (page.newTab) {
-      wrapper.innerHTML = homepageHTML(page.id);
-      wireHome(wrapper, page);
-    } else {
-      const frame = document.createElement("div");
-      frame.style.cssText = "width:100%;height:100%";
-      frame.dataset.engineContainer = page.id;
-      wrapper.appendChild(frame);
-      createEngineFrame(page, frame);
-    }
+  }
+  // Always (re)fill homepage if this is a new-tab and content is missing
+  const needsHome = page.newTab && !wrapper.querySelector(".newtab-page");
+  if (needsHome) {
+    wrapper.innerHTML = homepageHTML(page.id);
+    wireHome(wrapper, page);
+  } else if (!page.newTab && !page.isAdmin && !wrapper.querySelector("[data-engine-container], .engine-frame")) {
+    const frame = document.createElement("div");
+    frame.style.cssText = "width:100%;height:100%";
+    frame.dataset.engineContainer = page.id;
+    wrapper.appendChild(frame);
+    createEngineFrame(page, frame);
   }
   wrapper.classList.toggle("active", page.id === activeTabId);
+  wrapper.style.display = page.id === activeTabId ? "block" : "none";
   return wrapper;
 }
 
@@ -2097,11 +2101,20 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") reconnectTransport();
 });
 
+function hasProfileName() {
+  try {
+    loadProfile();
+  } catch (e) {}
+  return !!(profile && String(profile.name || "").trim());
+}
+
 function showCookieConsent() {
   return new Promise((resolve) => {
     let consent = null;
     try { consent = localStorage.getItem("veil_cookie_consent"); } catch (e) {}
-    if (!consent) consent = COOKIE.get("veil_cookie_consent");
+    if (!consent) {
+      try { consent = COOKIE.get("veil_cookie_consent"); } catch (e) {}
+    }
     if (consent === "yes") {
       COOKIE.consent = true;
       loadSavedData();
@@ -2113,14 +2126,15 @@ function showCookieConsent() {
       resolve(false);
       return;
     }
-    if (document.getElementById("veilCookieOverlay")) {
-      resolve(false);
-      return;
-    }
+    // Remove any stuck overlay so we always can show a fresh one
+    try {
+      const stuck = document.getElementById("veilCookieOverlay");
+      if (stuck) stuck.remove();
+    } catch (e) {}
     const overlay = document.createElement("div");
     overlay.id = "veilCookieOverlay";
     overlay.className = "cookie-overlay";
-    overlay.style.zIndex = "100001";
+    overlay.style.cssText = "z-index:100001;display:flex";
     overlay.innerHTML = '<div class="cookie-box"><h2>Allow cookies?</h2><p>Veil uses cookies to save your theme, bookmarks, cloak, and settings on this device.</p><div class="cookie-buttons"><button class="cookie-no" id="cookieNo" type="button">No</button><button class="cookie-yes" id="cookieYes" type="button">Yes</button></div></div>';
     document.body.appendChild(overlay);
     document.getElementById("cookieYes").onclick = () => {
@@ -2135,29 +2149,29 @@ function showCookieConsent() {
       syncAboutBlankChrome();
       const fav = document.getElementById("favicon");
       if (fav) fav.href = cloak.icon || FAVI;
-      renderChrome();
       resolve(true);
     };
     document.getElementById("cookieNo").onclick = () => {
       COOKIE.consent = false;
       try { localStorage.setItem("veil_cookie_consent", "no"); } catch (e) {}
       overlay.remove();
-      renderChrome();
       resolve(false);
     };
   });
 }
 
-
 function showSignup() {
   return new Promise((resolve) => {
-    if (profile && profile.name) { resolve(false); return; }
+    if (hasProfileName()) {
+      resolve(false);
+      return;
+    }
     try {
-      loadProfile();
-      if (profile && profile.name) { resolve(false); return; }
-    } catch {}
+      document.querySelectorAll(".signup-overlay").forEach((el) => el.remove());
+    } catch (e) {}
     const overlay = document.createElement("div");
     overlay.className = "signup-overlay";
+    overlay.style.cssText = "z-index:100002;display:flex";
     overlay.innerHTML =
       '<div class="signup-card">' +
       "<h2>Welcome to Veil</h2>" +
@@ -2173,7 +2187,7 @@ function showSignup() {
     const nameEl = overlay.querySelector("#signupName");
     const passEl = overlay.querySelector("#signupPass");
     const err = overlay.querySelector("#signupErr");
-    nameEl.focus();
+    try { nameEl.focus(); } catch (e) {}
     const submit = () => {
       const name = nameEl.value.trim();
       const pass = passEl.value;
@@ -2182,7 +2196,6 @@ function showSignup() {
       profile = { name: name, password: pass };
       saveProfile();
       overlay.remove();
-      // refresh open home pages with welcome bar
       document.querySelectorAll(".page").forEach((pageEl) => {
         const id = pageEl.dataset.pageId;
         const tab = tabs.find((x) => x.id === id);
@@ -2197,6 +2210,55 @@ function showSignup() {
     passEl.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
     nameEl.addEventListener("keydown", (e) => { if (e.key === "Enter") passEl.focus(); });
   });
+}
+
+function forceHomeTab() {
+  tabs = (tabs || []).filter(Boolean);
+  if (!tabs.length) {
+    createTab(true);
+  }
+  let home = getActiveTab() || tabs[0];
+  if (!home) {
+    createTab(true);
+    home = getActiveTab() || tabs[0];
+  }
+  if (!home) return null;
+  activeTabId = home.id;
+  home.newTab = true;
+  home.url = "";
+  home.title = "New Tab";
+  home.favicon = FAVI;
+  home.engineFrame = null;
+  home.isAdmin = false;
+  const viewport = document.getElementById("viewport");
+  if (!viewport) return home;
+  let wrap = viewport.querySelector('.page[data-page-id="' + home.id + '"]');
+  if (!wrap) {
+    wrap = document.createElement("section");
+    wrap.className = "page";
+    wrap.dataset.pageId = home.id;
+    viewport.appendChild(wrap);
+  }
+  try {
+    wrap.innerHTML = homepageHTML(home.id);
+    wireHome(wrap, home);
+  } catch (err) {
+    console.error("home render", err);
+    try {
+      wrap.innerHTML = homepageHTML(home.id);
+      wireHome(wrap, home);
+    } catch (e2) {}
+  }
+  wrap.classList.add("active");
+  wrap.style.display = "block";
+  // Hide other pages
+  viewport.querySelectorAll(".page").forEach((p) => {
+    if (p !== wrap) {
+      p.classList.remove("active");
+      p.style.display = "none";
+    }
+  });
+  return home;
 }
 
 
@@ -2235,69 +2297,63 @@ window.addEventListener("veil-session-meta", updateAccessTimeBar);
 window.addEventListener("veil-access-ok", updateAccessTimeBar);
 
 
+let __veilBootStarted = false;
+
 async function bootVeilApp() {
+  if (__veilBootStarted) return;
+  __veilBootStarted = true;
+
+  // Make sure the shell is visible (access gate may have left body locked)
+  try {
+    document.body.classList.remove("gate-lock");
+    const appRoot = document.getElementById("browser") || document.getElementById("app");
+    if (appRoot) appRoot.style.display = "";
+    const gate = document.getElementById("accessGate");
+    if (gate) gate.style.display = "none";
+    const bl = document.getElementById("accessBlocked");
+    if (bl) bl.style.display = "none";
+  } catch (e) {}
+
   loadProfile();
   let consent = null;
   try { consent = localStorage.getItem("veil_cookie_consent"); } catch (e) {}
-  if (!consent) consent = COOKIE.get("veil_cookie_consent");
+  if (!consent) {
+    try { consent = COOKIE.get("veil_cookie_consent"); } catch (e) {}
+  }
   if (consent === "yes") { COOKIE.consent = true; loadSavedData(); }
+
   if (!cloak.icon) cloak.icon = FAVI;
-  applyCSSVariables();
-  document.title = cloak.title || "Veil";
-  document.getElementById("favicon").href = cloak.icon || FAVI;
-  markAboutBlankSession();
   cloak.title = cloak.title || "Veil";
   cloak.icon = cloak.icon || FAVI;
+  applyCSSVariables();
   document.title = cloak.title;
   try {
     const fav = document.getElementById("favicon");
     if (fav) fav.href = cloak.icon;
-  } catch {}
+  } catch (e) {}
+  markAboutBlankSession();
   syncAboutBlankChrome();
-  await showCookieConsent();
-  await showSignup();
-  // Always ensure at least one home tab is fully rendered
-  tabs = tabs.filter(Boolean);
-  if (!tabs.length) {
-    createTab(true);
+
+  // Required order: cookies → signup → homepage
+  try { await showCookieConsent(); } catch (e) { console.warn("cookie consent", e); }
+  try { await showSignup(); } catch (e) { console.warn("signup", e); }
+
+  // Always force a real home tab with content (fixes blank / guest-only shell)
+  try {
+    forceHomeTab();
+  } catch (e) {
+    console.error("forceHomeTab", e);
+    try { createTab(true); } catch (e2) {}
   }
-  let home = getActiveTab() || tabs[0];
-  if (home) {
-    activeTabId = home.id;
-    home.newTab = true;
-    home.url = "";
-    home.title = "New Tab";
-    home.favicon = FAVI;
-    home.engineFrame = null;
-    const viewport = document.getElementById("viewport");
-    if (viewport) {
-      let wrap = viewport.querySelector('.page[data-page-id="' + home.id + '"]');
-      if (!wrap) {
-        wrap = document.createElement("section");
-        wrap.className = "page";
-        wrap.dataset.pageId = home.id;
-        viewport.appendChild(wrap);
-      }
-      try {
-        wrap.innerHTML = homepageHTML(home.id);
-        wireHome(wrap, home);
-      } catch (err) {
-        console.error("home render", err);
-        wrap.innerHTML = homepageHTML(home.id);
-        try { wireHome(wrap, home); } catch {}
-      }
-      wrap.classList.add("active");
-      wrap.style.display = "block";
-    }
-  }
+
   showActiveOnly();
   renderChrome();
   startWelcomeClock();
-  try { startLivePings(); } catch {}
-  initEngine().then(() => pushAdblockToSW());
+  try { startLivePings(); } catch (e) {}
+  initEngine().then(() => pushAdblockToSW()).catch(() => {});
   setTimeout(syncAboutBlankChrome, 100);
   setTimeout(syncAboutBlankChrome, 600);
-  // Apply matte (or saved theme) colors to the whole UI
+
   if (settings.theme && THEMES[settings.theme]) {
     Object.assign(settings, THEMES[settings.theme], {
       theme: settings.theme,
@@ -2324,33 +2380,35 @@ async function bootVeilApp() {
     Object.assign(settings, THEMES.matte, { theme: "matte" });
   }
   applyCSSVariables();
-  highlightTheme();
-  // Do NOT auto-open about:blank on startup (was opening a blank tab every visit)
-  // User can still use Launch options / auto mode only when they enable it and we respect
-  // a single intentional session flag — disabled by default.
-  if (settings.launchMode === "auto" && !isInsideAboutBlank()) {
-    // Auto mode still available if user set it, but only once per browser session
+  try { highlightTheme(); } catch (e) {}
+
+  // Safety net: if homepage still missing after a tick, rebuild it
+  setTimeout(function () {
     try {
-      if (!sessionStorage.getItem("veil_auto_ab_done")) {
-        sessionStorage.setItem("veil_auto_ab_done", "1");
-        // skip automatic open — too aggressive; leave as no-op
-      }
-    } catch {}
-  }
+      const vp = document.getElementById("viewport");
+      const hasHome = vp && vp.querySelector(".newtab-page");
+      if (!hasHome || !tabs.length) forceHomeTab();
+      showActiveOnly();
+      renderChrome();
+    } catch (e) {}
+  }, 200);
 }
 
 // Do not load browser until access gate passes
-
-
-
 (function waitForAccess() {
+  function start() {
+    bootVeilApp().catch(function (err) {
+      console.error("bootVeilApp failed", err);
+      try { forceHomeTab(); renderChrome(); } catch (e) {}
+    });
+  }
   if (window.__VEIL_ACCESS_OK) {
-    bootVeilApp();
+    start();
     return;
   }
   window.addEventListener("veil-access-ok", function once() {
     window.removeEventListener("veil-access-ok", once);
-    bootVeilApp();
+    start();
   });
 })();
 
