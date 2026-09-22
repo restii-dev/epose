@@ -905,6 +905,28 @@ function reload() {
 }
 
 
+function veilConfirm(title, message) {
+  return new Promise((resolve) => {
+    const existing = document.querySelector(".modal-overlay.veil-confirm");
+    if (existing) existing.remove();
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay veil-confirm";
+    overlay.innerHTML =
+      '<div class="modal-box">' +
+      "<h2>" + escapeHTML(title || "Confirm") + "</h2>" +
+      '<p style="margin-top:10px;color:var(--muted);font-size:13px;line-height:1.55">' + escapeHTML(message || "") + "</p>" +
+      '<div class="modal-actions">' +
+      '<button class="modal-cancel" type="button">No</button>' +
+      '<button class="modal-go" type="button">Yes</button>' +
+      "</div></div>";
+    document.body.appendChild(overlay);
+    const done = (v) => { overlay.remove(); resolve(v); };
+    overlay.querySelector(".modal-cancel").onclick = () => done(false);
+    overlay.querySelector(".modal-go").onclick = () => done(true);
+    overlay.onclick = (e) => { if (e.target === overlay) done(false); };
+  });
+}
+
 function pushVisitHistory(url, title) {
   if (!url || url === "about:blank") return;
   try {
@@ -952,13 +974,13 @@ function renderHistory() {
 
 function openHistory() {
   closeMenu();
-  closePanels();
-  document.getElementById("historyPanel")?.classList.add("open");
+  openPanel("historyPanel");
   renderHistory();
 }
 
 function closeHistory() {
   document.getElementById("historyPanel")?.classList.remove("open");
+  document.getElementById("backdrop")?.classList.remove("open");
 }
 
 
@@ -1817,6 +1839,7 @@ window.addEventListener("message", function (e) {
     w.document.open();
     w.document.write(shell);
     w.document.close();
+    setTimeout(syncAboutBlankChrome, 50);
   } catch (err) {
     console.error(err);
     alert("Could not write about:blank shell.");
@@ -2042,8 +2065,9 @@ on("transportLibcurl", () => setTransport("libcurl"));
 on("applyBackground", applyBackground);
 on("applyCloak", applyCloak);
 on("resetSettings", resetSettings);
-document.getElementById("clearHistory")?.addEventListener("click", () => {
-  if (!confirm("Are you sure you want to clear all history?")) return;
+document.getElementById("clearHistory")?.addEventListener("click", async () => {
+  const ok = await veilConfirm("Clear history", "Are you sure you want to clear all history?");
+  if (!ok) return;
   visitHistory = [];
   save();
   renderHistory();
@@ -2220,10 +2244,26 @@ async function bootVeilApp() {
   document.title = cloak.title || "Veil";
   document.getElementById("favicon").href = cloak.icon || FAVI;
   markAboutBlankSession();
+  // Default chrome to Veil until cloak overrides
+  if (!cloak.title) cloak.title = "Veil";
+  if (!cloak.icon) cloak.icon = FAVI;
+  document.title = cloak.title || "Veil";
   syncAboutBlankChrome();
   await showCookieConsent();
   await showSignup();
-  createTab(true);
+  // Build first tab after UI prompts so homepage is not blank
+  if (!tabs.length) createTab(true);
+  const home = getActiveTab();
+  if (home) {
+    home.newTab = true;
+    home.title = "New Tab";
+    home.favicon = FAVI;
+    const wrap = ensurePage(home);
+    wrap.innerHTML = homepageHTML(home.id);
+    wireHome(wrap, home);
+    showActiveOnly();
+  }
+  renderChrome();
   startWelcomeClock();
   try { startLivePings(); } catch {}
   initEngine().then(() => pushAdblockToSW());
@@ -2271,16 +2311,7 @@ async function bootVeilApp() {
 
 // Do not load browser until access gate passes
 
-window.addEventListener("veil-access-ok", function onAccessCookie() {
-  try {
-    var c = localStorage.getItem("veil_cookie_consent") || "";
-    if (c !== "yes" && c !== "no") {
-      setTimeout(function () {
-        if (typeof showCookieConsent === "function") showCookieConsent();
-      }, 400);
-    }
-  } catch (e) {}
-}, { once: true });
+
 
 (function waitForAccess() {
   if (window.__VEIL_ACCESS_OK) {
@@ -2296,20 +2327,20 @@ window.addEventListener("veil-access-ok", function onAccessCookie() {
 on("openAdminPanel", () => {
   closePanels();
   closeMenu();
-  closeHistory();
+  try { closeHistory(); } catch {}
   const path = location.pathname.replace(/\/?index\.html$/i, "/").replace(/\/?$/, "/");
   const adminUrl = location.origin + path + "admin/index.html";
   const page = createTab(false);
   page.url = adminUrl;
-  page.title = "Admin";
-  page.favicon = FAVI;
+  page.title = "Admin Panel";
+  page.favicon = (typeof IMG !== "undefined" ? IMG : "image/") + "home.svg";
   page.newTab = false;
   page.isAdmin = true;
   const wrap = ensurePage(page);
   wrap.innerHTML = "";
   const fr = document.createElement("iframe");
   fr.className = "engine-frame";
-  fr.setAttribute("title", "Admin");
+  fr.setAttribute("title", "Admin Panel");
   fr.style.cssText = "width:100%;height:100%;border:0;background:#101010";
   fr.src = adminUrl;
   wrap.appendChild(fr);
@@ -2317,6 +2348,6 @@ on("openAdminPanel", () => {
   switchTab(page.id);
   renderChrome();
   const addr = document.getElementById("address");
-  if (addr) addr.value = "Admin";
+  if (addr) addr.value = "Admin Panel";
 });
 

@@ -1,5 +1,5 @@
 /**
- * Veil access gate — matte theme, signature stars, blocked lockout
+ * Veil access gate — simple matte, no animations
  */
 (function () {
   try {
@@ -16,7 +16,6 @@
 
   var SESSION_KEY = "veil_access_token";
   var SESSION_META = "veil_access_meta";
-  var STARS_OFF_KEY = "veil_gate_stars_off";
 
   var gate = document.getElementById("accessGate");
   var appRoot = document.getElementById("browser") || document.getElementById("app");
@@ -31,137 +30,6 @@
   } catch (e) {
     sessionMeta = null;
   }
-
-  var starsOn = true;
-  try {
-    if (localStorage.getItem(STARS_OFF_KEY) === "1") starsOn = false;
-  } catch (e) {}
-
-  var starCanvas = null;
-  var starRaf = 0;
-  var stars = [];
-  var shoots = [];
-
-  function ensureStarUI() {
-    if (!gate) return;
-    if (!document.getElementById("gateStarCanvas")) {
-      starCanvas = document.createElement("canvas");
-      starCanvas.id = "gateStarCanvas";
-      gate.insertBefore(starCanvas, gate.firstChild);
-    } else {
-      starCanvas = document.getElementById("gateStarCanvas");
-    }
-    if (!document.getElementById("gateStarToggle")) {
-      var btn = document.createElement("button");
-      btn.id = "gateStarToggle";
-      btn.type = "button";
-      btn.title = "Toggle stars";
-      btn.textContent = starsOn ? "Stars on" : "Stars off";
-      btn.onclick = function () {
-        starsOn = !starsOn;
-        try {
-          localStorage.setItem(STARS_OFF_KEY, starsOn ? "0" : "1");
-        } catch (e) {}
-        btn.textContent = starsOn ? "Stars on" : "Stars off";
-        if (starsOn) startStars();
-        else stopStars();
-      };
-      gate.appendChild(btn);
-    }
-  }
-
-  function resizeStars() {
-    if (!starCanvas) return;
-    starCanvas.width = window.innerWidth;
-    starCanvas.height = window.innerHeight;
-  }
-
-  function initStars() {
-    stars = [];
-    var n = Math.min(120, Math.floor((window.innerWidth * window.innerHeight) / 12000));
-    for (var i = 0; i < n; i++) {
-      stars.push({
-        x: Math.random() * window.innerWidth,
-        y: Math.random() * window.innerHeight,
-        r: 0.4 + Math.random() * 1.4,
-        a: Math.random(),
-        s: 0.002 + Math.random() * 0.008,
-        p: Math.random() * Math.PI * 2
-      });
-    }
-    shoots = [];
-  }
-
-  function maybeShoot() {
-    if (Math.random() > 0.985) {
-      shoots.push({
-        x: Math.random() * window.innerWidth,
-        y: Math.random() * window.innerHeight * 0.5,
-        vx: 3 + Math.random() * 4,
-        vy: 1 + Math.random() * 2,
-        life: 1
-      });
-    }
-  }
-
-  function drawStars() {
-    if (!starCanvas || !starsOn) return;
-    var ctx = starCanvas.getContext("2d");
-    var w = starCanvas.width;
-    var h = starCanvas.height;
-    ctx.clearRect(0, 0, w, h);
-    for (var i = 0; i < stars.length; i++) {
-      var s = stars[i];
-      s.p += s.s;
-      var alpha = 0.15 + 0.85 * (0.5 + 0.5 * Math.sin(s.p));
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255,255,255," + alpha.toFixed(3) + ")";
-      ctx.fill();
-    }
-    maybeShoot();
-    for (var j = shoots.length - 1; j >= 0; j--) {
-      var sh = shoots[j];
-      sh.x += sh.vx;
-      sh.y += sh.vy;
-      sh.life -= 0.012;
-      if (sh.life <= 0 || sh.x > w || sh.y > h) {
-        shoots.splice(j, 1);
-        continue;
-      }
-      ctx.strokeStyle = "rgba(255,255,255," + (sh.life * 0.9).toFixed(3) + ")";
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.moveTo(sh.x, sh.y);
-      ctx.lineTo(sh.x - sh.vx * 8, sh.y - sh.vy * 8);
-      ctx.stroke();
-    }
-    starRaf = requestAnimationFrame(drawStars);
-  }
-
-  function startStars() {
-    stopStars();
-    ensureStarUI();
-    resizeStars();
-    initStars();
-    if (starsOn) drawStars();
-  }
-
-  function stopStars() {
-    if (starRaf) cancelAnimationFrame(starRaf);
-    starRaf = 0;
-    if (starCanvas) {
-      var ctx = starCanvas.getContext("2d");
-      ctx.clearRect(0, 0, starCanvas.width, starCanvas.height);
-    }
-  }
-
-  window.addEventListener("resize", function () {
-    if (gate && gate.style.display === "flex") {
-      resizeStars();
-      initStars();
-    }
-  });
 
   function setBodyLocked(locked) {
     document.body.classList.toggle("gate-lock", !!locked);
@@ -193,7 +61,6 @@
     }
     if (gateBox) gateBox.style.visibility = "hidden";
     if (keyMsg) keyMsg.textContent = "";
-    startStars();
   }
 
   function showGate(msg, isErr) {
@@ -218,7 +85,6 @@
       keyMsg.style.color = isErr ? "#ff5c5c" : "#888888";
     }
     window.__VEIL_ACCESS_OK = false;
-    startStars();
   }
 
   function showBlocked(message) {
@@ -246,12 +112,10 @@
     var tm = document.getElementById("blockedTimeMsg");
     if (tm) tm.textContent = message || "You are blocked from entering Veil.";
     window.__VEIL_ACCESS_OK = false;
-    startStars();
   }
 
   function showApp() {
     setBodyLocked(false);
-    stopStars();
     if (gate) {
       gate.style.display = "none";
       gate.classList.remove("checking", "is-blocked");
