@@ -169,6 +169,17 @@ function toggleDetail(box, ip, forceOpen) {
     }
     var rec = r.data.ip;
     var g = rec.geo || {};
+    var blockedLine = "no";
+    if (r.data.blocked) {
+      blockedLine =
+        "yes — " +
+        (r.data.blockLeftHuman || r.data.blockLeft || "?") +
+        " left" +
+        (r.data.blockDurationHuman ? " (blocked for " + r.data.blockDurationHuman + ")" : "");
+    }
+    var reasonLine = r.data.reason
+      ? "<div><b>Block reason</b> — " + escapeHtml(r.data.reason) + "</div>"
+      : "";
     detail.innerHTML =
       '<div class="detail">' +
       "<div><b>IP</b> — " + escapeHtml(rec.ip) + "</div>" +
@@ -177,7 +188,8 @@ function toggleDetail(box, ip, forceOpen) {
       "<div><b>First seen</b> — " + new Date(rec.firstSeen).toLocaleString() + "</div>" +
       "<div><b>Last seen</b> — " + new Date(rec.lastSeen).toLocaleString() + "</div>" +
       "<div><b>Location</b> — " + escapeHtml([g.city, g.region, g.country].filter(Boolean).join(", ") || "—") + "</div>" +
-      "<div><b>Blocked</b> — " + (r.data.blocked ? "yes (" + r.data.blockLeft + ")" : "no") + "</div>" +
+      "<div><b>Blocked</b> — " + escapeHtml(blockedLine) + "</div>" +
+      reasonLine +
       "<div><b>Key</b> — " + escapeHtml((rec.access && rec.access.key) || "none") + "</div>" +
       "</div>" +
       '<label>Rename this IP</label>' +
@@ -185,8 +197,15 @@ function toggleDetail(box, ip, forceOpen) {
       '<input class="rename-input" placeholder="e.g. School laptop" value="' + escapeHtml(rec.label || "") + '">' +
       '<button type="button" class="sm rename-btn">Save name</button>' +
       "</div>" +
+      '<label style="margin-top:10px">Block time</label>' +
+      '<div class="row">' +
+      '<input class="block-input" placeholder="30m, 2h, 1d, inf">' +
+      "</div>" +
+      '<label style="margin-top:8px">Block reason (shown to user)</label>' +
+      '<div class="row">' +
+      '<input class="reason-input" placeholder="e.g. Sharing keys">' +
+      "</div>" +
       '<div class="row" style="margin-top:10px">' +
-      '<input class="block-input" placeholder="Block time e.g. 30m, 2h, 1d">' +
       '<button type="button" class="sm red block-btn">Block</button>' +
       '<button type="button" class="sm unblock-btn">Unblock</button>' +
       '<button type="button" class="sm red kill-btn">Invalidate key</button>' +
@@ -200,16 +219,25 @@ function toggleDetail(box, ip, forceOpen) {
         body: JSON.stringify({ ip: ip, label: label })
       }).then(function (res) {
         flash(detail.querySelector(".detail-msg"), res.data.ok ? "Name saved" : (res.data.error || "Failed"), !!res.data.ok);
-        loadIps();
+        if (res.data.ok) loadIps();
+      }).catch(function () {
+        flash(detail.querySelector(".detail-msg"), "Could not reach server", false);
       });
     };
     detail.querySelector(".block-btn").onclick = function () {
+      var duration = detail.querySelector(".block-input").value;
+      var reason = detail.querySelector(".reason-input").value;
       api("/api/admin/block", {
         method: "POST",
-        body: JSON.stringify({ ip: ip, duration: detail.querySelector(".block-input").value })
+        body: JSON.stringify({ ip: ip, duration: duration, reason: reason })
       }).then(function (res) {
-        flash(detail.querySelector(".detail-msg"), res.data.ok ? "Blocked · " + res.data.blockLeft : (res.data.error || "Failed"), !!res.data.ok);
-        loadIps();
+        var okMsg = res.data.ok
+          ? "Blocked · " + (res.data.blockLeftHuman || res.data.blockLeft || "")
+          : (res.data.error || "Failed");
+        flash(detail.querySelector(".detail-msg"), okMsg, !!res.data.ok);
+        if (res.data.ok) loadIps();
+      }).catch(function () {
+        flash(detail.querySelector(".detail-msg"), "Could not reach server", false);
       });
     };
     detail.querySelector(".unblock-btn").onclick = function () {
@@ -218,7 +246,9 @@ function toggleDetail(box, ip, forceOpen) {
         body: JSON.stringify({ ip: ip })
       }).then(function (res) {
         flash(detail.querySelector(".detail-msg"), res.data.ok ? "Unblocked" : (res.data.error || "Failed"), !!res.data.ok);
-        loadIps();
+        if (res.data.ok) loadIps();
+      }).catch(function () {
+        flash(detail.querySelector(".detail-msg"), "Could not reach server", false);
       });
     };
     detail.querySelector(".kill-btn").onclick = function () {
@@ -227,7 +257,9 @@ function toggleDetail(box, ip, forceOpen) {
         body: JSON.stringify({ ip: ip })
       }).then(function (res) {
         flash(detail.querySelector(".detail-msg"), res.data.ok ? "Key invalidated — they need a new key" : (res.data.error || "Failed"), !!res.data.ok);
-        loadIps();
+        if (res.data.ok) loadIps();
+      }).catch(function () {
+        flash(detail.querySelector(".detail-msg"), "Could not reach server", false);
       });
     };
   });
