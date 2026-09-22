@@ -2,566 +2,130 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Veil</title>
-<link id="favicon" rel="icon" href="image/favi.png">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Panel</title>
+<link rel="icon" href="../image/favi.png">
 <style>
-:root{
- --bg:#101010;--bg2:#151515;--bg3:#1b1b1b;--panel:#181818;--panel2:#202020;
- --border:#2b2b2b;--text:#f2f2f2;--muted:#888;--accent:#fff;--accentText:#111;--newtab:#101010;
- --danger:#ff6b6b;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text)}
-body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:focus,select:focus{outline:0}
-
-#browser{display:flex;flex-direction:column;width:100%;height:100%;background:var(--bg)}
-.chrome{flex:0 0 auto;background:var(--bg2);border-bottom:1px solid var(--border);z-index:100}
-.tabs-row{height:40px;display:flex;align-items:center;padding:0 8px;gap:0;overflow:hidden}
-.tabs{height:100%;display:flex;align-items:center;gap:3px;flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
-.tabs::-webkit-scrollbar{display:none}
-.tab{height:32px;flex:1 1 0;min-width:72px;max-width:180px;display:flex;align-items:center;gap:6px;padding:0 4px 0 8px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;user-select:none;overflow:hidden;transform-origin:left center}
-.tab:hover{background:var(--bg3);color:var(--text)}
-.tab.active{background:var(--panel);color:var(--text)}
-.tab.opening{animation:tabOpen .18s cubic-bezier(.2,.8,.2,1)}
-.tab.closing{animation:tabClose .16s cubic-bezier(.4,0,1,1) forwards}
-@keyframes tabOpen{from{opacity:0;transform:scaleX(.72) translateY(3px);min-width:0;max-width:0;padding:0}to{opacity:1;transform:none}}
-@keyframes tabClose{from{opacity:1}to{opacity:0;min-width:0;max-width:0;padding:0;margin:0;flex-grow:0}}
-.tab-icon{width:16px;height:16px;flex:0 0 16px;display:flex;align-items:center;justify-content:center;overflow:hidden}
-.tab-icon img{width:16px;height:16px;border-radius:3px;object-fit:cover;display:block}
-.tab-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
-.tab-close{width:20px;height:20px;flex:0 0 20px;border-radius:5px;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px}
-.tab-close:hover{background:var(--panel2);color:var(--text)}
-.new-tab{width:30px;height:30px;flex:0 0 30px;min-width:30px;border-radius:8px;background:transparent;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;margin-left:2px;flex-shrink:0;border:0}
-.new-tab:hover{background:var(--panel2)}
-.new-tab img{width:14px;height:14px;display:block;filter:invert(1);opacity:.75}
-.tab-close img{width:12px;height:12px;display:block;filter:invert(1);opacity:.7}
-
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px}
-.modal-box{width:min(360px,100%);background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px}
-.modal-box h2{font-size:15px;margin-bottom:8px}
-.modal-box p{font-size:12px;color:var(--muted);margin-bottom:12px}
-.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
-.modal-cancel,.modal-go{height:34px;padding:0 14px;border-radius:8px;cursor:pointer;font-size:13px}
-.modal-cancel{background:var(--panel2);color:var(--text)}
-.modal-go{background:var(--accent);color:var(--accentText);font-weight:600}
-.range-row{display:flex;align-items:center;gap:12px;margin:8px 0}
-.range-row input[type=range]{flex:1}
-.range-val{min-width:28px;text-align:right;font-size:13px;color:var(--muted)}
-
-.toolbar{height:46px;display:flex;align-items:center;gap:4px;padding:6px 8px;background:var(--panel)}
-.nav-buttons{display:flex;gap:2px;flex:0 0 auto}
-.tool-btn,.menu-btn,.address-bookmark{background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center}
-.tool-btn,.menu-btn{width:34px;height:34px;border-radius:8px}
-.tool-btn:hover,.menu-btn:hover,.address-bookmark:hover{background:var(--panel2);color:var(--text)}
-.tool-btn:disabled{opacity:.28;cursor:default}
-.icon{width:17px;height:17px;display:block;background:currentColor;-webkit-mask:var(--i) center / contain no-repeat;mask:var(--i) center / contain no-repeat}
-.address-wrap{flex:1;min-width:0;height:34px;display:flex;align-items:center;border-radius:17px;background:var(--bg2);border:1px solid var(--border);padding:0 6px 0 12px}
-.address-wrap:focus-within{border-color:#444;background:var(--bg3)}
-.address-icon{width:15px;height:15px;margin-right:8px;flex:0 0 15px;background:var(--muted);-webkit-mask:url("image/search.svg") center / contain no-repeat;mask:url("image/search.svg") center / contain no-repeat}
-#address{flex:1;min-width:0;border:0;background:transparent;color:var(--text);font-size:13px}
-#address::placeholder{color:#666}
-.address-bookmark{width:28px;height:28px;border-radius:50%}
-.address-bookmark.saved{color:var(--accent)}
-.right-tools{display:flex;gap:2px;flex:0 0 auto}
-
-.viewport{position:relative;flex:1;min-height:0;width:100%;background:var(--bg);overflow:hidden}
-.page{position:absolute;inset:0;display:none;background:var(--bg)}
-.page.active{display:block}
-.engine-frame{width:100%;height:100%;display:block;border:0;background:#fff}
-
-.newtab-page{width:100%;height:100%;overflow:auto;background-color:var(--newtab);background-size:cover;background-position:center;position:relative}
-.newtab-media{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;border:0}
-.newtab-media-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none}
-
-.newtab-page::before{content:"";position:absolute;inset:0;background:
-  radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255,255,255,.07), transparent 55%),
-  radial-gradient(circle at 15% 80%, rgba(255,255,255,.03), transparent 40%),
-  radial-gradient(circle at 85% 70%, rgba(255,255,255,.025), transparent 40%);
-  pointer-events:none}
-.newtab-overlay{position:relative;z-index:1;width:100%;min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 20px 88px}
-.welcome-bar{width:min(640px,100%);margin-bottom:28px;padding:14px 18px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(12px);text-align:center}
-.welcome-bar .welcome-line{font-size:14px;font-weight:600;letter-spacing:.01em;color:var(--text);margin-bottom:4px;text-align:center}
-.welcome-bar .welcome-time{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:center}
-.newtab-center{width:min(640px,100%);text-align:center;display:flex;flex-direction:column;align-items:center}
-.veil-mark{width:92px;height:92px;margin:0 auto 16px;border-radius:28px;background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.12);box-shadow:0 12px 40px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;overflow:hidden}
-.veil-mark img{width:56px;height:56px;object-fit:contain;display:block}
-.newtab-title{font-size:clamp(40px,6.5vw,58px);font-weight:700;letter-spacing:-2.2px;line-height:1;margin-bottom:8px}
-.newtab-sub{font-size:13px;color:var(--muted);margin-bottom:22px;letter-spacing:.04em}
-.search-row{width:min(560px,100%);display:flex;align-items:stretch;gap:8px}
-.engine-select{height:50px;flex:0 0 auto;min-width:108px;border-radius:14px;border:1px solid rgba(255,255,255,.1);background:rgba(20,20,20,.85);color:var(--text);padding:0 12px;font-size:13px;cursor:pointer}
-.search-box{flex:1;min-width:0;height:50px;border-radius:14px;background:rgba(255,255,255,.94);border:1px solid rgba(0,0,0,.06);box-shadow:0 8px 32px rgba(0,0,0,.25);display:flex;align-items:center;padding:0 16px;gap:10px}
-.search-box .home-search-icon{width:18px;height:18px;flex:0 0 18px;background:#888;-webkit-mask:url("image/search.svg") center / contain no-repeat;mask:url("image/search.svg") center / contain no-repeat}
-.search-box input{flex:1;border:0;background:transparent;color:#111;font-size:14px}
-.search-box input::placeholder{color:#999}
-.quick-links{display:flex;justify-content:center;flex-wrap:wrap;gap:14px;margin-top:32px}
-.quick-links.row2{margin-top:12px}
-.quick-link{width:56px;height:56px;border-radius:16px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s ease,background .15s ease,border-color .15s ease}
-.quick-link:hover{transform:translateY(-3px);background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.18)}
-.quick-link img{width:26px;height:26px;object-fit:contain;display:block;filter:invert(1)}
-.quick-link.soon{opacity:.45;cursor:default}
-.quick-link.soon:hover{transform:none}
-.launch-btn{margin-top:30px;height:42px;padding:0 24px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:var(--text);cursor:pointer;font-size:13px;font-weight:500;letter-spacing:.02em;transition:background .15s ease,transform .15s ease}
-.launch-btn:hover{background:rgba(255,255,255,.1);transform:translateY(-1px)}
-.signup-overlay{position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,.72);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px}
-.signup-card{width:min(400px,100%);background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:28px 24px;box-shadow:0 24px 80px rgba(0,0,0,.5)}
-.signup-card h2{font-size:20px;letter-spacing:-.02em;margin-bottom:6px}
-.signup-card .signup-sub{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.45}
-.signup-card label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:12px 0 6px}
-.signup-card input{width:100%;height:42px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 12px;font-size:14px}
-.signup-card .signup-go{width:100%;height:44px;margin-top:20px;border-radius:10px;background:var(--accent);color:var(--accentText);font-weight:600;font-size:14px;cursor:pointer}
-.signup-card .signup-err{color:var(--danger);font-size:12px;margin-top:10px;min-height:16px}
-.lock-overlay{position:fixed;inset:0;z-index:6000;background:rgba(8,8,10,.92);backdrop-filter:blur(16px);display:flex;align-items:center;justify-content:center;padding:20px}
-.lock-card{width:min(380px,100%);background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:28px 24px;text-align:center}
-.lock-card h2{font-size:18px;margin-bottom:8px}
-.lock-card p{font-size:13px;color:var(--muted);margin-bottom:16px}
-.lock-card input{width:100%;height:42px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 12px;margin-bottom:10px}
-.lock-card .lock-go{width:100%;height:42px;border-radius:10px;background:var(--accent);color:var(--accentText);font-weight:600;cursor:pointer}
-.lock-card .lock-err{color:var(--danger);font-size:12px;min-height:16px;margin-bottom:8px}
-
-.time-bar{position:absolute;left:0;right:0;bottom:0;height:36px;padding:0 14px;display:flex;align-items:center;background:rgba(0,0,0,.35);border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
-
-.menu{position:fixed;top:88px;right:10px;width:245px;background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:7px;z-index:1000;display:none}
-.menu.open{display:block}
-.menu-item{width:100%;height:38px;padding:0 11px;border-radius:8px;background:transparent;color:var(--text);display:flex;align-items:center;gap:11px;cursor:pointer;text-align:left;font-size:13px}
-.menu-item:hover{background:var(--panel2)}
-.menu-icon{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);flex:0 0 20px}.menu-icon img{width:16px;height:16px;display:block;filter:invert(1);opacity:.85}
-.menu-separator{height:1px;background:var(--border);margin:6px 4px}
-.backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1100;display:none}
-.backdrop.open{display:block}
-.panel{position:fixed;right:0;top:0;height:100%;width:min(430px,100%);background:var(--panel);border-left:1px solid var(--border);z-index:1200;transform:translateX(100%);transition:transform .22s ease;display:flex;flex-direction:column}
-.panel.open{transform:translateX(0)}
-.panel-header,.panel-head{height:56px;padding:0 16px 0 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0}
-.panel-header h2,.panel-head > span{font-size:16px;font-weight:600;color:var(--text)}
-.close-panel,[data-close-panel]{width:32px;height:32px;border-radius:8px;background:transparent;border:0;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;flex:0 0 32px}
-.close-panel:hover,[data-close-panel]:hover{background:var(--panel2);color:var(--text)}
-.close-panel img,[data-close-panel] img{width:14px;height:14px;display:block;filter:invert(1);opacity:.85}
-
-.close-panel{width:32px;height:32px;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer;font-size:20px}
-.panel-body{padding:20px;overflow-y:auto}
-.settings-cat{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);opacity:.85;margin:28px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
-.settings-cat:first-child{margin-top:0}
-.setting-section{margin-bottom:22px}
-.panel-body{animation:panelIn .22s ease}
-@keyframes panelIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
-.chrome{transition:background .25s ease,border-color .25s ease}
-.tab{transition:background .15s ease,color .15s ease,flex-basis .2s ease}
-.quick-link{transition:transform .18s ease,background .18s ease,box-shadow .18s ease}
-.quick-link:hover{box-shadow:0 8px 24px rgba(0,0,0,.35)}
-.search-box{transition:box-shadow .2s ease,transform .15s ease}
-.search-box:focus-within{box-shadow:0 12px 40px rgba(0,0,0,.35);transform:translateY(-1px)}
-
-.setting-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.09em;margin-bottom:11px}
-.preset-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
-.preset{min-height:67px;border:1px solid var(--border);background:var(--bg2);border-radius:11px;cursor:pointer;text-align:left;padding:10px}
-.preset:hover{border-color:#555}
-.preset.active{border-color:var(--accent)}
-.preset-name{font-size:12px;margin-bottom:9px}
-.preset-preview{display:flex;gap:5px}
-.preset-dot{width:14px;height:14px;border-radius:50%;display:inline-block}
-.custom-card{display:none;margin-top:12px;padding:14px;border:1px solid var(--border);background:var(--bg2);border-radius:12px}
-.custom-card.open{display:block}
-.input-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
-.input-label{width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)}
-.text-input,select.text-input{flex:1;min-width:0;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 10px;font-size:12px}
-.color-input{width:45px;height:36px;padding:3px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);cursor:pointer}
-.primary-btn{width:100%;height:38px;border-radius:9px;background:var(--accent);color:var(--accentText);cursor:pointer;font-size:12px;font-weight:600;margin-top:4px}
-.secondary-btn{width:100%;height:38px;border-radius:9px;background:var(--bg2);border:1px solid var(--border);color:var(--text);cursor:pointer;font-size:12px;margin-top:6px}
-.hint{font-size:11px;color:var(--muted);line-height:1.5;margin-top:6px}
-.switch-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0}
-.switch-row .switch-label{font-size:13px;color:var(--text);flex:1}
-.switch{
-  position:relative;width:48px;height:28px;flex:0 0 48px;
-  border-radius:999px;border:none;padding:0;cursor:pointer;
-  background:rgba(255,255,255,.12);
-  transition:background .35s cubic-bezier(.4,0,.2,1), box-shadow .35s ease;
-  box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);
-}
-.switch::after{
-  content:"";position:absolute;top:3px;left:3px;
-  width:22px;height:22px;border-radius:50%;
-  background:#fff;
-  box-shadow:0 2px 8px rgba(0,0,0,.28), 0 0 0 1px rgba(0,0,0,.04);
-  transition:transform .35s cubic-bezier(.34,1.4,.64,1), background .3s ease, width .2s ease;
-}
-.switch.on{background:var(--accent);box-shadow:none}
-.switch.on::after{transform:translateX(20px);background:var(--accentText)}
-.switch:active::after{width:26px}
-.switch.on:active::after{width:26px;transform:translateX(16px)}
-.switch:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
-.menu-item.disabled{opacity:.35;pointer-events:none;cursor:default}
-.server-del{margin-left:auto;width:22px;height:22px;border:0;background:transparent;cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;opacity:.55}
-.server-del:hover{opacity:1}
-.server-del img{width:12px;height:12px;filter:invert(1);display:block}
-
-
-
-
-
-
-.server-list{display:flex;flex-direction:column;gap:6px;margin-top:4px}
-.server-row{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;text-align:left;font-size:13px}
-.server-row:hover{background:var(--panel2)}
-.server-row.selected{border-color:var(--accent);background:var(--panel2)}
-.server-dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;background:#888}
-.server-dot.ping-good{background:#7CFF6B}
-.server-dot.ping-mid{background:#FFA94D}
-.server-dot.ping-bad{background:#FF4D4D}
-.server-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.server-ping{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
-.server-ping.ping-good{color:#9dff90}
-.server-ping.ping-mid{color:#ffb86b}
-.server-ping.ping-bad{color:#ff7b7b}
-.server-edit{opacity:.6;padding:2px 4px}
-.server-edit:hover{opacity:1}.server-edit img{width:14px;height:14px;display:block;filter:invert(1)}
-
-.anim-opts{opacity:.45;pointer-events:none;transition:opacity .2s ease}
-.anim-opts.enabled{opacity:1;pointer-events:auto}
-.home-fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
-
-.transport-row,.cloak-grid{display:flex;flex-wrap:wrap;gap:8px}
-.transport-btn,.cloak-preset{flex:1;min-width:90px;height:36px;border-radius:9px;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;font-size:12px}
-.transport-btn.active,.cloak-preset.active{border-color:var(--accent);background:var(--panel2)}
-.bookmark-row{display:flex;align-items:center;gap:9px;padding:10px;border:1px solid var(--border);background:var(--bg2);border-radius:9px;margin-bottom:8px}
-.bookmark-main{min-width:0;flex:1;cursor:pointer}
-.bookmark-title{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bookmark-url{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
-.bookmark-delete{width:28px;height:28px;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer}
-.empty{padding:30px 10px;text-align:center;color:var(--muted);font-size:12px}
-.status{padding:10px 12px;border:1px solid var(--border);background:var(--bg2);border-radius:9px;color:var(--muted);font-size:11px;line-height:1.5;margin-top:10px}
-
-.cookie-overlay,.modal-overlay,.signup-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:3000;display:flex;align-items:center;justify-content:center;padding:20px;animation:veilFade .25s ease}
-.cookie-box,.modal-box,.signup-card{width:min(430px,100%);background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:28px;animation:veilUp .3s ease}
-.cookie-box h2,.modal-box h2{font-size:18px}
-.cookie-box p,.modal-box p{margin-top:10px;color:var(--muted);font-size:13px;line-height:1.6}
-.cookie-buttons,.modal-actions{display:flex;gap:9px;margin-top:18px}
-.cookie-no,.cookie-yes,.modal-actions button{flex:1;height:40px;border-radius:9px;cursor:pointer;font-size:12px}
-.cookie-no{background:var(--bg2);border:1px solid var(--border);color:var(--text)}
-.cookie-yes{background:var(--accent);color:var(--accentText)}
-.engine-error{height:100%;display:flex;align-items:center;justify-content:center;padding:30px}
-.engine-error-box{width:min(560px,100%);border:1px solid var(--border);background:var(--panel);border-radius:14px;padding:24px}
-.engine-error-box h2{font-size:18px}
-.engine-error-box p{margin-top:9px;color:var(--muted);font-size:12px;line-height:1.6}
-.engine-error-box button{margin-top:16px;height:36px;padding:0 14px;border-radius:8px;background:var(--accent);color:var(--accentText);cursor:pointer}
-.modal-box select{width:100%;margin-top:14px;height:40px}
-.modal-cancel{background:var(--bg2);border:1px solid var(--border);color:var(--text)}
-.modal-go{background:var(--accent);color:var(--accentText)}
-
-
-
-/* Access gate — matte (matches THEMES.matte) */
-#accessGate{
-  position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;
-  background:#101010;flex-direction:column;padding:24px;
-}
-
-
-
-#accessGate .box{
-  position:relative;z-index:1;width:min(440px,92vw);background:#181818;border:1px solid #2b2b2b;
-  border-radius:14px;padding:36px 28px 32px;text-align:center;
-  animation:riseGate .4s ease both;
-}
-#accessGate h1{font-size:24px;font-weight:650;margin-bottom:10px;color:#f2f2f2}
-#accessGate p{font-size:14px;color:#888;margin-bottom:22px;line-height:1.55}
-#accessGate input{
-  width:100%;height:48px;border-radius:10px;border:1px solid #2b2b2b;background:#151515;
-  color:#f2f2f2;padding:0 14px;margin-bottom:12px;text-align:center;letter-spacing:.08em;
-  font-size:15px;outline:none;
-}
-#accessGate input:focus{border-color:#444}
-#accessGate button#accessSubmit{
-  width:100%;height:48px;border:0;border-radius:10px;background:#ffffff;color:#111111;
-  font-weight:700;cursor:pointer;font-size:14px;
-}
-#accessGate button#accessSubmit:hover{filter:brightness(.95)}
-#accessGate .amsg{font-size:13px;min-height:18px;margin-top:12px;color:#888}
-#accessGate.checking .box{visibility:hidden}
-#accessGate.is-blocked .box{transition:opacity .3s ease,filter .3s ease}
-#accessBlocked{
-  display:none;position:fixed;inset:0;z-index:100000;
-  align-items:center;justify-content:center;padding:24px;
-  background:rgba(16,16,16,.92);
-}
-#accessBlocked .blocked-panel{
-  max-width:440px;width:100%;text-align:center;padding:36px 28px;
-  background:#181818;border:1px solid #2b2b2b;border-radius:14px;
-}
-#accessBlocked h2{font-size:20px;font-weight:650;margin:0 0 12px;color:#f2f2f2}
-#accessBlocked .blocked-time{font-size:14px;line-height:1.55;color:#888;margin:0}
-@keyframes riseGate{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-body.gate-lock #browser,body.gate-lock #app{display:none!important}
-body.gate-lock{background:#101010}
-
-/* History panel */
-.history-panel{position:fixed;top:0;right:0;width:min(360px,100%);height:100%;background:var(--panel);
-  border-left:1px solid var(--border);z-index:1200;display:none;flex-direction:column;padding:16px;
-  animation:riseGate .3s ease}
-.history-panel.open{display:flex}
-.history-panel h3{font-size:15px;margin-bottom:12px}
-.history-list{flex:1;overflow:auto}
-.history-item{display:flex;align-items:center;gap:8px;padding:10px 8px;border-radius:10px;border:1px solid transparent}
-.history-item:hover{background:var(--panel2);border-color:var(--border)}
-.history-item a{flex:1;color:var(--text);text-decoration:none;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.history-item button{width:28px;height:28px;border:0;background:transparent;cursor:pointer;padding:4px}
-.history-item button img{width:14px;height:14px;opacity:.7}
-.history-clear{margin-top:12px;width:100%;height:40px;border-radius:10px;border:1px solid var(--border);
-  background:var(--bg2);color:var(--text);font-weight:600;cursor:pointer}
-
-
-@keyframes veilFade{from{opacity:0}to{opacity:1}}
-@keyframes veilUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-.history-item{display:flex;align-items:center;gap:8px;padding:10px 8px;border-radius:10px}
-.history-item:hover{background:var(--panel2)}
-.history-item a{flex:1;color:var(--text);text-decoration:none;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
-.history-item button{width:28px;height:28px;border:0;background:transparent;cursor:pointer;padding:4px;filter:brightness(0) invert(1);opacity:.85}
-.history-item button:hover{opacity:1}
-.panel{animation:veilUp .28s ease}
-.menu.open{animation:veilUp .2s ease}
+  :root {
+    --bg: #101010; --bg2: #151515; --panel: #181818; --panel2: #202020;
+    --border: #2b2b2b; --text: #f2f2f2; --muted: #888; --ok: #5dcc7a; --bad: #ff5c5c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; padding: 24px 16px 48px; }
+  #brand { display: none; margin-bottom: 18px; animation: up .28s ease; }
+  #brand.show { display: block; }
+  #brand h1 { font-size: 18px; font-weight: 650; }
+  #brand p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 18px; margin-bottom: 12px; animation: up .3s ease both;
+  }
+  .card h2 { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .hint { font-size: 12px; color: var(--muted); margin-bottom: 10px; line-height: 1.45; }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  input {
+    width: 100%; height: 40px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg2); color: var(--text); padding: 0 12px; font-size: 13px; outline: none;
+  }
+  input:focus { border-color: #444; }
+  button {
+    height: 40px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--panel2); color: var(--text); font-size: 13px; font-weight: 600;
+    padding: 0 14px; cursor: pointer;
+  }
+  button:hover { border-color: #444; }
+  button.main { background: #fff; color: #111; border: 0; }
+  button.red { border-color: #5a2020; color: #ff8a8a; background: transparent; }
+  button.sm { height: 32px; font-size: 12px; padding: 0 10px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row input { flex: 1; min-width: 120px; }
+  .msg { font-size: 12px; color: var(--muted); margin-top: 10px; min-height: 16px; transition: opacity .3s; }
+  .msg.err { color: var(--bad); }
+  .msg.ok { color: var(--ok); }
+  .keybox {
+    margin-top: 12px; padding: 12px; border-radius: 10px; background: var(--bg2);
+    border: 1px solid var(--border); font-family: ui-monospace, monospace; font-size: 13px;
+    word-break: break-all;
+  }
+  #loginView, #appView { display: none; }
+  #loginView.show, #appView.show { display: block; }
+  .login { max-width: 360px; margin: 12vh auto 0; text-align: center; }
+  .ip-row {
+    border: 1px solid var(--border); border-radius: 12px; margin-top: 8px;
+    background: var(--bg2); overflow: hidden; animation: up .25s ease;
+  }
+  .ip-main {
+    display: flex; align-items: center; gap: 10px; padding: 12px;
+    cursor: pointer; flex-wrap: wrap;
+  }
+  .ip-main:hover { background: var(--panel2); }
+  .ip-addr { font-family: ui-monospace, monospace; font-size: 12px; flex: 1; min-width: 120px; }
+  .ip-label { font-size: 12px; color: var(--muted); }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .tag.ok { background: rgba(93,204,122,.12); color: var(--ok); }
+  .tag.bad { background: rgba(255,92,92,.12); color: var(--bad); }
+  .tag.mute { background: rgba(255,255,255,.05); color: var(--muted); }
+  .ip-detail {
+    display: none; border-top: 1px solid var(--border); padding: 12px;
+    background: var(--panel); animation: slide .28s ease;
+  }
+  .ip-detail.open { display: block; }
+  .ip-detail .detail { font-size: 12px; color: var(--muted); line-height: 1.6; display: grid; gap: 4px; margin-bottom: 12px; }
+  .ip-detail .detail b { color: var(--text); }
+  @keyframes up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes slide { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 600px; } }
 </style>
 </head>
-<body class="gate-lock">
-<div id="accessGate">
-  <div class="box">
-    <h1>Veil</h1>
-    <p>Enter an access key to continue. The browser will not load until a valid key is accepted.</p>
-    <input id="accessKey" type="text" placeholder="Access key" autocomplete="off" spellcheck="false" />
-    <button type="button" id="accessSubmit">Enter</button>
-    <div class="amsg" id="accessMsg"></div>
+<body>
+<div class="wrap">
+  <div id="brand">
+    <h1>Admin Panel</h1>
+    <p>Manage keys and IPs</p>
   </div>
-</div>
 
-<div id="browser">
-  <header class="chrome">
-    <div class="tabs-row">
-      <div class="tabs" id="tabs"></div>
+  <div id="loginView">
+    <div class="card login">
+      <h2>Log in</h2>
+      <p class="hint">Enter the admin password. Required every time this page loads.</p>
+      <label style="text-align:left">Password</label>
+      <input id="adminPass" type="password" placeholder="Admin password" autocomplete="current-password">
+      <button class="main" id="loginBtn" type="button" style="width:100%;margin-top:12px">Log in</button>
+      <div class="msg" id="loginMsg"></div>
     </div>
-    <div class="toolbar">
-      <div class="nav-buttons">
-        <button class="tool-btn" id="backBtn" title="Back"><span class="icon" style="--i:url('image/backward.svg')"></span></button>
-        <button class="tool-btn" id="forwardBtn" title="Forward"><span class="icon" style="--i:url('image/forward.svg')"></span></button>
-        <button class="tool-btn" id="refreshBtn" title="Refresh"><span class="icon" style="--i:url('image/refresh.svg')"></span></button>
-        <button class="tool-btn" id="homeBtn" title="Home"><span class="icon" style="--i:url('image/home.svg')"></span></button>
+  </div>
+
+  <div id="appView">
+    <div class="card">
+      <h2>Create a key</h2>
+      <p class="hint">One-time key so someone can unlock Veil.</p>
+      <label>Duration</label>
+      <div class="row">
+        <input id="keyDur" value="1h" placeholder="30m, 2h, 1d, inf">
+        <button class="main" id="genKey" type="button">Create key</button>
       </div>
-      <div class="address-wrap">
-        <span class="address-icon"></span>
-        <input id="address" type="text" autocomplete="off" spellcheck="false" placeholder="Search or enter address">
-        <button class="address-bookmark" id="bookmarkBtn" title="Bookmark"><span class="icon" style="--i:url('image/bookmarks.svg')"></span></button>
-      </div>
-      <div class="right-tools">
-        <button class="menu-btn" id="settingsOpenBtn" title="Settings"><span class="icon" style="--i:url('image/settings.svg')"></span></button>
-        <button class="menu-btn" id="menuBtn" title="Menu"><span class="icon" style="--i:url('image/menu.svg')"></span></button>
-      </div>
+      <div class="msg" style="margin-top:8px">Examples: 30m · 2h · 1d · 2d;30m · inf</div>
+      <div class="keybox" id="keyOut">No key yet</div>
+      <div class="msg" id="keyMsg"></div>
     </div>
-  </header>
-  <main class="viewport" id="viewport"></main>
-</div>
 
-<div class="menu" id="mainMenu">
-  <button class="menu-item" id="menuHistory"><span class="menu-icon"><img src="image/history.svg" alt=""></span>History</button>
-  <button class="menu-item" id="menuBookmarks"><span class="menu-icon"><img src="image/bookmarks.svg" alt=""></span>Bookmarks</button>
-  <button class="menu-item" id="menuRename"><span class="menu-icon"><img src="image/pencil.svg" alt=""></span>Rename tab</button>
-  <button class="menu-item" id="menuDevtools"><span class="menu-icon"><img src="image/settings.svg" alt=""></span>DevTools</button>
-  <div class="menu-separator"></div>
-  <button class="menu-item" id="menuLock"><span class="menu-icon"><img src="image/lock.svg" alt=""></span>Lock Veil</button>
-</div>
+    <div class="card">
+      <h2>Sign everyone out</h2>
+      <p class="hint">Ends all sessions without blocking anyone.</p>
+      <button class="red" id="signoutAll" type="button">Sign everyone out</button>
+      <div class="msg" id="globalMsg"></div>
+    </div>
 
-<div class="backdrop" id="backdrop"></div>
-
-<aside class="panel" id="settingsPanel">
-  <div class="panel-head"><span>Settings</span><button type="button" class="close-panel" data-close-panel title="Close"><img src="image/exit.svg" alt="Close"></button></div>
-  <div class="panel-body">
-
-    <div class="settings-cat">Customization</div>
-    <section class="setting-section">
-      <div class="setting-title">Site theme colors</div>
-      <div class="preset-grid" id="themeGrid">
-        <button class="preset" type="button" data-theme="scarlet"><div class="preset-name">Scarlet</div><div class="preset-preview"><span class="preset-dot" style="background:#1a0606"></span><span class="preset-dot" style="background:#ff2a2a"></span><span class="preset-dot" style="background:#ffe0e0"></span></div></button>
-        <button class="preset" type="button" data-theme="crimson"><div class="preset-name">Crimson</div><div class="preset-preview"><span class="preset-dot" style="background:#140808"></span><span class="preset-dot" style="background:#e63232"></span><span class="preset-dot" style="background:#ffd6d6"></span></div></button>
-        <button class="preset" type="button" data-theme="ember"><div class="preset-name">Ember</div><div class="preset-preview"><span class="preset-dot" style="background:#1a0a0a"></span><span class="preset-dot" style="background:#ff4d4d"></span><span class="preset-dot" style="background:#ffeaea"></span></div></button>
-        <button class="preset" type="button" data-theme="rose"><div class="preset-name">Rose</div><div class="preset-preview"><span class="preset-dot" style="background:#160c10"></span><span class="preset-dot" style="background:#ff6b9d"></span><span class="preset-dot" style="background:#ffe8f0"></span></div></button>
-        <button class="preset" type="button" data-theme="amber"><div class="preset-name">Amber</div><div class="preset-preview"><span class="preset-dot" style="background:#161008"></span><span class="preset-dot" style="background:#ff9f1a"></span><span class="preset-dot" style="background:#fff0d6"></span></div></button>
-        <button class="preset" type="button" data-theme="sunlight"><div class="preset-name">Sunlight</div><div class="preset-preview"><span class="preset-dot" style="background:#191108"></span><span class="preset-dot" style="background:#ffb84d"></span><span class="preset-dot" style="background:#fff8eb"></span></div></button>
-        <button class="preset" type="button" data-theme="lime"><div class="preset-name">Lime</div><div class="preset-preview"><span class="preset-dot" style="background:#0c1408"></span><span class="preset-dot" style="background:#8dff4d"></span><span class="preset-dot" style="background:#f0ffe6"></span></div></button>
-        <button class="preset" type="button" data-theme="forest"><div class="preset-name">Forest</div><div class="preset-preview"><span class="preset-dot" style="background:#0b140e"></span><span class="preset-dot" style="background:#73c982"></span><span class="preset-dot" style="background:#effff1"></span></div></button>
-        <button class="preset" type="button" data-theme="ocean"><div class="preset-name">Ocean</div><div class="preset-preview"><span class="preset-dot" style="background:#06141c"></span><span class="preset-dot" style="background:#3ecfce"></span><span class="preset-dot" style="background:#e6f7ff"></span></div></button>
-        <button class="preset" type="button" data-theme="moonlight"><div class="preset-name">Moonlight</div><div class="preset-preview"><span class="preset-dot" style="background:#080b12"></span><span class="preset-dot" style="background:#7aa2ff"></span><span class="preset-dot" style="background:#eef3ff"></span></div></button>
-        <button class="preset" type="button" data-theme="slate"><div class="preset-name">Slate</div><div class="preset-preview"><span class="preset-dot" style="background:#12151a"></span><span class="preset-dot" style="background:#9db0ff"></span><span class="preset-dot" style="background:#e8ecf4"></span></div></button>
-        <button class="preset" type="button" data-theme="twilight"><div class="preset-name">Twilight</div><div class="preset-preview"><span class="preset-dot" style="background:#110d1a"></span><span class="preset-dot" style="background:#b88cff"></span><span class="preset-dot" style="background:#f7f0ff"></span></div></button>
-        <button class="preset" type="button" data-theme="sakura"><div class="preset-name">Sakura</div><div class="preset-preview"><span class="preset-dot" style="background:#190e14"></span><span class="preset-dot" style="background:#ff8fba"></span><span class="preset-dot" style="background:#fff0f6"></span></div></button>
-        <button class="preset" type="button" data-theme="matte"><div class="preset-name">Matte</div><div class="preset-preview"><span class="preset-dot" style="background:#101010"></span><span class="preset-dot" style="background:#fff"></span><span class="preset-dot" style="background:#888"></span></div></button>
-        <button class="preset" type="button" data-theme="mono"><div class="preset-name">Mono</div><div class="preset-preview"><span class="preset-dot" style="background:#0c0c0c"></span><span class="preset-dot" style="background:#ccc"></span><span class="preset-dot" style="background:#eee"></span></div></button>
-        <button class="preset" type="button" id="customThemeCard"><div class="preset-name">Custom</div><div class="preset-preview"><span class="preset-dot" style="background:#333"></span><span class="preset-dot" style="background:#666"></span><span class="preset-dot" style="background:#999"></span></div></button>
-      </div>
-      <div class="custom-card" id="customColorCard">
-        <div class="input-row"><label class="input-label">Background</label><input class="color-input" type="color" id="colorBg"></div>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Home page background</div>
-      <div class="input-row"><input class="text-input" id="backgroundUrl" placeholder="Image, GIF, WebP, or video URL"></div>
-      <button class="primary-btn" id="applyBackground" type="button">Apply background</button>
-      <p class="hint">Supports images, GIF, WebP, and video (mp4 / webm).</p>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">24-hour time</div>
-      <div class="switch-row">
-        <span class="switch-label">Use 24-hour clock</span>
-        <button type="button" class="switch" id="time24Switch" role="switch" aria-checked="false"></button>
-      </div>
-      <p class="hint">Off = 12-hour with AM/PM.</p>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Home page animations</div>
-      <div class="switch-row">
-        <span class="switch-label">Enable animations</span>
-        <button type="button" class="switch" id="animEnabledSwitch" role="switch" aria-checked="false"></button>
-      </div>
-      <div class="anim-opts" id="animOpts">
-        <div class="input-row" style="margin-top:10px"><label class="input-label">Style</label>
-          <select class="text-input" id="animStyle">
-            <option value="orbs">Floating orbs</option>
-            <option value="stars">Twinkling stars</option>
-            <option value="constellation">Constellation</option>
-            <option value="waves">Soft waves</option>
-            <option value="pulse">Pulse rings</option>
-          </select>
-        </div>
-        <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Speed</span><input type="range" id="animSpeed" min="0.25" max="2.5" step="0.05" value="1"><span class="range-val" id="animSpeedVal">1.00x</span></div>
-        <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Amount</span><input type="range" id="animCount" min="4" max="80" step="1" value="18"><span class="range-val" id="animCountVal">18</span></div>
-        <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Size</span><input type="range" id="animSize" min="0.4" max="2.5" step="0.05" value="1"><span class="range-val" id="animSizeVal">1.00x</span></div>
-        <div class="input-row"><label class="input-label">Color A</label><input class="color-input" type="color" id="animColorA" value="#7aa2ff"></div>
-        <div class="input-row"><label class="input-label">Color B</label><input class="color-input" type="color" id="animColorB" value="#b88cff"></div>
-      </div>
-    </section>
-
-    <div class="settings-cat">Privacy</div>
-    <section class="setting-section">
-      <div class="setting-title">Tab cloak</div>
-      <div class="cloak-grid">
-        <button class="cloak-preset" type="button" data-cloak="docs">Google Docs</button>
-        <button class="cloak-preset" type="button" data-cloak="classroom">Classroom</button>
-        <button class="cloak-preset" type="button" data-cloak="drive">Drive</button>
-        <button class="cloak-preset" type="button" data-cloak="canvas">Canvas</button>
-        <button class="cloak-preset" type="button" data-cloak="veil">Veil</button>
-      </div>
-      <div class="input-row" style="margin-top:10px"><input class="text-input" id="cloakTitle" placeholder="Custom title"></div>
-      <div class="input-row"><input class="text-input" id="cloakIcon" placeholder="Favicon URL"></div>
-      <button class="primary-btn" id="applyCloak" type="button">Apply cloak</button>
-      <p class="hint">Also applies to about:blank windows and tabs.</p>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Panic key</div>
-      <div class="input-row"><label class="input-label">Key</label><input class="text-input" id="panicKey" placeholder="Click Bind, then press a key" readonly></div>
-      <div class="input-row"><label class="input-label">Redirect</label><input class="text-input" id="panicUrl" placeholder="https://classroom.google.com"></div>
-      <button class="primary-btn" id="bindPanic" type="button">Bind key</button>
-      <button class="secondary-btn" id="unbindPanic" type="button">Unbind</button>
-      <p class="hint">Ignored while typing in a text box.</p>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">About:blank launch</div>
-      <select class="text-input" id="launchModeSelect">
-        <option value="manual">Manual - only when I choose Launch</option>
-        <option value="auto">Auto - open about:blank once on start</option>
-      </select>
-      <p class="hint">Skips if already inside about:blank.</p>
-      <button class="primary-btn" id="launchNowBtn" type="button" style="margin-top:8px">Launch options</button>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Page lock</div>
-      <div class="switch-row">
-        <span class="switch-label">Unload pages when locking</span>
-        <button type="button" class="switch" id="lockUnloadSwitch" role="switch" aria-checked="false"></button>
-      </div>
-      <p class="hint">Off keeps pages running under the lock.</p>
-    </section>
-
-    <div class="settings-cat">Browser</div>
-    <section class="setting-section">
-      <div class="setting-title">Search engine</div>
-      <select class="text-input" id="searchEngineSelect">
-        <option value="duckduckgo">DuckDuckGo</option>
-        <option value="google">Google</option>
-        <option value="bing">Bing</option>
-        <option value="brave">Brave</option>
-      </select>
-      <p class="hint">Used when you type words instead of a full address.</p>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Ad blocker</div>
-      <div class="switch-row">
-        <span class="switch-label">Block ads and trackers</span>
-        <button type="button" class="switch" id="adblockSwitch" role="switch" aria-checked="true"></button>
-      </div>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Loaded tabs at once</div>
-      <div class="range-row">
-        <input type="range" id="maxLoadedTabs" min="1" max="20" step="1" value="8">
-        <span class="range-val" id="maxLoadedTabsVal">8</span>
-      </div>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Proxy servers</div>
-      <div class="server-list" id="serverList"></div>
-      <p class="hint">Pings update live. Green = fast, orange = ok, red = slow or offline.</p>
-      <div class="input-row" style="margin-top:10px"><input class="text-input" id="customServerName" placeholder="Custom name"></div>
-      <div class="input-row"><input class="text-input" id="customServerUrl" placeholder="wss://your-server"></div>
-      <button class="primary-btn" id="addCustomServer" type="button">Add custom server</button>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Browser engine</div>
-      <div class="transport-row">
-        <button class="transport-btn" id="transportEpoxy" type="button">Epoxy</button>
-        <button class="transport-btn" id="transportLibcurl" type="button">Libcurl</button>
-      </div>
-      <p class="hint">Try Epoxy first. Switch to Libcurl if a site will not load.</p>
-      <div class="status" id="engineStatus">Starting...</div>
-    </section>
-
-    <div class="settings-cat">Misc</div>
-    <section class="setting-section">
-      <div class="setting-title">Change username</div>
-      <div class="input-row"><input class="text-input" id="newUsername" placeholder="New display name"></div>
-      <button class="primary-btn" id="saveUsername" type="button">Save username</button>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Change password</div>
-      <div class="input-row"><input class="text-input" id="curPassword" type="password" placeholder="Current password"></div>
-      <div class="input-row"><input class="text-input" id="newPassword" type="password" placeholder="New password"></div>
-      <div class="input-row"><input class="text-input" id="newPassword2" type="password" placeholder="Confirm new password"></div>
-      <button class="primary-btn" id="savePassword" type="button">Save password</button>
-      <p class="hint" id="passwordMsg"></p>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Factory reset</div>
-      <button class="secondary-btn" id="resetSettings" type="button">Factory reset</button>
-      <p class="hint">Clears theme and browser settings. Profile password is kept unless you clear site data.</p>
-    </section>
-    <section class="setting-section">
-      <div class="setting-title">Admin</div>
-      <button class="secondary-btn" id="openAdminPanel" type="button">Open admin panel</button>
-      <p class="hint">Opens the admin panel in a Veil tab. Requires worker password.</p>
-    </section>
+    <div class="card">
+      <h2>IP log</h2>
+      <button id="refreshIps" type="button">Refresh</button>
+      <div id="ipList"></div>
+    </div>
   </div>
-</aside>
-
-<aside class="panel" id="historyPanel">
-  <div class="panel-header"><h2>History</h2><button type="button" class="close-panel" data-close-panel title="Close"><img src="image/exit.svg" alt="Close"></button></div>
-  <div class="panel-body">
-    <div class="history-list" id="historyList"></div>
-    <button type="button" class="secondary-btn" id="clearHistory" style="width:100%;margin-top:12px">Clear history</button>
-  </div>
-</aside>
-<aside class="panel" id="bookmarksPanel">
-  <div class="panel-header"><h2>Bookmarks</h2><button type="button" class="close-panel" data-close-panel title="Close"><img src="image/exit.svg" alt="Close"></button></div>
-  <div class="panel-body" id="bookmarkList"></div>
-</aside>
-
 </div>
-<script src="access-gate.js"></script>
-<script src="baremux/index.js"></script>
-<script src="scramjet/scramjet.all.js"></script>
-<script src="veil-app.js"></script>
+<script src="admin.js"></script>
 </body>
 </html>

@@ -63,6 +63,18 @@
     if (keyMsg) keyMsg.textContent = "";
   }
 
+  function flashMsg(msg, isErr) {
+    if (!keyMsg) return;
+    keyMsg.textContent = msg || "";
+    keyMsg.style.color = isErr ? "#ff5c5c" : "#5dcc7a";
+    clearTimeout(keyMsg._t);
+    if (msg) {
+      keyMsg._t = setTimeout(function () {
+        keyMsg.textContent = "";
+      }, 3500);
+    }
+  }
+
   function showGate(msg, isErr) {
     setBodyLocked(true);
     if (appRoot) appRoot.style.display = "none";
@@ -83,6 +95,10 @@
     if (keyMsg) {
       keyMsg.textContent = msg || "";
       keyMsg.style.color = isErr ? "#ff5c5c" : "#888888";
+      if (isErr && msg) {
+        clearTimeout(keyMsg._t);
+        keyMsg._t = setTimeout(function () { keyMsg.textContent = ""; }, 3500);
+      }
     }
     window.__VEIL_ACCESS_OK = false;
   }

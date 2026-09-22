@@ -12,10 +12,22 @@ var WORKER_URL = (
   "https://veil-access.retropixel404.workers.dev"
 ).replace(/\/$/, "");
 
-/* Require password every page load — do not restore token */
 var adminToken = "";
 
 function $(id) { return document.getElementById(id); }
+
+function flash(el, text, ok) {
+  if (!el) return;
+  el.textContent = text || "";
+  el.className = "msg " + (ok === true ? "ok" : ok === false ? "err" : "");
+  if (text) {
+    clearTimeout(el._t);
+    el._t = setTimeout(function () {
+      el.textContent = "";
+      el.className = "msg";
+    }, 3500);
+  }
+}
 
 function api(path, opts) {
   opts = opts || {};
@@ -35,28 +47,26 @@ function api(path, opts) {
 function showApp(ok) {
   $("loginView").classList.toggle("show", !ok);
   $("appView").classList.toggle("show", ok);
+  $("brand").classList.toggle("show", ok);
 }
 
 $("loginBtn").onclick = function () {
-  $("loginMsg").textContent = "Checking…";
-  $("loginMsg").className = "msg";
+  flash($("loginMsg"), "Checking…");
   api("/api/admin/login", {
     method: "POST",
     body: JSON.stringify({ password: $("adminPass").value })
   }).then(function (r) {
     if (!r.data.ok) {
-      $("loginMsg").textContent = r.data.error || "Wrong password";
-      $("loginMsg").className = "msg err";
+      flash($("loginMsg"), r.data.error || "Wrong password", false);
       return;
     }
     adminToken = r.data.token || "";
     $("adminPass").value = "";
-    $("loginMsg").textContent = "";
+    flash($("loginMsg"), "");
     showApp(true);
     loadIps();
   }).catch(function () {
-    $("loginMsg").textContent = "Could not reach server";
-    $("loginMsg").className = "msg err";
+    flash($("loginMsg"), "Could not reach server", false);
   });
 };
 
@@ -65,117 +75,162 @@ $("adminPass").addEventListener("keydown", function (e) {
 });
 
 $("genKey").onclick = function () {
-  $("keyMsg").textContent = "";
   api("/api/admin/generate-key", {
     method: "POST",
     body: JSON.stringify({ duration: $("keyDur").value })
   }).then(function (r) {
     if (!r.data.ok) {
-      $("keyMsg").textContent = r.data.error || "Failed";
-      $("keyMsg").className = "msg err";
+      flash($("keyMsg"), r.data.error || "Failed", false);
       return;
     }
     $("keyOut").textContent = r.data.key;
-    $("keyMsg").textContent = "Created · " + r.data.duration + (r.data.infinite ? " (unlimited)" : "") + " · one-time";
-    $("keyMsg").className = "msg ok";
+    flash($("keyMsg"), "Created · " + r.data.duration + (r.data.infinite ? " (unlimited)" : "") + " · one-time", true);
   });
 };
 
 $("signoutAll").onclick = function () {
   if (!confirm("Sign out everyone?")) return;
   api("/api/admin/signout-all", { method: "POST", body: "{}" }).then(function (r) {
-    $("globalMsg").textContent = r.data.ok ? "Everyone signed out." : (r.data.error || "Failed");
-    $("globalMsg").className = r.data.ok ? "msg ok" : "msg err";
+    flash($("globalMsg"), r.data.ok ? "Everyone signed out." : (r.data.error || "Failed"), !!r.data.ok);
     loadIps();
   });
 };
 
 $("refreshIps").onclick = function () { loadIps(); };
 
-var selectedIp = null;
+var openIp = null;
 
 function loadIps() {
   api("/api/admin/ips").then(function (r) {
-    var body = $("ipBody");
-    body.innerHTML = "";
+    var list = $("ipList");
+    list.innerHTML = "";
     if (!r.data.ok) {
-      body.innerHTML = "<tr><td colspan='6'>" + (r.data.error || "Failed") + "</td></tr>";
+      list.innerHTML = '<div class="msg err">' + (r.data.error || "Failed") + "</div>";
       return;
     }
     var ips = r.data.ips || [];
     if (!ips.length) {
-      body.innerHTML = "<tr><td colspan='6' style='color:var(--muted)'>No IPs yet</td></tr>";
+      list.innerHTML = '<div class="msg">No IPs yet</div>';
       return;
     }
     ips.forEach(function (row) {
-      var tr = document.createElement("tr");
+      var box = document.createElement("div");
+      box.className = "ip-row";
       var accessOk = row.access && row.access.valid;
       var status = row.blocked
-        ? "<span class='tag bad'>blocked</span>"
+        ? '<span class="tag bad">blocked</span>'
         : accessOk
-          ? "<span class='tag ok'>active</span>"
-          : "<span class='tag mute'>none</span>";
-      tr.innerHTML =
-        "<td style='font-family:monospace'>" + row.ip + "</td>" +
-        "<td>" + status + "</td>" +
-        "<td>" + (accessOk ? "yes" : "no") + "</td>" +
-        "<td>" + (row.blocked ? row.blockLeft : ((row.access && row.access.timeLeft) || "—")) + "</td>" +
-        "<td style='font-family:monospace;font-size:11px'>" + ((row.access && row.access.key) || "—") + "</td>" +
-        "<td class='actions'><button type='button' data-ip='" + row.ip + "'>View</button></td>";
-      body.appendChild(tr);
-    });
-    body.querySelectorAll("button[data-ip]").forEach(function (btn) {
-      btn.onclick = function () { viewIp(btn.getAttribute("data-ip")); };
+          ? '<span class="tag ok">active</span>'
+          : '<span class="tag mute">none</span>';
+      var label = row.label ? '<span class="ip-label">' + escapeHtml(row.label) + "</span>" : "";
+      box.innerHTML =
+        '<div class="ip-main">' +
+        '<div class="ip-addr">' + escapeHtml(row.ip) + "</div>" +
+        label + status +
+        "</div>" +
+        '<div class="ip-detail" data-ip="' + escapeHtml(row.ip) + '"></div>';
+      box.querySelector(".ip-main").onclick = function () {
+        toggleDetail(box, row.ip);
+      };
+      list.appendChild(box);
+      if (openIp === row.ip) {
+        toggleDetail(box, row.ip, true);
+      }
     });
   });
 }
 
-function viewIp(ip) {
-  selectedIp = ip;
-  $("ipDetail").style.display = "block";
+function escapeHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function toggleDetail(box, ip, forceOpen) {
+  var detail = box.querySelector(".ip-detail");
+  var wasOpen = detail.classList.contains("open");
+  document.querySelectorAll(".ip-detail.open").forEach(function (el) {
+    el.classList.remove("open");
+    el.innerHTML = "";
+  });
+  if (wasOpen && !forceOpen) {
+    openIp = null;
+    return;
+  }
+  openIp = ip;
+  detail.classList.add("open");
+  detail.innerHTML = '<div class="msg">Loading…</div>';
   api("/api/admin/ip/" + encodeURIComponent(ip)).then(function (r) {
     if (!r.data.ok) {
-      $("ipDetailText").textContent = r.data.error || "Failed";
+      detail.innerHTML = '<div class="msg err">' + (r.data.error || "Failed") + "</div>";
       return;
     }
     var rec = r.data.ip;
     var g = rec.geo || {};
-    $("ipDetailText").innerHTML =
-      "<div><b>IP</b> — " + rec.ip + "</div>" +
+    detail.innerHTML =
+      '<div class="detail">' +
+      "<div><b>IP</b> — " + escapeHtml(rec.ip) + "</div>" +
+      "<div><b>Name</b> — " + escapeHtml(rec.label || "—") + "</div>" +
       "<div><b>Hits</b> — " + (rec.hits || 0) + "</div>" +
       "<div><b>First seen</b> — " + new Date(rec.firstSeen).toLocaleString() + "</div>" +
       "<div><b>Last seen</b> — " + new Date(rec.lastSeen).toLocaleString() + "</div>" +
-      "<div><b>Location</b> — " + [g.city, g.region, g.country].filter(Boolean).join(", ") + "</div>" +
+      "<div><b>Location</b> — " + escapeHtml([g.city, g.region, g.country].filter(Boolean).join(", ") || "—") + "</div>" +
       "<div><b>Blocked</b> — " + (r.data.blocked ? "yes (" + r.data.blockLeft + ")" : "no") + "</div>" +
-      "<div><b>Key</b> — " + ((rec.access && rec.access.key) || "none") + "</div>";
+      "<div><b>Key</b> — " + escapeHtml((rec.access && rec.access.key) || "none") + "</div>" +
+      "</div>" +
+      '<label>Rename this IP</label>' +
+      '<div class="row">' +
+      '<input class="rename-input" placeholder="e.g. School laptop" value="' + escapeHtml(rec.label || "") + '">' +
+      '<button type="button" class="sm rename-btn">Save name</button>' +
+      "</div>" +
+      '<div class="row" style="margin-top:10px">' +
+      '<input class="block-input" placeholder="Block time e.g. 30m, 2h, 1d">' +
+      '<button type="button" class="sm red block-btn">Block</button>' +
+      '<button type="button" class="sm unblock-btn">Unblock</button>' +
+      '<button type="button" class="sm red kill-btn">Invalidate key</button>' +
+      "</div>" +
+      '<div class="msg detail-msg"></div>';
+
+    detail.querySelector(".rename-btn").onclick = function () {
+      var label = detail.querySelector(".rename-input").value;
+      api("/api/admin/rename-ip", {
+        method: "POST",
+        body: JSON.stringify({ ip: ip, label: label })
+      }).then(function (res) {
+        flash(detail.querySelector(".detail-msg"), res.data.ok ? "Name saved" : (res.data.error || "Failed"), !!res.data.ok);
+        loadIps();
+      });
+    };
+    detail.querySelector(".block-btn").onclick = function () {
+      api("/api/admin/block", {
+        method: "POST",
+        body: JSON.stringify({ ip: ip, duration: detail.querySelector(".block-input").value })
+      }).then(function (res) {
+        flash(detail.querySelector(".detail-msg"), res.data.ok ? "Blocked · " + res.data.blockLeft : (res.data.error || "Failed"), !!res.data.ok);
+        loadIps();
+      });
+    };
+    detail.querySelector(".unblock-btn").onclick = function () {
+      api("/api/admin/unblock", {
+        method: "POST",
+        body: JSON.stringify({ ip: ip })
+      }).then(function (res) {
+        flash(detail.querySelector(".detail-msg"), res.data.ok ? "Unblocked" : (res.data.error || "Failed"), !!res.data.ok);
+        loadIps();
+      });
+    };
+    detail.querySelector(".kill-btn").onclick = function () {
+      api("/api/admin/invalidate", {
+        method: "POST",
+        body: JSON.stringify({ ip: ip })
+      }).then(function (res) {
+        flash(detail.querySelector(".detail-msg"), res.data.ok ? "Key invalidated — they need a new key" : (res.data.error || "Failed"), !!res.data.ok);
+        loadIps();
+      });
+    };
   });
 }
 
-$("blockBtn").onclick = function () {
-  if (!selectedIp) return;
-  api("/api/admin/block", {
-    method: "POST",
-    body: JSON.stringify({ ip: selectedIp, duration: $("blockDur").value })
-  }).then(function (r) {
-    $("blockMsg").textContent = r.data.ok ? "Blocked · " + r.data.blockLeft : (r.data.error || "Failed");
-    $("blockMsg").className = r.data.ok ? "msg ok" : "msg err";
-    loadIps();
-    viewIp(selectedIp);
-  });
-};
-
-$("unblockBtn").onclick = function () {
-  if (!selectedIp) return;
-  api("/api/admin/unblock", {
-    method: "POST",
-    body: JSON.stringify({ ip: selectedIp })
-  }).then(function (r) {
-    $("blockMsg").textContent = r.data.ok ? "Unblocked" : (r.data.error || "Failed");
-    $("blockMsg").className = r.data.ok ? "msg ok" : "msg err";
-    loadIps();
-    viewIp(selectedIp);
-  });
-};
-
-/* Always show login on load */
 showApp(false);

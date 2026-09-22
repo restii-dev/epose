@@ -1780,13 +1780,15 @@ function openAboutBlank(kind) {
     return;
   }
   const appUrl = location.origin + REPO_PATH + (REPO_PATH.endsWith("/") ? "" : "/") + "?ab=1";
-  const abTitle = (cloak && cloak.title) ? cloak.title : "Veil";
-  let abIcon = (cloak && cloak.icon) ? cloak.icon : FAVI;
-  if (abIcon && abIcon.startsWith("/") && !abIcon.startsWith("//")) {
-    abIcon = location.origin + abIcon;
-  } else if (abIcon && !/^https?:\/\//i.test(abIcon) && !abIcon.startsWith("data:")) {
-    abIcon = location.origin + REPO_PATH + abIcon.replace(/^\.\//, "");
-  }
+  const abTitle = "Veil";
+  const abTitleFinal = (cloak && cloak.title) ? cloak.title : "Veil";
+  let abIcon = FAVI;
+  try {
+    if (abIcon && abIcon.startsWith("/") && !abIcon.startsWith("//")) abIcon = location.origin + abIcon;
+    else if (abIcon && !/^https?:\/\//i.test(abIcon) && !abIcon.startsWith("data:")) {
+      abIcon = location.origin + (typeof REPO_PATH !== "undefined" ? REPO_PATH : "/") + String(abIcon).replace(/^\.\//, "");
+    }
+  } catch {}
   const shell = `<!DOCTYPE html>
 <html>
 <head>
@@ -2244,29 +2246,57 @@ async function bootVeilApp() {
   document.title = cloak.title || "Veil";
   document.getElementById("favicon").href = cloak.icon || FAVI;
   markAboutBlankSession();
-  // Default chrome to Veil until cloak overrides
-  if (!cloak.title) cloak.title = "Veil";
-  if (!cloak.icon) cloak.icon = FAVI;
-  document.title = cloak.title || "Veil";
+  cloak.title = cloak.title || "Veil";
+  cloak.icon = cloak.icon || FAVI;
+  document.title = cloak.title;
+  try {
+    const fav = document.getElementById("favicon");
+    if (fav) fav.href = cloak.icon;
+  } catch {}
   syncAboutBlankChrome();
   await showCookieConsent();
   await showSignup();
-  // Build first tab after UI prompts so homepage is not blank
-  if (!tabs.length) createTab(true);
-  const home = getActiveTab();
+  // Always ensure at least one home tab is fully rendered
+  tabs = tabs.filter(Boolean);
+  if (!tabs.length) {
+    createTab(true);
+  }
+  let home = getActiveTab() || tabs[0];
   if (home) {
+    activeTabId = home.id;
     home.newTab = true;
+    home.url = "";
     home.title = "New Tab";
     home.favicon = FAVI;
-    const wrap = ensurePage(home);
-    wrap.innerHTML = homepageHTML(home.id);
-    wireHome(wrap, home);
-    showActiveOnly();
+    home.engineFrame = null;
+    const viewport = document.getElementById("viewport");
+    if (viewport) {
+      let wrap = viewport.querySelector('.page[data-page-id="' + home.id + '"]');
+      if (!wrap) {
+        wrap = document.createElement("section");
+        wrap.className = "page";
+        wrap.dataset.pageId = home.id;
+        viewport.appendChild(wrap);
+      }
+      try {
+        wrap.innerHTML = homepageHTML(home.id);
+        wireHome(wrap, home);
+      } catch (err) {
+        console.error("home render", err);
+        wrap.innerHTML = homepageHTML(home.id);
+        try { wireHome(wrap, home); } catch {}
+      }
+      wrap.classList.add("active");
+      wrap.style.display = "block";
+    }
   }
+  showActiveOnly();
   renderChrome();
   startWelcomeClock();
   try { startLivePings(); } catch {}
   initEngine().then(() => pushAdblockToSW());
+  setTimeout(syncAboutBlankChrome, 100);
+  setTimeout(syncAboutBlankChrome, 600);
   // Apply matte (or saved theme) colors to the whole UI
   if (settings.theme && THEMES[settings.theme]) {
     Object.assign(settings, THEMES[settings.theme], {
@@ -2330,13 +2360,43 @@ on("openAdminPanel", () => {
   try { closeHistory(); } catch {}
   const path = location.pathname.replace(/\/?index\.html$/i, "/").replace(/\/?$/, "/");
   const adminUrl = location.origin + path + "admin/index.html";
-  const page = createTab(false);
-  page.url = adminUrl;
-  page.title = "Admin Panel";
-  page.favicon = (typeof IMG !== "undefined" ? IMG : "image/") + "home.svg";
-  page.newTab = false;
-  page.isAdmin = true;
-  const wrap = ensurePage(page);
+  // Prefer reusing existing Admin Panel tab
+  let page = tabs.find((t) => t.isAdmin);
+  if (!page) {
+    if (tabs.length >= MAX_TABS) {
+      alert("Too many tabs");
+      return;
+    }
+    page = {
+      id: uid(),
+      title: "Admin Panel",
+      url: adminUrl,
+      history: [],
+      historyIndex: -1,
+      newTab: false,
+      isAdmin: true,
+      engineFrame: null,
+      favicon: (typeof IMG !== "undefined" ? IMG : "image/") + "home.svg",
+      animOpen: true,
+      lastActive: Date.now()
+    };
+    tabs.push(page);
+  } else {
+    page.url = adminUrl;
+    page.title = "Admin Panel";
+    page.favicon = (typeof IMG !== "undefined" ? IMG : "image/") + "home.svg";
+    page.lastActive = Date.now();
+  }
+  activeTabId = page.id;
+  const viewport = document.getElementById("viewport");
+  if (!viewport) return;
+  let wrap = viewport.querySelector('.page[data-page-id="' + page.id + '"]');
+  if (!wrap) {
+    wrap = document.createElement("section");
+    wrap.className = "page";
+    wrap.dataset.pageId = page.id;
+    viewport.appendChild(wrap);
+  }
   wrap.innerHTML = "";
   const fr = document.createElement("iframe");
   fr.className = "engine-frame";
@@ -2345,7 +2405,7 @@ on("openAdminPanel", () => {
   fr.src = adminUrl;
   wrap.appendChild(fr);
   page.engineFrame = { frame: fr, element: fr };
-  switchTab(page.id);
+  showActiveOnly();
   renderChrome();
   const addr = document.getElementById("address");
   if (addr) addr.value = "Admin Panel";

@@ -2,11 +2,7 @@ name = "veil-access"
 main = "src/worker.js"
 compatibility_date = "2024-09-01"
 
-# Set these in the Cloudflare dashboard or via `wrangler secret put`
-# ADMIN_PASSWORD = "H@rdt0reachp@ssw0rd"
-# ADMIN_SECRET = "random-long-string-for-hmac"
-
 [[kv_namespaces]]
 binding = "VEIL_KV"
-id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
-preview_id = "REPLACE_WITH_PREVIEW_KV_ID"
+id = ""
+preview_id = ""
