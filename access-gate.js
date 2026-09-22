@@ -63,16 +63,23 @@
     if (keyMsg) keyMsg.textContent = "";
   }
 
-  function flashMsg(msg, isErr) {
+  var DEFAULT_GATE_MSG = "Enter a valid access key to use Veil";
+
+  function setGateMsg(msg, isErr, autoRestore) {
     if (!keyMsg) return;
-    keyMsg.textContent = msg || "";
-    keyMsg.style.color = isErr ? "#ff5c5c" : "#5dcc7a";
     clearTimeout(keyMsg._t);
-    if (msg) {
+    keyMsg.textContent = msg || DEFAULT_GATE_MSG;
+    keyMsg.style.color = isErr ? "#ff5c5c" : "#888888";
+    if (autoRestore && isErr && msg) {
       keyMsg._t = setTimeout(function () {
-        keyMsg.textContent = "";
+        keyMsg.textContent = DEFAULT_GATE_MSG;
+        keyMsg.style.color = "#888888";
       }, 3500);
     }
+  }
+
+  function flashMsg(msg, isErr) {
+    setGateMsg(msg, isErr, true);
   }
 
   function showGate(msg, isErr) {
@@ -92,13 +99,10 @@
     }
     if (keyInput) keyInput.disabled = false;
     if (keyBtn) keyBtn.disabled = false;
-    if (keyMsg) {
-      keyMsg.textContent = msg || "";
-      keyMsg.style.color = isErr ? "#ff5c5c" : "#888888";
-      if (isErr && msg) {
-        clearTimeout(keyMsg._t);
-        keyMsg._t = setTimeout(function () { keyMsg.textContent = ""; }, 3500);
-      }
+    if (isErr && msg) {
+      setGateMsg(msg, true, true);
+    } else {
+      setGateMsg(msg || DEFAULT_GATE_MSG, false, false);
     }
     window.__VEIL_ACCESS_OK = false;
   }
@@ -251,7 +255,7 @@
         return;
       }
       if (ok === "blocked") return;
-      showGate("Enter an access key to use Veil", false);
+      showGate(DEFAULT_GATE_MSG, false);
     });
   }
 
