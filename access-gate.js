@@ -24,6 +24,65 @@
   var keyMsg = document.getElementById("accessMsg");
   var gateBox = gate && gate.querySelector(".box");
 
+  function readCookie(name) {
+    try {
+      var parts = document.cookie.split(";");
+      for (var i = 0; i < parts.length; i++) {
+        var p = parts[i].trim();
+        if (p.indexOf(encodeURIComponent(name) + "=") === 0) {
+          return decodeURIComponent(p.slice(encodeURIComponent(name).length + 1));
+        }
+      }
+    } catch (e) {}
+    return "";
+  }
+
+  function writeCookie(name, value, maxAgeSec) {
+    try {
+      var age = maxAgeSec == null ? 60 * 60 * 24 * 400 : maxAgeSec;
+      document.cookie =
+        encodeURIComponent(name) + "=" + encodeURIComponent(value || "") +
+        "; path=/; max-age=" + age + "; SameSite=Lax";
+    } catch (e) {}
+  }
+
+  function clearCookie(name) {
+    try {
+      document.cookie = encodeURIComponent(name) + "=; path=/; max-age=0; SameSite=Lax";
+    } catch (e) {}
+  }
+
+  function getToken() {
+    try {
+      return localStorage.getItem(SESSION_KEY) || readCookie(SESSION_KEY) || "";
+    } catch (e) {
+      return readCookie(SESSION_KEY) || "";
+    }
+  }
+
+  function setToken(token, infinite, expires) {
+    try {
+      if (token) localStorage.setItem(SESSION_KEY, token);
+      else localStorage.removeItem(SESSION_KEY);
+    } catch (e) {}
+    if (!token) {
+      clearCookie(SESSION_KEY);
+      return;
+    }
+    // Persist session in a cookie too (not tied to IP) so it survives better across tabs/restarts
+    var maxAge = 60 * 60 * 24 * 400; // ~13 months for infinite / long sessions
+    if (!infinite && expires) {
+      var left = Math.floor((Number(expires) - Date.now()) / 1000);
+      if (left > 0) maxAge = left;
+    }
+    writeCookie(SESSION_KEY, token, maxAge);
+  }
+
+  function clearToken() {
+    setToken("", false, null);
+    try { localStorage.removeItem(SESSION_META); } catch (e) {}
+  }
+
   var sessionMeta = null;
   try {
     sessionMeta = JSON.parse(localStorage.getItem(SESSION_META) || "null");
@@ -149,8 +208,7 @@
   }
 
   function forceUnloadToGate(msg, blocked) {
-    localStorage.removeItem(SESSION_KEY);
-    localStorage.removeItem(SESSION_META);
+    clearToken();
     sessionMeta = null;
     window.__VEIL_ACCESS_OK = false;
     try {
@@ -178,7 +236,7 @@
   }
 
   function checkSession() {
-    var token = localStorage.getItem(SESSION_KEY) || "";
+    var token = getToken();
     if (!token) return Promise.resolve(false);
     return fetch(WORKER_URL + "/api/session/check", {
       method: "POST",
@@ -191,7 +249,12 @@
           forceUnloadToGate(data.error || "You are blocked from entering Veil.", true);
           return "blocked";
         }
-        if (!data.ok) return false;
+        if (!data.ok) {
+          clearToken();
+          return false;
+        }
+        // Refresh cookie max-age from server meta
+        setToken(token, !!data.infinite, data.expires);
         saveMeta(data);
         return true;
       })
@@ -220,7 +283,7 @@
           showGate(data.error || "Invalid key", true);
           return;
         }
-        localStorage.setItem(SESSION_KEY, data.token);
+        setToken(data.token, !!data.infinite, data.expires);
         saveMeta(data);
         if (keyInput) keyInput.value = "";
         showApp();

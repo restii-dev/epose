@@ -71,7 +71,7 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .page.active{display:block}
 .engine-frame{width:100%;height:100%;display:block;border:0;background:#fff}
 
-.newtab-page{width:100%;height:100%;overflow:auto;background-color:var(--newtab);background-size:cover;background-position:center;position:relative}
+.newtab-page{width:100%;height:100%;overflow:hidden;background-color:var(--newtab);background-size:cover;background-position:center;position:relative;display:flex;flex-direction:column}
 .newtab-media{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;border:0}
 .newtab-media-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none}
 
@@ -80,7 +80,7 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
   radial-gradient(circle at 15% 80%, rgba(255,255,255,.03), transparent 40%),
   radial-gradient(circle at 85% 70%, rgba(255,255,255,.025), transparent 40%);
   pointer-events:none}
-.newtab-overlay{position:relative;z-index:1;width:100%;min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 20px 88px}
+.newtab-overlay{position:relative;z-index:1;width:100%;flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 20px 24px}
 .welcome-bar{width:min(640px,100%);margin-bottom:28px;padding:14px 18px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(12px);text-align:center}
 .welcome-bar .welcome-line{font-size:14px;font-weight:600;letter-spacing:.01em;color:var(--text);margin-bottom:4px;text-align:center}
 .welcome-bar .welcome-time{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:center}
@@ -120,7 +120,7 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .lock-card .lock-go{width:100%;height:42px;border-radius:10px;background:var(--accent);color:var(--accentText);font-weight:600;cursor:pointer}
 .lock-card .lock-err{color:var(--danger);font-size:12px;min-height:16px;margin-bottom:8px}
 
-.time-bar{position:absolute;left:0;right:0;bottom:0;height:36px;padding:0 14px;display:flex;align-items:center;background:rgba(0,0,0,.35);border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
+.time-bar{position:relative;flex-shrink:0;left:auto;right:auto;bottom:auto;height:36px;padding:0 14px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);border-top:1px solid var(--border);font-size:12px;color:var(--muted);z-index:2}
 
 .menu{position:fixed;top:88px;right:10px;width:245px;background:var(--panel);border:1px solid var(--border);border-radius:13px;padding:7px;z-index:1000;display:none}
 .menu.open{display:block}
@@ -208,11 +208,13 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .server-dot.ping-good{background:#7CFF6B}
 .server-dot.ping-mid{background:#FFA94D}
 .server-dot.ping-bad{background:#FF4D4D}
+.server-dot.ping-off{background:#666}
 .server-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .server-ping{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
 .server-ping.ping-good{color:#9dff90}
 .server-ping.ping-mid{color:#ffb86b}
 .server-ping.ping-bad{color:#ff7b7b}
+.server-ping.ping-off{color:#888}
 .server-edit{opacity:.6;padding:2px 4px}
 .server-edit:hover{opacity:1}.server-edit img{width:14px;height:14px;display:block;filter:invert(1)}
 
@@ -227,7 +229,9 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .bookmark-main{min-width:0;flex:1;cursor:pointer}
 .bookmark-title{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bookmark-url{font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
-.bookmark-delete{width:28px;height:28px;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer}
+.bookmark-delete{width:28px;height:28px;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0}
+.bookmark-delete img{width:12px;height:12px;display:block;filter:invert(1);opacity:.7}
+.bookmark-delete:hover img{opacity:1}
 .empty{padding:30px 10px;text-align:center;color:var(--muted);font-size:12px}
 .status{padding:10px 12px;border:1px solid var(--border);background:var(--bg2);border-radius:9px;color:var(--muted);font-size:11px;line-height:1.5;margin-top:10px}
 
@@ -362,7 +366,7 @@ body.gate-lock{background:#101010}
   <button class="menu-item" id="menuHistory"><span class="menu-icon"><img src="image/history.svg" alt=""></span>History</button>
   <button class="menu-item" id="menuBookmarks"><span class="menu-icon"><img src="image/bookmarks.svg" alt=""></span>Bookmarks</button>
   <button class="menu-item" id="menuRename"><span class="menu-icon"><img src="image/pencil.svg" alt=""></span>Rename tab</button>
-  <button class="menu-item" id="menuDevtools"><span class="menu-icon"><img src="image/settings.svg" alt=""></span>DevTools</button>
+  <button class="menu-item" id="menuDevtools"><span class="menu-icon"><img src="image/terminal.svg" alt=""></span>DevTools</button>
   <div class="menu-separator"></div>
   <button class="menu-item" id="menuLock"><span class="menu-icon"><img src="image/lock.svg" alt=""></span>Lock Veil</button>
 </div>

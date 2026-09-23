@@ -214,6 +214,7 @@ async function initEngine() {
 
       engineReady = true;
       if (status) status.textContent = engineStatusReady();
+      try { pushAdblockToSW(); } catch (e) {}
     } catch (err) {
       console.error(err);
       engineReady = false;
@@ -273,7 +274,7 @@ const THEMES = {
 
 const DEFAULT_SETTINGS = {
   theme: "matte", transport: "epoxy", wispId: "default", wispCustom: "",
-  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 8, searchEngine: "duckduckgo", wispId: "va1", customServers: [], lockUnload: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", ...THEMES.matte
+  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "duckduckgo", wispId: "va1", customServers: [], lockUnload: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", ...THEMES.matte
 };
 const DEFAULT_PANIC = { key: "", code: "", url: "https://classroom.google.com" };
 
@@ -705,11 +706,20 @@ function wireHome(wrapper, page) {
   setupHomeFx(wrapper);
   wrapper.querySelectorAll(".newtab-search").forEach(input => {
     input.addEventListener("keydown", e => {
-      if (e.key === "Enter") { activeTabId = page.id; navigate(input.value); }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        activeTabId = page.id;
+        const q = input.value;
+        navigate(q);
+      }
     });
   });
   wrapper.querySelectorAll(".quick-link[data-url]").forEach(btn => {
-    btn.addEventListener("click", () => { activeTabId = page.id; navigate(btn.dataset.url); });
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      activeTabId = page.id;
+      navigate(btn.getAttribute("data-url") || btn.dataset.url);
+    });
   });
   const lob = wrapper.querySelector("#launchOptionsBtn");
   if (lob) lob.onclick = () => openLaunchModal();
@@ -830,29 +840,71 @@ function renderChrome() {
 }
 
 async function navigate(raw) {
-  const page = getActiveTab();
+  let page = getActiveTab();
+  if (!page) {
+    createTab(true);
+    page = getActiveTab();
+  }
   if (!page) return;
   const value = normalizeUrl(raw);
   if (!value) return;
+  activeTabId = page.id;
   page.url = value;
   page.newTab = false;
+  page.isAdmin = false;
   page.favicon = faviconFor(value);
   try { page.title = new URL(value).hostname; } catch { page.title = "Veil"; }
   pushVisitHistory(value, page.title);
+  if (!Array.isArray(page.history)) page.history = [];
   if (page.historyIndex < page.history.length - 1) page.history = page.history.slice(0, page.historyIndex + 1);
   page.history.push(value);
   page.historyIndex = page.history.length - 1;
 
-  const wrapper = ensurePage(page);
-  if (page.engineFrame) {
-    await goFrame(page, value);
-  } else {
+  const viewport = document.getElementById("viewport");
+  if (!viewport) return;
+  let wrapper = viewport.querySelector('.page[data-page-id="' + page.id + '"]');
+  if (!wrapper) {
+    wrapper = document.createElement("section");
+    wrapper.className = "page active";
+    wrapper.dataset.pageId = page.id;
+    viewport.appendChild(wrapper);
+  }
+  wrapper.classList.add("active");
+  wrapper.style.display = "block";
+
+  // Drop homepage content before opening engine
+  if (wrapper.querySelector(".newtab-page")) {
+    page.engineFrame = null;
     wrapper.innerHTML = "";
-    const frame = document.createElement("div");
-    frame.style.cssText = "width:100%;height:100%";
-    frame.dataset.engineContainer = page.id;
-    wrapper.appendChild(frame);
-    await createEngineFrame(page, frame);
+  }
+
+  try {
+    if (page.engineFrame) {
+      const existing = page.engineFrame.element || page.engineFrame.frame || page.engineFrame;
+      if (existing && existing.isConnected) {
+        await goFrame(page, value);
+      } else {
+        page.engineFrame = null;
+        wrapper.innerHTML = "";
+        const frame = document.createElement("div");
+        frame.style.cssText = "width:100%;height:100%";
+        frame.dataset.engineContainer = page.id;
+        wrapper.appendChild(frame);
+        await createEngineFrame(page, frame);
+      }
+    } else {
+      wrapper.innerHTML = "";
+      const frame = document.createElement("div");
+      frame.style.cssText = "width:100%;height:100%";
+      frame.dataset.engineContainer = page.id;
+      wrapper.appendChild(frame);
+      await createEngineFrame(page, frame);
+    }
+  } catch (err) {
+    console.error("navigate failed", err);
+    wrapper.innerHTML = '<div class="engine-error"><div class="engine-error-box"><h2>Could not open this page</h2><p>' + escapeHTML((err && err.message) || String(err)) + '</p><button data-retry-nav type="button">Retry</button></div></div>';
+    const btn = wrapper.querySelector("[data-retry-nav]");
+    if (btn) btn.onclick = () => navigate(value);
   }
   showActiveOnly();
   renderChrome();
@@ -1090,7 +1142,7 @@ function renderBookmarks() {
     '<div class="bookmark-row"><div class="bookmark-main" data-open-bookmark="' + escapeHTML(b.url) + '">' +
     '<div class="bookmark-title">' + escapeHTML(b.title) + '</div>' +
     '<div class="bookmark-url">' + escapeHTML(b.url) + '</div></div>' +
-    '<button class="bookmark-delete" data-delete-bookmark="' + escapeHTML(b.id) + '">x</button></div>'
+    '<button class="bookmark-delete" data-delete-bookmark="' + escapeHTML(b.id) + '" type="button" aria-label="Remove" title="Remove"><img src="' + IMG + 'exit.svg" alt=""></button></div>'
   ).join("");
   list.querySelectorAll("[data-open-bookmark]").forEach(el =>
     el.onclick = () => { closePanels(); navigate(el.dataset.openBookmark); }
@@ -1137,9 +1189,10 @@ function loadPanicInputs() {
   document.getElementById("panicUrl").value = panic.url || "";
 }
 function pingClass(ms, offline) {
-  if (offline || ms == null) return "ping-bad";
-  if (ms < 120) return "ping-good";
-  if (ms < 280) return "ping-mid";
+  // 1-199 green, 200-499 orange, 500+ red, offline grey
+  if (offline || ms == null || !Number.isFinite(ms)) return "ping-off";
+  if (ms <= 199) return "ping-good";
+  if (ms <= 499) return "ping-mid";
   return "ping-bad";
 }
 
@@ -1266,7 +1319,8 @@ function setupHomeFx(wrapper) {
   stopHomeFx(wrapper);
   const canvas = wrapper.querySelector("[data-home-fx]");
   if (!canvas) return;
-  if (!settings.animEnabled) {
+  // Animations off by default; only run when enabled AND cookies allowed
+  if (!settings.animEnabled || !COOKIE.consent) {
     canvas.style.display = "none";
     return;
   }
@@ -1752,19 +1806,13 @@ function updateDevtoolsMenuState() {
 
 function syncAboutBlankChrome() {
   const title = (cloak && cloak.title) || "Veil";
-  let icon = (cloak && cloak.icon) || FAVI;
-  try {
-    if (icon && icon.startsWith("/") && !icon.startsWith("//")) icon = location.origin + icon;
-    else if (icon && !/^https?:\/\//i.test(icon) && !icon.startsWith("data:")) {
-      icon = location.origin + (typeof REPO_PATH !== "undefined" ? REPO_PATH : "") + String(icon).replace(/^\.\//, "");
-    }
-  } catch {}
+  const icon = absFaviconUrl((cloak && cloak.icon) || FAVI);
   try {
     document.title = title;
     const fav = document.getElementById("favicon");
     if (fav) fav.href = icon;
   } catch {}
-  // Parent about:blank shell (iframe case)
+  // Parent about:blank shell (iframe case) — cloak can overwrite title/icon
   try {
     if (window.parent && window.parent !== window) {
       window.parent.postMessage({ type: "veil-chrome", title: title, icon: icon }, "*");
@@ -1778,27 +1826,33 @@ function syncAboutBlankChrome() {
 }
 
 
+function absFaviconUrl(icon) {
+  let abIcon = icon || FAVI;
+  try {
+    if (abIcon.startsWith("data:") || /^https?:\/\//i.test(abIcon)) return abIcon;
+    if (abIcon.startsWith("//")) return location.protocol + abIcon;
+    if (abIcon.startsWith("/")) return location.origin + abIcon;
+    return location.origin + REPO_PATH + String(abIcon).replace(/^\.\//, "");
+  } catch {
+    return location.origin + REPO_PATH + "image/favi.png";
+  }
+}
+
 function openAboutBlank(kind) {
   if (isInsideAboutBlank()) {
     console.info("[veil] already inside about:blank - skip");
     return;
   }
   const appUrl = location.origin + REPO_PATH + (REPO_PATH.endsWith("/") ? "" : "/") + "?ab=1";
+  // Always start as Veil; tab cloak overwrites via postMessage({ type: "veil-chrome" })
   const abTitle = "Veil";
-  const abTitleFinal = (cloak && cloak.title) ? cloak.title : "Veil";
-  let abIcon = FAVI;
-  try {
-    if (abIcon && abIcon.startsWith("/") && !abIcon.startsWith("//")) abIcon = location.origin + abIcon;
-    else if (abIcon && !/^https?:\/\//i.test(abIcon) && !abIcon.startsWith("data:")) {
-      abIcon = location.origin + (typeof REPO_PATH !== "undefined" ? REPO_PATH : "/") + String(abIcon).replace(/^\.\//, "");
-    }
-  } catch {}
+  const abIcon = absFaviconUrl(FAVI);
   const shell = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8" />
-<title>${abTitle.replace(/</g, "")}</title>
-<link rel="icon" href="${abIcon.replace(/"/g, "")}">
+<title>${abTitle}</title>
+<link rel="icon" id="veil-ab-icon" href="${abIcon.replace(/"/g, "")}">
 <style>
 html, body {
   margin: 0; padding: 0; width: 100%; height: 100%;
@@ -1820,7 +1874,8 @@ window.addEventListener("message", function (e) {
   try {
     if (e.data.title) document.title = e.data.title;
     if (e.data.icon) {
-      var link = document.querySelector("link[rel~='icon']") || document.createElement("link");
+      var link = document.getElementById("veil-ab-icon") || document.querySelector("link[rel~='icon']") || document.createElement("link");
+      link.id = "veil-ab-icon";
       link.rel = "icon";
       link.href = e.data.icon;
       if (!link.parentNode) document.head.appendChild(link);
@@ -1846,6 +1901,17 @@ window.addEventListener("message", function (e) {
     w.document.write(shell);
     w.document.close();
     setTimeout(syncAboutBlankChrome, 50);
+    setTimeout(syncAboutBlankChrome, 400);
+    // Avoid two open app tabs: leave this original tab on a neutral page
+    if (kind !== "window") {
+      setTimeout(function () {
+        try {
+          if (w && !w.closed) {
+            location.replace("about:blank");
+          }
+        } catch (e) {}
+      }, 250);
+    }
   } catch (err) {
     console.error(err);
     alert("Could not write about:blank shell.");
@@ -1889,7 +1955,12 @@ on("refreshBtn", reload);
 on("homeBtn", goHome);
 on("settingsOpenBtn", () => openPanel("settingsPanel"));
 on("bookmarkBtn", toggleBookmark);
-document.getElementById("address").addEventListener("keydown", e => { if (e.key === "Enter") navigate(e.target.value); });
+document.getElementById("address").addEventListener("keydown", e => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    navigate(e.target.value);
+  }
+});
 on("menuBtn", e => { e.stopPropagation(); updateDevtoolsMenuState(); document.getElementById("mainMenu")?.classList.toggle("open"); });
 on("menuRename", () => { closeMenu(); renameCurrentTab(); });
 on("menuLock", () => lockVeil());
@@ -1918,6 +1989,12 @@ if (launchModeSelect) {
   });
 }
 on("animEnabledSwitch", () => {
+  if (!COOKIE.consent) {
+    settings.animEnabled = false;
+    highlightTheme();
+    refreshHomeFxAll();
+    return;
+  }
   settings.animEnabled = !settings.animEnabled;
   save(); highlightTheme(); refreshHomeFxAll();
 });
@@ -2350,7 +2427,8 @@ async function bootVeilApp() {
   renderChrome();
   startWelcomeClock();
   try { startLivePings(); } catch (e) {}
-  initEngine().then(() => pushAdblockToSW()).catch(() => {});
+  // Engine loads on first navigation (saves memory)
+  // initEngine().then(() => pushAdblockToSW()).catch(() => {});
   setTimeout(syncAboutBlankChrome, 100);
   setTimeout(syncAboutBlankChrome, 600);
 
