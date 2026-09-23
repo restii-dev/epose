@@ -490,6 +490,64 @@ function unwrapProxyUrl(href) {
   return href;
 }
 
+function openInVeilTab(rawUrl) {
+  const value = normalizeUrl(rawUrl);
+  if (!value) return;
+  // Prefer current tab if it is a real page; otherwise navigate active / new tab
+  const cur = getActiveTab();
+  if (cur && !cur.isAdmin) {
+    activeTabId = cur.id;
+    navigate(value);
+    return;
+  }
+  createTab(true);
+  navigate(value);
+}
+
+/** Trap target=_blank / window.open so sites stay inside Veil tabs */
+function trapFrameExternalOpens(page, el) {
+  if (!el) return;
+  const inject = () => {
+    try {
+      const w = el.contentWindow;
+      const d = el.contentDocument;
+      if (!w || !d) return;
+      try {
+        w.open = function (url) {
+          try {
+            if (url && String(url) !== "about:blank") {
+              const href = String(url);
+              // Scramjet may pass absolute proxied URLs
+              openInVeilTab(unwrapProxyUrl(href) || href);
+            }
+          } catch (e) {}
+          return null;
+        };
+      } catch (e) {}
+      if (d.__veilTrapClicks) return;
+      d.__veilTrapClicks = true;
+      d.addEventListener("click", (e) => {
+        try {
+          const a = e.target && e.target.closest && e.target.closest("a");
+          if (!a) return;
+          const t = (a.getAttribute("target") || "").toLowerCase();
+          if (t === "_blank" || t === "_new" || t === "_parent" || t === "_top") {
+            const href = a.href || a.getAttribute("href");
+            if (!href || href.startsWith("javascript:")) return;
+            e.preventDefault();
+            e.stopPropagation();
+            openInVeilTab(unwrapProxyUrl(href) || href);
+          }
+        } catch (err) {}
+      }, true);
+    } catch (e) {
+      // Cross-origin until scramjet rewrites — ignore
+    }
+  };
+  el.addEventListener("load", inject);
+  try { inject(); } catch (e) {}
+}
+
 function bindFrameEvents(page, frameObj) {
   const el = frameObj.element || frameObj.frame || frameObj;
   const onUrl = (e) => {
@@ -497,6 +555,7 @@ function bindFrameEvents(page, frameObj) {
     if (!u || u === "about:blank") return;
     u = unwrapProxyUrl(u) || u;
     page.url = u;
+    page.newTab = false;
     try { page.title = new URL(u).hostname; } catch {}
     page.favicon = faviconFor(u);
     if (page.id === activeTabId) {
@@ -514,6 +573,7 @@ function bindFrameEvents(page, frameObj) {
         if (loc) onUrl({ url: loc });
       } catch {}
     });
+    trapFrameExternalOpens(page, el);
   }
 }
 
@@ -1228,14 +1288,21 @@ function fillWispSelect() {
   if (!box) return;
   const servers = allWispServers();
   box.innerHTML = servers.map((s) => {
-    const sel = settings.wispId === s.id ? " selected" : "";
+    const isSelected = settings.wispId === s.id;
+    const sel = isSelected ? " selected" : "";
+    // Pencil + X only when this custom server is selected; ping stays in the normal spot
+    const actions = (s.custom && isSelected)
+      ? '<span class="server-actions">' +
+        '<span class="server-edit" data-edit="' + s.id + '" title="Rename"><img src="' + IMG + 'pencil.svg" alt=""></span>' +
+        '<span class="server-del" data-del="' + s.id + '" title="Remove"><img src="' + IMG + 'exit.svg" alt=""></span>' +
+        "</span>"
+      : "";
     return (
       '<button type="button" class="server-row' + sel + '" data-server-id="' + s.id + '">' +
       '<span class="server-dot ping-mid" data-dot="' + s.id + '"></span>' +
       '<span class="server-name">' + escapeHTML(s.name) + '</span>' +
       '<span class="server-ping" data-ping="' + s.id + '">...</span>' +
-      (s.custom ? '<span class="server-edit" data-edit="' + s.id + '" title="Rename"><img src="' + IMG + 'pencil.svg" alt=""></span>' : "") +
-      (s.custom ? '<span class="server-del" data-del="' + s.id + '" title="Remove"><img src="' + IMG + 'exit.svg" alt=""></span>' : "") +
+      actions +
       "</button>"
     );
   }).join("");
@@ -2291,24 +2358,42 @@ function showSignup() {
 
 function forceHomeTab() {
   tabs = (tabs || []).filter(Boolean);
-  if (!tabs.length) {
-    createTab(true);
-  }
-  let home = getActiveTab() || tabs[0];
+
+  // Keep admin tabs; collapse extra empty "New Tab" homes into one
+  const adminTabs = tabs.filter((t) => t.isAdmin);
+  const withUrl = tabs.filter((t) => !t.isAdmin && t.url && !t.newTab);
+  let home = tabs.find((t) => !t.isAdmin && t.newTab && !t.url) || tabs.find((t) => !t.isAdmin) || null;
+
   if (!home) {
-    createTab(true);
-    home = getActiveTab() || tabs[0];
+    const tab = {
+      id: uid(), title: "New Tab", url: "", history: [], historyIndex: -1,
+      newTab: true, engineFrame: null, favicon: FAVI, animOpen: true, lastActive: Date.now(), isAdmin: false
+    };
+    home = tab;
+  } else {
+    home.newTab = true;
+    home.url = "";
+    home.title = "New Tab";
+    home.favicon = FAVI;
+    home.engineFrame = null;
+    home.isAdmin = false;
   }
-  if (!home) return null;
+
+  // Exactly one home + any real pages + admin tabs (no duplicate empty homes)
+  tabs = [home].concat(withUrl.filter((t) => t.id !== home.id)).concat(adminTabs.filter((t) => t.id !== home.id));
   activeTabId = home.id;
-  home.newTab = true;
-  home.url = "";
-  home.title = "New Tab";
-  home.favicon = FAVI;
-  home.engineFrame = null;
-  home.isAdmin = false;
+  home.lastActive = Date.now();
+
   const viewport = document.getElementById("viewport");
   if (!viewport) return home;
+
+  // Remove orphan page shells that are not in tabs
+  const keepIds = new Set(tabs.map((t) => t.id));
+  viewport.querySelectorAll(".page").forEach((p) => {
+    const id = p.dataset.pageId;
+    if (id && !keepIds.has(id)) p.remove();
+  });
+
   let wrap = viewport.querySelector('.page[data-page-id="' + home.id + '"]');
   if (!wrap) {
     wrap = document.createElement("section");
@@ -2328,7 +2413,6 @@ function forceHomeTab() {
   }
   wrap.classList.add("active");
   wrap.style.display = "block";
-  // Hide other pages
   viewport.querySelectorAll(".page").forEach((p) => {
     if (p !== wrap) {
       p.classList.remove("active");
@@ -2460,12 +2544,17 @@ async function bootVeilApp() {
   applyCSSVariables();
   try { highlightTheme(); } catch (e) {}
 
-  // Safety net: if homepage still missing after a tick, rebuild it
+  // Safety net: homepage missing or zero tabs only — do not create a second home
   setTimeout(function () {
     try {
       const vp = document.getElementById("viewport");
       const hasHome = vp && vp.querySelector(".newtab-page");
-      if (!hasHome || !tabs.length) forceHomeTab();
+      const emptyHomes = tabs.filter((t) => !t.isAdmin && t.newTab && !t.url);
+      if (!tabs.length || !hasHome) {
+        forceHomeTab();
+      } else if (emptyHomes.length > 1) {
+        forceHomeTab();
+      }
       showActiveOnly();
       renderChrome();
     } catch (e) {}

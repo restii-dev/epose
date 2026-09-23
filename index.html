@@ -191,8 +191,13 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .switch.on:active::after{width:26px;transform:translateX(16px)}
 .switch:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .menu-item.disabled{opacity:.35;pointer-events:none;cursor:default}
-.server-del{margin-left:auto;width:22px;height:22px;border:0;background:transparent;cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center;opacity:.55}
-.server-del:hover{opacity:1}
+.server-actions{display:inline-flex;align-items:center;gap:2px;margin-left:4px;flex-shrink:0}
+.server-edit,.server-del{
+  width:22px;height:22px;border:0;background:transparent;cursor:pointer;padding:0;
+  display:inline-flex;align-items:center;justify-content:center;opacity:.7;border-radius:6px;
+}
+.server-edit:hover,.server-del:hover{opacity:1;background:rgba(255,255,255,.06)}
+.server-edit img{width:13px;height:13px;filter:invert(1);display:block}
 .server-del img{width:12px;height:12px;filter:invert(1);display:block}
 
 
@@ -210,13 +215,12 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .server-dot.ping-bad{background:#FF4D4D}
 .server-dot.ping-off{background:#666}
 .server-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.server-ping{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.server-ping{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;margin-left:auto;flex-shrink:0}
 .server-ping.ping-good{color:#9dff90}
 .server-ping.ping-mid{color:#ffb86b}
 .server-ping.ping-bad{color:#ff7b7b}
 .server-ping.ping-off{color:#888}
-.server-edit{opacity:.6;padding:2px 4px}
-.server-edit:hover{opacity:1}.server-edit img{width:14px;height:14px;display:block;filter:invert(1)}
+.server-row.selected .server-ping{margin-left:auto}
 
 .anim-opts{opacity:.45;pointer-events:none;transition:opacity .2s ease}
 .anim-opts.enabled{opacity:1;pointer-events:auto}
