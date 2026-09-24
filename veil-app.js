@@ -387,6 +387,10 @@ function migrateSettings() {
   if (settings.launchMode !== "auto" && settings.launchMode !== "manual") {
     settings.launchMode = "manual";
   }
+  // Transport: default epoxy, only allow epoxy | libcurl
+  if (settings.transport !== "libcurl" && settings.transport !== "epoxy") {
+    settings.transport = "epoxy";
+  }
   // Theme defaults to matte
   if (!settings.theme || !THEMES[settings.theme]) {
     settings.theme = "matte";
@@ -605,11 +609,12 @@ async function createEngineFrame(page, wrapper) {
     }
     // Do not sandbox the frame - login cookies and OAuth need a normal iframe
     try {
+      // Use allow= only (allowfullscreen is ignored when allow is set)
       frame.setAttribute(
         "allow",
-        "fullscreen; clipboard-read; clipboard-write; autoplay; encrypted-media; picture-in-picture; payment"
+        "fullscreen *; clipboard-read *; clipboard-write *; autoplay *; encrypted-media *; picture-in-picture *; payment *"
       );
-      frame.setAttribute("allowfullscreen", "true");
+      frame.removeAttribute("allowfullscreen");
       frame.setAttribute("referrerpolicy", "no-referrer");
     } catch {}
     wrapper.innerHTML = "";
@@ -889,14 +894,14 @@ function renderToolbar() {
 }
 
 function renderChrome() {
-  renderTabs();
-  renderToolbar();
-  renderBookmarks();
-  loadColorInputs();
-  loadCloakInputs();
-  loadPanicInputs();
-  highlightTheme();
-  fillWispSelect();
+  try { renderTabs(); } catch (e) { console.warn("renderTabs", e); }
+  try { renderToolbar(); } catch (e) { console.warn("renderToolbar", e); }
+  try { renderBookmarks(); } catch (e) { console.warn("renderBookmarks", e); }
+  try { loadColorInputs(); } catch (e) { console.warn("loadColorInputs", e); }
+  try { loadCloakInputs(); } catch (e) { console.warn("loadCloakInputs", e); }
+  try { loadPanicInputs(); } catch (e) { console.warn("loadPanicInputs", e); }
+  try { highlightTheme(); } catch (e) { console.warn("highlightTheme", e); }
+  try { fillWispSelect(); } catch (e) { console.warn("fillWispSelect", e); }
 }
 
 async function navigate(raw) {
@@ -1233,20 +1238,46 @@ function closePanelsInner() {
 }
 function closeMenu() { document.getElementById("mainMenu").classList.remove("open"); }
 
+function safeColorValue(v, fallback) {
+  const s = String(v || "").trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(s)) return s;
+  if (/^#[0-9a-fA-F]{3}$/.test(s)) {
+    return "#" + s[1] + s[1] + s[2] + s[2] + s[3] + s[3];
+  }
+  return fallback || "#101010";
+}
+
 function loadColorInputs() {
-  document.getElementById("colorBg").value = settings.bg;
-  document.getElementById("colorPanel").value = settings.panel;
-  document.getElementById("colorAccent").value = settings.accent;
-  document.getElementById("colorText").value = settings.text;
-  document.getElementById("backgroundUrl").value = settings.backgroundUrl || "";
+  try {
+    const bg = document.getElementById("colorBg");
+    if (bg) bg.value = safeColorValue(settings.bg || settings.newtab, "#101010");
+    const panel = document.getElementById("colorPanel");
+    if (panel) panel.value = safeColorValue(settings.panel, "#161616");
+    const accent = document.getElementById("colorAccent");
+    if (accent) accent.value = safeColorValue(settings.accent, "#ffffff");
+    const text = document.getElementById("colorText");
+    if (text) text.value = safeColorValue(settings.text, "#f0f0f0");
+    const bgUrl = document.getElementById("backgroundUrl");
+    if (bgUrl) bgUrl.value = settings.backgroundUrl || "";
+  } catch (e) {
+    console.warn("loadColorInputs", e);
+  }
 }
 function loadCloakInputs() {
-  document.getElementById("cloakTitle").value = cloak.title || "";
-  document.getElementById("cloakIcon").value = cloak.icon || "";
+  try {
+    const t = document.getElementById("cloakTitle");
+    if (t) t.value = cloak.title || "";
+    const i = document.getElementById("cloakIcon");
+    if (i) i.value = cloak.icon || "";
+  } catch (e) {}
 }
 function loadPanicInputs() {
-  document.getElementById("panicKey").value = panic.key ? ("Bound: " + panic.key) : "Not bound";
-  document.getElementById("panicUrl").value = panic.url || "";
+  try {
+    const k = document.getElementById("panicKey");
+    if (k) k.value = panic.key ? ("Bound: " + panic.key) : "Not bound";
+    const u = document.getElementById("panicUrl");
+    if (u) u.value = panic.url || "";
+  } catch (e) {}
 }
 function pingClass(ms, offline) {
   // 1-199 green, 200-499 orange, 500+ red, offline grey
@@ -1639,55 +1670,64 @@ function lockVeil() {
 }
 
 function highlightTheme() {
-  document.querySelectorAll("[data-theme]").forEach(b => b.classList.toggle("active", b.dataset.theme === settings.theme));
-  const customCard = document.getElementById("customThemeCard");
-  if (customCard) customCard.classList.toggle("active", settings.theme === "custom");
-  const editor = document.getElementById("customColorCard");
-  if (editor) editor.classList.toggle("open", settings.theme === "custom" || editor.classList.contains("force-open"));
-  document.getElementById("transportEpoxy").classList.toggle("active", settings.transport !== "libcurl");
-  document.getElementById("transportLibcurl").classList.toggle("active", settings.transport === "libcurl");
-  const launchSel = document.getElementById("launchModeSelect");
-  if (launchSel) launchSel.value = settings.launchMode === "auto" ? "auto" : "manual";
-  setSwitch(document.getElementById("adblockSwitch"), settings.adBlocker !== false);
-  setSwitch(document.getElementById("animEnabledSwitch"), !!settings.animEnabled);
-  setSwitch(document.getElementById("lockUnloadSwitch"), !!settings.lockUnload);
-  setSwitch(document.getElementById("time24Switch"), settings.timeFormat === "24");
-  const animOpts = document.getElementById("animOpts");
-  if (animOpts) animOpts.classList.toggle("enabled", !!settings.animEnabled);
-  const range = document.getElementById("maxLoadedTabs");
-  const rangeVal = document.getElementById("maxLoadedTabsVal");
-  if (range) {
-    range.value = String(maxLoaded());
-    if (rangeVal) rangeVal.textContent = String(maxLoaded());
-  }
-  const engSel = document.getElementById("searchEngineSelect");
-  if (engSel) {
-    if (!SEARCH_ENGINES[settings.searchEngine]) settings.searchEngine = "duckduckgo";
-    engSel.value = settings.searchEngine || "duckduckgo";
-  }
-  const style = document.getElementById("animStyle");
-  if (style) style.value = settings.animStyle || "orbs";
-  const speed = document.getElementById("animSpeed");
-  const speedVal = document.getElementById("animSpeedVal");
-  if (speed) {
-    speed.value = String(settings.animSpeed || 1);
-    if (speedVal) speedVal.textContent = Number(settings.animSpeed || 1).toFixed(2) + "x";
-  }
-  const ca = document.getElementById("animColorA");
-  const cb = document.getElementById("animColorB");
-  if (ca) ca.value = settings.animColorA || "#7aa2ff";
-  if (cb) cb.value = settings.animColorB || "#b88cff";
-  const ac = document.getElementById("animCount");
-  const acv = document.getElementById("animCountVal");
-  if (ac) {
-    ac.value = String(settings.animCount || 18);
-    if (acv) acv.textContent = String(settings.animCount || 18);
-  }
-  const asz = document.getElementById("animSize");
-  const asv = document.getElementById("animSizeVal");
-  if (asz) {
-    asz.value = String(settings.animSize || 1);
-    if (asv) asv.textContent = Number(settings.animSize || 1).toFixed(2) + "x";
+  try {
+    if (!settings.transport || (settings.transport !== "epoxy" && settings.transport !== "libcurl")) {
+      settings.transport = "epoxy";
+    }
+    document.querySelectorAll("[data-theme]").forEach(b => b.classList.toggle("active", b.dataset.theme === settings.theme));
+    const customCard = document.getElementById("customThemeCard");
+    if (customCard) customCard.classList.toggle("active", settings.theme === "custom");
+    const editor = document.getElementById("customColorCard");
+    if (editor) editor.classList.toggle("open", settings.theme === "custom" || editor.classList.contains("force-open"));
+    const ep = document.getElementById("transportEpoxy");
+    const lc = document.getElementById("transportLibcurl");
+    if (ep) ep.classList.toggle("active", settings.transport !== "libcurl");
+    if (lc) lc.classList.toggle("active", settings.transport === "libcurl");
+    const launchSel = document.getElementById("launchModeSelect");
+    if (launchSel) launchSel.value = settings.launchMode === "auto" ? "auto" : "manual";
+    setSwitch(document.getElementById("adblockSwitch"), settings.adBlocker !== false);
+    setSwitch(document.getElementById("animEnabledSwitch"), !!settings.animEnabled);
+    setSwitch(document.getElementById("lockUnloadSwitch"), !!settings.lockUnload);
+    setSwitch(document.getElementById("time24Switch"), settings.timeFormat === "24");
+    const animOpts = document.getElementById("animOpts");
+    if (animOpts) animOpts.classList.toggle("enabled", !!settings.animEnabled);
+    const range = document.getElementById("maxLoadedTabs");
+    const rangeVal = document.getElementById("maxLoadedTabsVal");
+    if (range) {
+      range.value = String(maxLoaded());
+      if (rangeVal) rangeVal.textContent = String(maxLoaded());
+    }
+    const engSel = document.getElementById("searchEngineSelect");
+    if (engSel) {
+      if (!SEARCH_ENGINES[settings.searchEngine]) settings.searchEngine = "duckduckgo";
+      engSel.value = settings.searchEngine || "duckduckgo";
+    }
+    const style = document.getElementById("animStyle");
+    if (style) style.value = settings.animStyle || "orbs";
+    const speed = document.getElementById("animSpeed");
+    const speedVal = document.getElementById("animSpeedVal");
+    if (speed) {
+      speed.value = String(settings.animSpeed || 1);
+      if (speedVal) speedVal.textContent = Number(settings.animSpeed || 1).toFixed(2) + "x";
+    }
+    const ca = document.getElementById("animColorA");
+    const cb = document.getElementById("animColorB");
+    if (ca) ca.value = safeColorValue(settings.animColorA, "#7aa2ff");
+    if (cb) cb.value = safeColorValue(settings.animColorB, "#b88cff");
+    const ac = document.getElementById("animCount");
+    const acv = document.getElementById("animCountVal");
+    if (ac) {
+      ac.value = String(settings.animCount || 18);
+      if (acv) acv.textContent = String(settings.animCount || 18);
+    }
+    const asz = document.getElementById("animSize");
+    const asv = document.getElementById("animSizeVal");
+    if (asz) {
+      asz.value = String(settings.animSize || 1);
+      if (asv) asv.textContent = Number(settings.animSize || 1).toFixed(2) + "x";
+    }
+  } catch (e) {
+    console.warn("highlightTheme", e);
   }
 }
 
@@ -1709,19 +1749,30 @@ function applyTheme(name) {
   applyCSSVariables(); save(); highlightTheme(); loadColorInputs(); applyNewTabBackground();
 }
 function applyCustomColors() {
-  settings.bg = document.getElementById("colorBg").value;
-  settings.panel = document.getElementById("colorPanel").value;
-  settings.accent = document.getElementById("colorAccent").value;
-  settings.text = document.getElementById("colorText").value;
+  const bgEl = document.getElementById("colorBg");
+  if (bgEl && bgEl.value) settings.bg = bgEl.value;
+  const panelEl = document.getElementById("colorPanel");
+  if (panelEl && panelEl.value) settings.panel = panelEl.value;
+  const accentEl = document.getElementById("colorAccent");
+  if (accentEl && accentEl.value) settings.accent = accentEl.value;
+  const textEl = document.getElementById("colorText");
+  if (textEl && textEl.value) settings.text = textEl.value;
+  // Single-color custom editor: derive the rest from background
+  if (!panelEl) {
+    settings.panel = settings.bg;
+    settings.panel2 = settings.bg;
+    settings.bg2 = settings.bg;
+    settings.bg3 = settings.bg;
+  }
+  if (!settings.accent) settings.accent = "#ffffff";
+  if (!settings.text) settings.text = "#f0f0f0";
   settings.theme = "custom";
   settings.newtab = settings.bg;
-  settings.bg2 = settings.bg;
-  settings.bg3 = settings.panel;
-  settings.panel2 = settings.panel;
   applyCSSVariables(); save(); highlightTheme();
 }
 function applyBackground() {
-  settings.backgroundUrl = document.getElementById("backgroundUrl").value.trim();
+  const el = document.getElementById("backgroundUrl");
+  if (el) settings.backgroundUrl = el.value.trim();
   save(); applyNewTabBackground();
 }
 function applyCloakPreset(id) {
