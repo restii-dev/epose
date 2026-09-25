@@ -455,7 +455,7 @@ body.boot-reveal #browser{
   <div class="boot-card">
     <div class="boot-mark"><img src="image/favi.png" alt="" onerror="this.style.display='none'"></div>
     <div class="boot-title">Veil</div>
-    <div class="boot-sub" id="bootSub">Starting…</div>
+    <div class="boot-sub" id="bootSub">Getting ready…</div>
     <div class="boot-bar"><i></i></div>
     <div class="boot-steps" id="bootSteps"></div>
     <div class="boot-error" id="bootError">
@@ -521,14 +521,14 @@ body.boot-reveal #browser{
   function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
   async function checkScripts() {
-    addStep("Core scripts", "run");
+    addStep("Page ready", "run");
     await wait(80);
     if (typeof window === "undefined") throw new Error("Browser environment missing");
-    setStep(0, "ok", "Core scripts");
+    setStep(0, "ok", "Page ready");
   }
 
   async function checkWorker() {
-    addStep("Access service", "run");
+    addStep("Checking access", "run");
     setSub("Connecting…");
     var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
     var t = setTimeout(function () { try { ctrl && ctrl.abort(); } catch (e) {} }, 10000);
@@ -539,29 +539,29 @@ body.boot-reveal #browser{
         cache: "no-store",
       });
       clearTimeout(t);
-      if (!res.ok) throw new Error("Access service returned " + res.status);
+      if (!res.ok) throw new Error("Checking access returned " + res.status);
       var data = await res.json().catch(function () { return {}; });
-      if (!data.ok) throw new Error("Access service is not healthy");
-      setStep(1, "ok", "Access service");
+      if (!data.ok) throw new Error("Checking access is not healthy");
+      setStep(1, "ok", "Checking access");
     } catch (e) {
       clearTimeout(t);
-      setStep(1, "fail", "Access service");
+      setStep(1, "fail", "Checking access");
       throw new Error("Could not reach access service. Check your connection, then try again. (" + (e.message || e) + ")");
     }
   }
 
   async function checkAssets() {
-    addStep("Interface", "run");
+    addStep("Sign-in screen", "run");
     setSub("Loading interface…");
     await wait(120);
     var gate = document.getElementById("accessGate");
-    if (!gate) throw new Error("Interface failed to load (missing access gate)");
-    setStep(2, "ok", "Interface");
+    if (!gate) throw new Error("Sign-in screen failed to load (missing access gate)");
+    setStep(2, "ok", "Sign-in screen");
   }
 
   async function run() {
     try {
-      setSub("Starting…");
+      setSub("Getting ready…");
       await checkScripts();
       await checkWorker();
       await checkAssets();
@@ -848,9 +848,7 @@ body.boot-reveal #browser{
 </aside>
 
 </div>
+<!-- Browser engine loads only after access is validated -->
 <script src="access-gate.js"></script>
-<script src="baremux/index.js"></script>
-<script src="scramjet/scramjet.all.js"></script>
-<script src="veil-app.js"></script>
 </body>
 </html>
