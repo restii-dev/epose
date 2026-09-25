@@ -178,15 +178,42 @@
 
   function closeChromeExtras() {
     try {
-      document.querySelectorAll(".panel.open, .panel.show, #settingsPanel, #historyPanel, #bookmarksPanel").forEach(function (el) {
+      /* Only clear open state — do not set inline display:none (breaks later openPanel) */
+      document.querySelectorAll(".panel, #settingsPanel, #historyPanel, #bookmarksPanel").forEach(function (el) {
         el.classList.remove("open", "show");
-        el.style.display = "none";
+        el.style.removeProperty("display");
       });
-      var menu = document.getElementById("menu");
-      if (menu) { menu.classList.remove("open"); menu.style.display = "none"; }
+      var menu = document.getElementById("mainMenu") || document.getElementById("menu");
+      if (menu) {
+        menu.classList.remove("open");
+        menu.style.removeProperty("display");
+      }
       var bd = document.getElementById("backdrop");
-      if (bd) { bd.classList.remove("show", "open"); bd.style.display = "none"; }
+      if (bd) {
+        bd.classList.remove("show", "open");
+        bd.style.removeProperty("display");
+      }
     } catch (e) {}
+  }
+
+  /** Fade out / remove the initial #veilBoot cover (keeps chrome from flashing on gate). */
+  function dismissBoot(immediate) {
+    var bootEl = document.getElementById("veilBoot");
+    if (!bootEl) return;
+    /* Leave error state visible so the user can retry */
+    if (bootEl.classList.contains("err") && !immediate) return;
+    if (immediate) {
+      try {
+        if (bootEl.parentNode) bootEl.parentNode.removeChild(bootEl);
+      } catch (e) {}
+      return;
+    }
+    bootEl.classList.add("done");
+    setTimeout(function () {
+      try {
+        if (bootEl.parentNode) bootEl.parentNode.removeChild(bootEl);
+      } catch (e) {}
+    }, 400);
   }
 
   function setBodyLocked(locked) {
@@ -263,6 +290,7 @@
 
   function showGate(msg, isErr) {
     setBodyLocked(true);
+    closeChromeExtras();
     if (appRoot) appRoot.style.display = "none";
     var bl = document.getElementById("accessBlocked");
     if (bl) bl.style.display = "none";
@@ -272,6 +300,8 @@
     }
     if (gateBox) gateBox.style.visibility = "visible";
     setMsg(msg || DEFAULT_MSG, !!isErr, !!isErr);
+    /* Gate is painted — drop the boot cover so login/pending show without chrome flicker */
+    dismissBoot(false);
   }
 
   var pendingPollTimer = null;
@@ -386,6 +416,7 @@
 
   function showBlocked(msg) {
     setBodyLocked(true);
+    closeChromeExtras();
     if (appRoot) appRoot.style.display = "none";
     if (gate) {
       gate.style.display = "none";
@@ -394,11 +425,18 @@
     el.style.display = "flex";
     var p = document.getElementById("blockedTimeMsg");
     if (p) p.textContent = msg || "Contact an admin if you think this is a mistake.";
+    dismissBoot(false);
   }
 
   function ensureAppLoader() {
     var el = document.getElementById("veilAppLoad");
-    if (el) return el;
+    if (el) {
+      el.classList.remove("done");
+      el.style.opacity = "1";
+      el.style.visibility = "visible";
+      el.style.display = "flex";
+      return el;
+    }
     el = document.createElement("div");
     el.id = "veilAppLoad";
     el.innerHTML =
@@ -408,10 +446,11 @@
       '<div class="boot-sub" id="veilAppLoadSub">Loading browser…</div>' +
       '<div class="boot-bar"><i></i></div>' +
       "</div>";
+    /* Styles also in CSS (#veilAppLoad); inline keeps it visible even if CSS lags */
     el.style.cssText =
-      "position:fixed;inset:0;z-index:150000;display:flex;align-items:center;justify-content:center;" +
+      "position:fixed;inset:0;z-index:200000;display:flex;align-items:center;justify-content:center;" +
       "background:#0c0c0c;flex-direction:column;padding:28px;" +
-      "transition:opacity .5s ease,visibility .5s ease";
+      "transition:opacity .5s ease,visibility .5s ease;opacity:1;visibility:visible";
     document.body.appendChild(el);
     return el;
   }
@@ -441,11 +480,15 @@
     window.__VEIL_UNLOCKING = true;
     stopPendingPoll();
 
+    /* Show browser loader immediately on entry/refresh, then load engine */
+    var loadStarted = Date.now();
+    var loader = ensureAppLoader();
+    dismissBoot(true);
+
     if (gate) gate.style.display = "none";
     var bl = document.getElementById("accessBlocked");
     if (bl) bl.style.display = "none";
 
-    var loader = ensureAppLoader();
     var sub = document.getElementById("veilAppLoadSub");
     function setLoadMsg(t) {
       if (sub) sub.textContent = t;
@@ -482,8 +525,13 @@
         } catch (e) {
           console.error(e);
         }
+        /* Keep loader visible long enough for the animation to actually play */
+        var minShow = 750;
+        var elapsed = Date.now() - loadStarted;
+        var waitMore = Math.max(0, minShow - elapsed);
         setTimeout(function () {
           if (loader) {
+            loader.classList.add("done");
             loader.style.opacity = "0";
             loader.style.visibility = "hidden";
             setTimeout(function () {
@@ -494,7 +542,7 @@
           }
           document.body.classList.remove("boot-reveal");
           window.__VEIL_UNLOCKING = false;
-        }, 400);
+        }, waitMore + 350);
       })
       .catch(function (err) {
         window.__VEIL_UNLOCKING = false;
@@ -835,16 +883,9 @@
 
     window.VeilAccess.signOut = doSignOut;
 
-  // No full-page boot animation on gate — only when browser loads (unlockApp)
+  /* Keep #veilBoot until showGate / unlockApp dismisses it (prevents menu flicker). */
   if (document.body) {
     document.body.classList.remove("booting");
-  }
-  var bootEl = document.getElementById("veilBoot");
-  if (bootEl) {
-    try {
-      bootEl.style.display = "none";
-      if (bootEl.parentNode) bootEl.parentNode.removeChild(bootEl);
-    } catch (e) {}
   }
 
   fetchAuthConfig();

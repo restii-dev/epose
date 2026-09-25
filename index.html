@@ -362,12 +362,18 @@ body.gate-lock #browser,
 body.gate-lock #app,
 body.gate-lock .panel,
 body.gate-lock .menu,
-body.gate-lock .backdrop,
-body.gate-lock #veilAppLoad{display:none!important}
+body.gate-lock .backdrop{display:none!important}
 body.gate-lock{background:#101010}
 /* Gate visible immediately while locked — no flash of browser/panels */
 body.gate-lock #accessGate{display:flex!important}
 #accessGate{display:none}
+/* App loader stays visible during unlock (must not be hidden by gate-lock) */
+#veilAppLoad{
+  position:fixed;inset:0;z-index:200000;display:flex;align-items:center;justify-content:center;
+  background:#0c0c0c;flex-direction:column;padding:28px;
+  transition:opacity .5s ease,visibility .5s ease;
+}
+#veilAppLoad.done{opacity:0;visibility:hidden;pointer-events:none}
 
 
 /* ——— Boot loader ——— */
@@ -555,12 +561,9 @@ body.boot-reveal #browser{
   function succeed() {
     setSub("Ready");
     document.body.classList.remove("booting");
-    document.body.classList.add("boot-reveal");
-    if (boot) boot.classList.add("done");
-    setTimeout(function () {
-      try { if (boot && boot.parentNode) boot.parentNode.removeChild(boot); } catch (e) {}
-      document.body.classList.remove("boot-reveal");
-    }, 700);
+    /* Keep #veilBoot covering the page until access-gate.js dismisses it
+       after login/pending is painted — prevents menu/chrome flicker. */
+    try { window.__VEIL_BOOT_READY = true; } catch (e) {}
     try { window.dispatchEvent(new CustomEvent("veil-boot-ready")); } catch (e) {}
   }
 
