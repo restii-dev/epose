@@ -141,6 +141,7 @@
     }
     clearToken();
     stopLivePoll();
+    stopPendingPoll();
     window.__VEIL_ACCESS_OK = false;
     window.__VEIL_UNLOCKING = false;
     try {
@@ -258,16 +259,114 @@
     setMsg(msg || DEFAULT_MSG, !!isErr, !!isErr);
   }
 
-  function showPending(user) {
-    showGate("", false);
-    showPanel("pending");
-    var t = document.getElementById("pendingText");
-    if (t) {
-      var email = (user && user.email) || localStorage.getItem(PENDING_EMAIL) || "";
-      t.textContent =
-        (email ? email + " — " : "") +
-        "Your account is pending. An admin must grant you access time before you can use Veil.";
+  var pendingPollTimer = null;
+
+  function stopPendingPoll() {
+    if (pendingPollTimer) {
+      clearInterval(pendingPollTimer);
+      pendingPollTimer = null;
     }
+  }
+
+  function startPendingPoll() {
+    stopPendingPoll();
+    pendingPollTimer = setInterval(function () {
+      quietCheckAccess(true);
+    }, 8000);
+  }
+
+  /** mode: "pending" | "expired" | "signed_out" */
+  function showPending(user, mode) {
+    stopLivePoll();
+    window.__VEIL_ACCESS_OK = false;
+    window.__VEIL_UNLOCKING = false;
+
+    var email = (user && user.email) || "";
+    try {
+      if (email) localStorage.setItem(PENDING_EMAIL, email);
+      else email = localStorage.getItem(PENDING_EMAIL) || "";
+    } catch (e) {}
+
+    var kind = mode || "pending";
+    if (!mode && user) {
+      if (user.status === "expired" || (user.hasAccess === false && user.status === "allowed")) {
+        kind = "expired";
+      } else if (user.status === "expired") {
+        kind = "expired";
+      }
+    }
+
+    showGate("", false);
+    if (keyMsg) keyMsg.textContent = "";
+    showPanel("pending");
+
+    var title = document.getElementById("pendingTitle");
+    var emailEl = document.getElementById("pendingEmail");
+    var text = document.getElementById("pendingText");
+    var hint = document.getElementById("pendingHint");
+    var icon = document.querySelector("#panelPending .pending-icon");
+
+    if (emailEl) emailEl.textContent = email || "";
+
+    if (kind === "expired" || kind === "signed_out") {
+      if (title) title.textContent = "Access paused";
+      if (text) {
+        text.textContent =
+          "Your time on Veil has run out. Ask an admin to add more time, then tap Check status.";
+      }
+      if (hint) {
+        hint.textContent = "Stay on this page — we’ll keep checking automatically.";
+      }
+      if (icon) icon.textContent = "◌";
+    } else {
+      if (title) title.textContent = "Almost there";
+      if (text) {
+        text.textContent =
+          "Your account is ready. An admin still needs to approve you and add access time before you can browse.";
+      }
+      if (hint) {
+        hint.textContent = "You can leave this open. We’ll check every few seconds and let you in when you’re approved.";
+      }
+      if (icon) icon.textContent = "◌";
+    }
+
+    startPendingPoll();
+  }
+
+  function quietCheckAccess(fromPoll) {
+    var token = getToken();
+    if (!token) {
+      stopPendingPoll();
+      return;
+    }
+    var btn = document.getElementById("pendingRefreshBtn");
+    if (btn && !fromPoll) {
+      btn.disabled = true;
+      btn.textContent = "Checking…";
+    }
+    api("/api/session/check", { token: token }).then(function (r) {
+      if (btn && !fromPoll) {
+        btn.disabled = false;
+        btn.textContent = "Check status";
+      }
+      if (!r.data) return;
+      if (r.data.ok && r.data.user && r.data.user.hasAccess) {
+        stopPendingPoll();
+        setToken(token, r.data.user);
+        unlockApp();
+        return;
+      }
+      // Stay on waiting screen; refresh copy if status changed
+      if (r.data.user || r.data.reason) {
+        var mode = r.data.reason || (r.data.user && r.data.user.status) || "pending";
+        if (mode === "banned") {
+          stopPendingPoll();
+          handleAuthResult(r.data, token);
+          return;
+        }
+        showPending(r.data.user, mode === "signed_out" ? "expired" : mode);
+      }
+    });
   }
 
   function showBlocked(msg) {
@@ -325,6 +424,7 @@
   function unlockApp() {
     if (window.__VEIL_UNLOCKING || window.__VEIL_ACCESS_OK) return;
     window.__VEIL_UNLOCKING = true;
+    stopPendingPoll();
 
     if (gate) gate.style.display = "none";
     var bl = document.getElementById("accessBlocked");
@@ -457,19 +557,10 @@
       if (user && user.email) {
         try { localStorage.setItem(PENDING_EMAIL, user.email); } catch (e) {}
       }
-      showPending(user);
-      var pendingText = document.getElementById("pendingText");
-      if (pendingText) {
-        if (data.reason === "expired" || data.reason === "signed_out" || (user && user.status === "expired")) {
-          pendingText.textContent =
-            (user && user.email ? user.email + " — " : "") +
-            "Your access has ended. An admin needs to give you more time.";
-        } else {
-          pendingText.textContent =
-            (user && user.email ? user.email + " — " : "") +
-            "Your account is waiting for approval. An admin must give you access time first.";
-        }
-      }
+      var mode = "pending";
+      if (data.reason === "expired" || data.reason === "signed_out") mode = "expired";
+      else if (user && user.status === "expired") mode = "expired";
+      showPending(user, mode);
       return;
     }
 
@@ -599,18 +690,14 @@
 
   if (pendingRefresh) {
     pendingRefresh.onclick = function () {
-      setMsg("Checking…", false);
-      checkSession();
+      quietCheckAccess(false);
     };
   }
 
   if (pendingLogout) {
     pendingLogout.onclick = function () {
-      var token = getToken();
-      if (token) api("/api/auth/logout", { token: token });
-      clearToken();
-      showGate(DEFAULT_MSG, false);
-      showPanel("login");
+      stopPendingPoll();
+      doSignOut();
     };
   }
 
