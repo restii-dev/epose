@@ -450,7 +450,7 @@ body.boot-reveal #browser{
 }
 </style>
 </head>
-<body class="gate-lock booting">
+<body class="gate-lock">
 <div id="veilBoot" aria-live="polite">
   <div class="boot-card">
     <div class="boot-mark"><img src="image/favi.png" alt="" onerror="this.style.display='none'"></div>
@@ -821,6 +821,11 @@ body.boot-reveal #browser{
       <div class="input-row"><input class="text-input" id="newPassword2" type="password" placeholder="Confirm new password"></div>
       <button class="primary-btn" id="savePassword" type="button">Save password</button>
       <p class="hint" id="passwordMsg"></p>
+    </section>
+    <section class="setting-section">
+      <div class="setting-title">Account</div>
+      <button class="secondary-btn" id="signOutBtn" type="button">Sign out</button>
+      <p class="hint">Signs you out of Veil and Google on this device.</p>
     </section>
     <section class="setting-section">
       <div class="setting-title">Factory reset</div>

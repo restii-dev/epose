@@ -119,11 +119,13 @@
       }
       api("/api/session/check", { token: token }).then(function (r) {
         if (!r.data) return;
-        if (r.data.ok && r.data.user) {
+        if (r.data.ok && r.data.user && r.data.user.hasAccess) {
           setToken(token, r.data.user);
           return;
         }
         stopLivePoll();
+        window.__VEIL_ACCESS_OK = false;
+        window.__VEIL_UNLOCKING = false;
         handleAuthResult(r.data, token);
         try {
           window.dispatchEvent(new CustomEvent("veil-access-revoked", { detail: r.data }));
@@ -132,8 +134,31 @@
     }, 12000);
   }
 
+  function doSignOut() {
+    var token = getToken();
+    if (token) {
+      api("/api/auth/logout", { token: token }).catch(function () {});
+    }
+    clearToken();
+    stopLivePoll();
+    window.__VEIL_ACCESS_OK = false;
+    window.__VEIL_UNLOCKING = false;
+    try {
+      if (window.google && google.accounts && google.accounts.id) {
+        google.accounts.id.disableAutoSelect();
+      }
+    } catch (e) {}
+    try {
+      document.body.classList.add("gate-lock");
+      if (appRoot) appRoot.style.display = "none";
+    } catch (e) {}
+    showGate(DEFAULT_MSG, false);
+    showPanel("login");
+  }
+
   window.VeilAccess = {
     getToken: getToken,
+    signOut: doSignOut,
     getMeta: function () {
       try {
         return lastUser || JSON.parse(localStorage.getItem(SESSION_META) || "null");
@@ -405,7 +430,7 @@
       return;
     }
 
-    if (data.reason === "banned" || (user && user.status === "banned")) {
+    if (data.reason === "banned" || (user && (user.status === "banned" || user.banned))) {
       clearToken();
       showBlocked(data.error || "You are banned from Veil");
       return;
@@ -416,18 +441,35 @@
         try { localStorage.setItem(PENDING_EMAIL, user.email); } catch (e) {}
       }
       if (token) setToken(token, user);
-      showGate(data.error || "Verify your email", true);
+      showGate(data.error || "Verify your email", false);
       showPanel("verify");
       return;
     }
 
-    if (data.reason === "pending" || data.reason === "expired" || (user && user.status === "pending")) {
+    // No time / pending / session ended → waiting screen (not login)
+    if (
+      data.reason === "pending" ||
+      data.reason === "expired" ||
+      data.reason === "signed_out" ||
+      (user && (user.status === "pending" || user.status === "expired" || user.hasAccess === false))
+    ) {
       if (token) setToken(token, user);
       if (user && user.email) {
         try { localStorage.setItem(PENDING_EMAIL, user.email); } catch (e) {}
       }
       showPending(user);
-      if (data.reason === "expired") setMsg(data.error || "No time remaining", true, false);
+      var pendingText = document.getElementById("pendingText");
+      if (pendingText) {
+        if (data.reason === "expired" || data.reason === "signed_out" || (user && user.status === "expired")) {
+          pendingText.textContent =
+            (user && user.email ? user.email + " — " : "") +
+            "Your access has ended. An admin needs to give you more time.";
+        } else {
+          pendingText.textContent =
+            (user && user.email ? user.email + " — " : "") +
+            "Your account is waiting for approval. An admin must give you access time first.";
+        }
+      }
       return;
     }
 
@@ -437,6 +479,7 @@
     }
   }
 
+  
   function checkSession() {
     var token = getToken();
     if (!token) {
@@ -444,14 +487,16 @@
       showPanel("login");
       return Promise.resolve();
     }
-    showBlack();
+    // Quiet check — no boot animation on gate
+    setBodyLocked(true);
+    if (appRoot) appRoot.style.display = "none";
     return api("/api/session/check", { token: token }).then(function (r) {
-      if (r.data && r.data.ok) {
+      if (r.data && r.data.ok && r.data.user && r.data.user.hasAccess) {
         setToken(token, r.data.user);
         unlockApp();
         return;
       }
-      if (r.data && (r.data.reason === "pending" || r.data.reason === "expired" || r.data.reason === "unverified" || r.data.reason === "banned")) {
+      if (r.data) {
         handleAuthResult(r.data, token);
         return;
       }
@@ -598,11 +643,19 @@
     }
     setMsg("Signing in with Google…", false);
     api("/api/auth/google", { credential: response.credential }).then(function (r) {
-      if (r.data.token) setToken(r.data.token, r.data.user);
-      handleAuthResult(r.data, r.data.token);
-      if (!r.data.ok && !r.data.reason) {
-        setMsg(r.data.error || "Google sign-in failed", true, true);
+      var data = r.data || {};
+      if (data.token) setToken(data.token, data.user);
+      // Always route through handleAuthResult (enter Veil, pending, or ban)
+      if (data.ok && data.user && data.user.hasAccess) {
+        handleAuthResult(data, data.token);
+        return;
       }
+      if (data.user || data.reason) {
+        handleAuthResult(data, data.token);
+        return;
+      }
+      setMsg(data.error || "Google sign-in failed", true, true);
+      showPanel("login");
     });
   }
 
@@ -678,8 +731,20 @@
     }
   };
 
-  // Boot
-  showBlack();
+    window.VeilAccess.signOut = doSignOut;
+
+  // No full-page boot animation on gate — only when browser loads (unlockApp)
+  if (document.body) {
+    document.body.classList.remove("booting");
+  }
+  var bootEl = document.getElementById("veilBoot");
+  if (bootEl) {
+    try {
+      bootEl.style.display = "none";
+      if (bootEl.parentNode) bootEl.parentNode.removeChild(bootEl);
+    } catch (e) {}
+  }
+
   fetchAuthConfig();
   checkSession();
 })();

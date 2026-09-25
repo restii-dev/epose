@@ -2638,6 +2638,20 @@ async function bootVeilApp() {
   });
 })();
 
+on("signOutBtn", () => {
+  closePanels();
+  closeMenu();
+  if (window.VeilAccess && typeof window.VeilAccess.signOut === "function") {
+    window.VeilAccess.signOut();
+  } else {
+    try {
+      localStorage.removeItem("veil_access_token");
+      document.cookie = "veil_access_token=; path=/; max-age=0; SameSite=Lax";
+    } catch (e) {}
+    location.reload();
+  }
+});
+
 on("openAdminPanel", () => {
   closePanels();
   closeMenu();
