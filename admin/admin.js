@@ -27,7 +27,7 @@ function flash(el, text, ok) {
     el._t = setTimeout(function () {
       el.textContent = "";
       el.className = "msg";
-    }, 3500);
+    }, 3000);
   }
 }
 
@@ -47,14 +47,8 @@ function api(path, opts) {
         return { res: res, data: data };
       });
     })
-    .catch(function (err) {
-      return {
-        res: { ok: false, status: 0 },
-        data: {
-          ok: false,
-          error: "Could not reach server (" + (err && err.message ? err.message : "network") + ")",
-        },
-      };
+    .catch(function () {
+      return { res: { ok: false, status: 0 }, data: { ok: false, error: "Could not reach server" } };
     });
 }
 
@@ -87,9 +81,9 @@ $("adminPass").addEventListener("keydown", function (e) {
 });
 
 $("signoutAll").onclick = function () {
-  if (!confirm("Sign out everyone?")) return;
+  if (!confirm("Kick every online user?")) return;
   api("/api/admin/signout-all", { method: "POST", body: "{}" }).then(function (r) {
-    flash($("globalMsg"), r.data.ok ? "Everyone signed out." : r.data.error || "Failed", !!r.data.ok);
+    flash($("globalMsg"), r.data.ok ? "All sessions cleared" : r.data.error || "Failed", !!r.data.ok);
   });
 };
 
@@ -104,8 +98,7 @@ $("userSearch").addEventListener("input", function () {
 });
 
 function badge(status) {
-  var s = status || "pending";
-  return '<span class="badge ' + s + '">' + s + "</span>";
+  return '<span class="badge ' + (status || "pending") + '">' + (status || "pending") + "</span>";
 }
 
 function fmtDate(ts) {
@@ -115,6 +108,14 @@ function fmtDate(ts) {
   } catch (e) {
     return "—";
   }
+}
+
+function postUser(path, email, extra, msg, okText) {
+  var body = Object.assign({ email: email }, extra || {});
+  api(path, { method: "POST", body: JSON.stringify(body) }).then(function (res) {
+    flash(msg, res.data.ok ? okText || "Done" : res.data.error || "Failed", !!res.data.ok);
+    if (res.data.ok) loadUsers();
+  });
 }
 
 function loadUsers() {
@@ -129,73 +130,60 @@ function loadUsers() {
     }
     var users = r.data.users || [];
     if (!users.length) {
-      list.innerHTML = '<div class="msg">No users yet</div>';
+      list.innerHTML = '<div class="msg">No users</div>';
       return;
     }
     users.forEach(function (u) {
-      var div = document.createElement("div");
-      div.className = "user";
       var time =
         u.infinite || u.remainingLabel === "inf"
           ? "unlimited"
           : u.remainingHuman || u.remainingLabel || "none";
-      var banLine = "";
-      if (u.banned || u.status === "banned") {
-        banLine =
-          " · ban: " +
-          escapeHtml(u.banRemainingHuman || "permanent") +
-          (u.banReason ? " — " + escapeHtml(u.banReason) : "");
-      }
+      var div = document.createElement("div");
+      div.className = "user";
       div.innerHTML =
         '<div class="user-email">' +
         escapeHtml(u.email) +
         badge(u.status) +
-        (u.emailVerified ? "" : '<span class="badge">unverified</span>') +
         (u.googleLinked ? '<span class="badge">google</span>' : "") +
+        (!u.emailVerified ? '<span class="badge">unverified</span>' : "") +
         "</div>" +
-        '<div class="user-meta">Access: ' +
+        '<div class="user-meta">' +
+        "Access: " +
         escapeHtml(time) +
-        banLine +
-        (u.created ? " · joined " + fmtDate(u.created) : "") +
+        (u.banned ? " · banned " + escapeHtml(u.banRemainingHuman || "") : "") +
+        " · login " +
+        escapeHtml(fmtDate(u.lastLogin)) +
         "</div>" +
         '<div class="detail">' +
         '<div class="user-meta" style="margin-bottom:10px">' +
-        "ID: " +
-        escapeHtml(u.id || "") +
-        "<br>Last login: " +
-        escapeHtml(fmtDate(u.lastLogin)) +
-        "<br>Email verified: " +
-        (u.emailVerified ? "yes" : "no") +
-        "<br>Google linked: " +
-        (u.googleLinked ? "yes" : "no") +
-        "<br>Password set: " +
-        (u.hasPassword ? "yes (hashed — cannot view)" : "no (Google-only or unset)") +
-        (u.banned
-          ? "<br>Ban: " +
-            escapeHtml(u.banRemainingHuman || "permanent") +
-            (u.banReason ? " — " + escapeHtml(u.banReason) : "")
-          : "") +
+        (u.banReason ? "Ban reason: " + escapeHtml(u.banReason) + "<br>" : "") +
+        "Joined " +
+        escapeHtml(fmtDate(u.created)) +
+        (u.hasPassword ? " · password set" : " · no password") +
         "</div>" +
-        '<label class="hint">Grant access time (30m, 2h, 1d, inf)</label>' +
+        '<label class="hint">Access time</label>' +
         '<div class="row">' +
-        '<input type="text" class="dur" placeholder="1d" value="1d" />' +
+        '<input type="text" class="dur" placeholder="1d / 2h / inf" value="1d" />' +
         '<select class="mode"><option value="set">Set</option><option value="add">Add</option></select>' +
         '<button type="button" class="primary grant">Grant</button>' +
         "</div>" +
-        '<label class="hint">Set Veil password (cannot view old password — hashed)</label>' +
-        '<div class="row">' +
-        '<input type="text" class="newpass" placeholder="New password (min 6)" />' +
-        '<button type="button" class="setpass">Save password</button>' +
-        "</div>" +
-        '<label class="hint">Ban duration (30m, 2h, 1d, inf = permanent) + reason</label>' +
+        '<label class="hint">Ban</label>' +
         '<div class="row">' +
         '<input type="text" class="bandur" placeholder="1d or inf" value="1d" />' +
-        '<input type="text" class="banreason" placeholder="Reason (optional)" />' +
+        '<input type="text" class="banreason" placeholder="Reason" />' +
+        '<button type="button" class="danger ban">Ban</button>' +
         "</div>" +
-        '<div class="row" style="margin-top:8px">' +
-        (u.status === "banned"
-          ? '<button type="button" class="unban">Unban</button>'
-          : '<button type="button" class="danger ban">Ban</button>') +
+        '<label class="hint">Password</label>' +
+        '<div class="row">' +
+        '<input type="text" class="newpass" placeholder="New password" />' +
+        '<button type="button" class="setpass">Set</button>' +
+        "</div>" +
+        '<div class="row actions" style="margin-top:12px">' +
+        '<button type="button" class="kick">Invalidate</button>' +
+        '<button type="button" class="revoke">Revoke time</button>' +
+        '<button type="button" class="pending">Pending</button>' +
+        (u.status === "banned" ? '<button type="button" class="unban">Unban</button>' : "") +
+        (!u.emailVerified ? '<button type="button" class="verify">Verify email</button>' : "") +
         "</div>" +
         '<div class="msg actmsg"></div>' +
         "</div>";
@@ -209,56 +197,62 @@ function loadUsers() {
 
       div.querySelector(".grant").onclick = function (e) {
         e.stopPropagation();
-        var duration = div.querySelector(".dur").value;
-        var mode = div.querySelector(".mode").value;
-        api("/api/admin/users/grant", {
-          method: "POST",
-          body: JSON.stringify({ email: u.email, duration: duration, mode: mode }),
-        }).then(function (res) {
-          flash(msg, res.data.ok ? "Granted (live within ~12s for user)" : res.data.error || "Failed", !!res.data.ok);
-          if (res.data.ok) loadUsers();
-        });
+        postUser(
+          "/api/admin/users/grant",
+          u.email,
+          { duration: div.querySelector(".dur").value, mode: div.querySelector(".mode").value },
+          msg,
+          "Granted"
+        );
+      };
+
+      div.querySelector(".ban").onclick = function (e) {
+        e.stopPropagation();
+        var duration = div.querySelector(".bandur").value || "inf";
+        var reason = div.querySelector(".banreason").value || "";
+        if (!confirm("Ban " + u.email + " (" + duration + ")?")) return;
+        postUser("/api/admin/users/ban", u.email, { duration: duration, reason: reason }, msg, "Banned");
       };
 
       div.querySelector(".setpass").onclick = function (e) {
         e.stopPropagation();
-        var password = div.querySelector(".newpass").value;
-        api("/api/admin/users/set-password", {
-          method: "POST",
-          body: JSON.stringify({ email: u.email, password: password }),
-        }).then(function (res) {
-          flash(msg, res.data.ok ? "Password updated" : res.data.error || "Failed", !!res.data.ok);
-          if (res.data.ok) loadUsers();
-        });
+        postUser(
+          "/api/admin/users/set-password",
+          u.email,
+          { password: div.querySelector(".newpass").value },
+          msg,
+          "Password set"
+        );
       };
 
-      var banBtn = div.querySelector(".ban");
-      if (banBtn) {
-        banBtn.onclick = function (e) {
+      div.querySelector(".kick").onclick = function (e) {
+        e.stopPropagation();
+        postUser("/api/admin/users/invalidate", u.email, {}, msg, "Session invalidated");
+      };
+
+      div.querySelector(".revoke").onclick = function (e) {
+        e.stopPropagation();
+        if (!confirm("Revoke access time for " + u.email + "?")) return;
+        postUser("/api/admin/users/revoke", u.email, {}, msg, "Access revoked");
+      };
+
+      div.querySelector(".pending").onclick = function (e) {
+        e.stopPropagation();
+        postUser("/api/admin/users/pending", u.email, {}, msg, "Set to pending");
+      };
+
+      var unban = div.querySelector(".unban");
+      if (unban) {
+        unban.onclick = function (e) {
           e.stopPropagation();
-          var duration = (div.querySelector(".bandur") || {}).value || "inf";
-          var reason = (div.querySelector(".banreason") || {}).value || "";
-          if (!confirm("Ban " + u.email + " for " + duration + "?")) return;
-          api("/api/admin/users/ban", {
-            method: "POST",
-            body: JSON.stringify({ email: u.email, duration: duration, reason: reason }),
-          }).then(function (res) {
-            flash(msg, res.data.ok ? "Banned (live within ~12s)" : res.data.error || "Failed", !!res.data.ok);
-            if (res.data.ok) loadUsers();
-          });
+          postUser("/api/admin/users/unban", u.email, {}, msg, "Unbanned");
         };
       }
-      var unbanBtn = div.querySelector(".unban");
-      if (unbanBtn) {
-        unbanBtn.onclick = function (e) {
+      var verify = div.querySelector(".verify");
+      if (verify) {
+        verify.onclick = function (e) {
           e.stopPropagation();
-          api("/api/admin/users/unban", {
-            method: "POST",
-            body: JSON.stringify({ email: u.email }),
-          }).then(function (res) {
-            flash(msg, res.data.ok ? "Unbanned" : res.data.error || "Failed", !!res.data.ok);
-            if (res.data.ok) loadUsers();
-          });
+          postUser("/api/admin/users/verify", u.email, {}, msg, "Email verified");
         };
       }
 
