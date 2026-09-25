@@ -425,7 +425,99 @@
     if (e.key === "Enter" && verifyBtn) verifyBtn.click();
   });
 
+  // ——— Google Sign-In ———
+  var googleClientId = null;
+  var googleReady = false;
+
+  function onGoogleCredential(response) {
+    if (!response || !response.credential) {
+      setMsg("Google sign-in failed", true, true);
+      return;
+    }
+    setMsg("Signing in with Google…", false);
+    api("/api/auth/google", { credential: response.credential }).then(function (r) {
+      if (r.data.token) setToken(r.data.token, r.data.user);
+      handleAuthResult(r.data, r.data.token);
+      if (!r.data.ok && !r.data.reason) {
+        setMsg(r.data.error || "Google sign-in failed", true, true);
+      }
+    });
+  }
+
+  function initGoogleButton() {
+    if (!googleClientId || googleReady) return;
+    if (!window.google || !google.accounts || !google.accounts.id) return;
+    try {
+      google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: onGoogleCredential,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+      });
+      var host = document.getElementById("googleSignInBtn");
+      var wrap = document.getElementById("googleSignInWrap");
+      if (host && wrap) {
+        host.innerHTML = "";
+        var w = 320;
+        try {
+          if (gateBox && gateBox.clientWidth) w = Math.min(360, Math.max(240, gateBox.clientWidth - 56));
+        } catch (e) {}
+        google.accounts.id.renderButton(host, {
+          theme: "outline",
+          size: "large",
+          shape: "rectangular",
+          text: "continue_with",
+          width: w,
+        });
+        wrap.style.display = "block";
+        googleReady = true;
+      }
+    } catch (e) {
+      console.warn("Google button init", e);
+    }
+  }
+
+  function loadGoogleScript(clientId) {
+    googleClientId = clientId;
+    if (window.google && google.accounts) {
+      initGoogleButton();
+      return;
+    }
+    var s = document.createElement("script");
+    s.src = "https://accounts.google.com/gsi/client";
+    s.async = true;
+    s.defer = true;
+    s.onload = function () {
+      initGoogleButton();
+    };
+    document.head.appendChild(s);
+  }
+
+  function fetchAuthConfig() {
+    return fetch(WORKER_URL + "/api/auth/config")
+      .then(function (res) {
+        return res.json().catch(function () {
+          return {};
+        });
+      })
+      .then(function (data) {
+        if (data && data.googleClientId) loadGoogleScript(data.googleClientId);
+      })
+      .catch(function () {});
+  }
+
+  var _origShowPanel = showPanel;
+  showPanel = function (name) {
+    _origShowPanel(name);
+    var wrap = document.getElementById("googleSignInWrap");
+    if (wrap) {
+      wrap.style.display =
+        googleReady && (name === "login" || name === "signup") ? "block" : "none";
+    }
+  };
+
   // Boot
   showBlack();
+  fetchAuthConfig();
   checkSession();
 })();

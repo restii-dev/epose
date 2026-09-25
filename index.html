@@ -297,6 +297,17 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 #accessGate.is-blocked .box{transition:opacity .3s ease,filter .3s ease}
 #accessGate .pending-box h2{font-size:18px;margin-bottom:8px;color:#f0f0f0}
 #accessGate .pending-box p{color:#888;font-size:13px;line-height:1.5;margin-bottom:12px}
+#accessGate .google-wrap{width:100%}
+#accessGate .google-btn-host{display:flex;justify-content:center;min-height:40px}
+#accessGate .gate-or{
+  text-align:center;color:#666;font-size:12px;margin:12px 0 4px;
+  position:relative
+}
+#accessGate .gate-or::before,#accessGate .gate-or::after{
+  content:"";position:absolute;top:50%;width:38%;height:1px;background:#2a2a2a
+}
+#accessGate .gate-or::before{left:0}
+#accessGate .gate-or::after{right:0}
 #accessBlocked{
   display:none;position:fixed;inset:0;z-index:100000;
   align-items:center;justify-content:center;padding:24px;
@@ -383,6 +394,10 @@ body.gate-lock{background:#101010}
     <div class="gate-tabs">
       <button type="button" class="gate-tab active" data-gate-tab="login">Log in</button>
       <button type="button" class="gate-tab" data-gate-tab="signup">Sign up</button>
+    </div>
+    <div id="googleSignInWrap" class="google-wrap" style="display:none;margin-bottom:14px">
+      <div id="googleSignInBtn" class="google-btn-host"></div>
+      <p class="gate-or">or</p>
     </div>
     <div class="gate-panel active" id="panelLogin">
       <input id="loginEmail" type="email" placeholder="Email" autocomplete="username" />
