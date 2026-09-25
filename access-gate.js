@@ -175,8 +175,23 @@
     },
   };
 
+
+  function closeChromeExtras() {
+    try {
+      document.querySelectorAll(".panel.open, .panel.show, #settingsPanel, #historyPanel, #bookmarksPanel").forEach(function (el) {
+        el.classList.remove("open", "show");
+        el.style.display = "none";
+      });
+      var menu = document.getElementById("menu");
+      if (menu) { menu.classList.remove("open"); menu.style.display = "none"; }
+      var bd = document.getElementById("backdrop");
+      if (bd) { bd.classList.remove("show", "open"); bd.style.display = "none"; }
+    } catch (e) {}
+  }
+
   function setBodyLocked(locked) {
     document.body.classList.toggle("gate-lock", !!locked);
+    if (locked) closeChromeExtras();
   }
 
   function ensureBlockedLayer() {
@@ -317,7 +332,7 @@
       if (hint) {
         hint.textContent = "Stay on this page — we’ll keep checking automatically.";
       }
-      if (icon) icon.textContent = "◌";
+      if (icon) { icon.className = "pending-icon status-wait"; }
     } else {
       if (title) title.textContent = "Almost there";
       if (text) {
@@ -327,7 +342,7 @@
       if (hint) {
         hint.textContent = "You can leave this open. We’ll check every few seconds and let you in when you’re approved.";
       }
-      if (icon) icon.textContent = "◌";
+      if (icon) { icon.className = "pending-icon status-wait"; }
     }
 
     startPendingPoll();

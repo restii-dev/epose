@@ -1330,7 +1330,7 @@ function fillWispSelect() {
       : "";
     return (
       '<button type="button" class="server-row' + sel + '" data-server-id="' + s.id + '">' +
-      '<span class="server-dot ping-mid" data-dot="' + s.id + '"></span>' +
+      '<span class="server-dot ping-wait" data-dot="' + s.id + '"><img src="' + IMG + 'status.svg" alt=""></span>' +
       '<span class="server-name">' + escapeHTML(s.name) + '</span>' +
       '<span class="server-ping" data-ping="' + s.id + '">...</span>' +
       actions +

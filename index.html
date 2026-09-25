@@ -209,11 +209,29 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .server-row{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;text-align:left;font-size:13px}
 .server-row:hover{background:var(--panel2)}
 .server-row.selected{border-color:var(--accent);background:var(--panel2)}
-.server-dot{width:8px;height:8px;border-radius:50%;flex:0 0 8px;background:#888}
-.server-dot.ping-good{background:#7CFF6B}
-.server-dot.ping-mid{background:#FFA94D}
-.server-dot.ping-bad{background:#FF4D4D}
-.server-dot.ping-off{background:#666}
+.server-dot,.status-dot{
+  width:10px;height:10px;flex:0 0 10px;display:inline-block;line-height:0;
+}
+.server-dot img,.status-dot img{
+  width:10px;height:10px;display:block;
+  /* white SVG → tint via filter */
+  filter:brightness(0) invert(1);opacity:.55;
+}
+.server-dot.ping-good img,.status-dot.ping-good img{
+  filter:brightness(0) saturate(100%) invert(78%) sepia(47%) saturate(500%) hue-rotate(55deg) brightness(105%);opacity:1;
+}
+.server-dot.ping-mid img,.status-dot.ping-mid img{
+  filter:brightness(0) saturate(100%) invert(72%) sepia(45%) saturate(600%) hue-rotate(340deg) brightness(105%);opacity:1;
+}
+.server-dot.ping-bad img,.status-dot.ping-bad img{
+  filter:brightness(0) saturate(100%) invert(42%) sepia(70%) saturate(1200%) hue-rotate(330deg) brightness(105%);opacity:1;
+}
+.server-dot.ping-off img,.status-dot.ping-off img{
+  filter:brightness(0) invert(1);opacity:.35;
+}
+.server-dot.ping-wait img,.status-dot.ping-wait img{
+  filter:brightness(0) invert(1);opacity:.5;
+}
 .server-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .server-ping{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;margin-left:auto;flex-shrink:0}
 .server-ping.ping-good{color:#9dff90}
@@ -299,7 +317,17 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 #accessGate .pending-icon{
   width:48px;height:48px;margin:0 auto 14px;border-radius:14px;
   border:1px solid #2a2a2a;background:#141414;display:flex;align-items:center;justify-content:center;
-  font-size:22px;color:#888;line-height:1;
+  line-height:0;
+}
+#accessGate .pending-icon img{
+  width:14px;height:14px;display:block;
+  filter:brightness(0) invert(1);opacity:.7;
+}
+#accessGate .pending-icon.status-wait img{
+  filter:brightness(0) saturate(100%) invert(72%) sepia(45%) saturate(600%) hue-rotate(340deg) brightness(105%);opacity:1;
+}
+#accessGate .pending-icon.status-ok img{
+  filter:brightness(0) saturate(100%) invert(78%) sepia(47%) saturate(500%) hue-rotate(55deg) brightness(105%);opacity:1;
 }
 #accessGate .pending-box h2{font-size:18px;margin-bottom:6px;color:#f0f0f0;font-weight:650}
 #accessGate .pending-email{font-size:12px;color:#aaa;margin:0 0 12px;word-break:break-all}
@@ -330,8 +358,16 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 #accessBlocked h2{font-size:20px;font-weight:650;margin:0 0 12px;color:#f2f2f2}
 #accessBlocked .blocked-time{font-size:14px;line-height:1.55;color:#888;margin:0}
 @keyframes riseGate{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-body.gate-lock #browser,body.gate-lock #app{display:none!important}
+body.gate-lock #browser,
+body.gate-lock #app,
+body.gate-lock .panel,
+body.gate-lock .menu,
+body.gate-lock .backdrop,
+body.gate-lock #veilAppLoad{display:none!important}
 body.gate-lock{background:#101010}
+/* Gate visible immediately while locked — no flash of browser/panels */
+body.gate-lock #accessGate{display:flex!important}
+#accessGate{display:none}
 
 
 /* ——— Boot loader ——— */
@@ -621,7 +657,7 @@ body.boot-reveal #browser{
     </div>
     <div class="gate-panel" id="panelPending">
       <div class="pending-box">
-        <div class="pending-icon" aria-hidden="true">◌</div>
+        <div class="pending-icon status-wait" aria-hidden="true"><img src="image/status.svg" alt=""></div>
         <h2 id="pendingTitle">Almost there</h2>
         <p class="pending-email" id="pendingEmail"></p>
         <p id="pendingText">We’re waiting for an admin to approve your account. This usually doesn’t take long.</p>
