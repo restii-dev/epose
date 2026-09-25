@@ -323,6 +323,70 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 body.gate-lock #browser,body.gate-lock #app{display:none!important}
 body.gate-lock{background:#101010}
 
+
+/* ——— Boot loader ——— */
+#veilBoot{
+  position:fixed;inset:0;z-index:200000;display:flex;align-items:center;justify-content:center;
+  background:#0c0c0c;flex-direction:column;padding:28px;
+  transition:opacity .55s ease,visibility .55s ease;
+}
+#veilBoot.done{opacity:0;visibility:hidden;pointer-events:none}
+#veilBoot.err{background:#0e0c0c}
+.boot-card{
+  width:min(380px,92vw);text-align:center;
+  animation:bootIn .5s ease both;
+}
+@keyframes bootIn{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
+.boot-mark{
+  width:64px;height:64px;margin:0 auto 18px;border-radius:18px;
+  background:linear-gradient(145deg,#1a1a1a,#121212);border:1px solid #2a2a2a;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 8px 32px rgba(0,0,0,.45);
+}
+.boot-mark img{width:32px;height:32px;opacity:.95}
+.boot-title{font-size:22px;font-weight:650;color:#f2f2f2;letter-spacing:-.02em;margin-bottom:6px}
+.boot-sub{font-size:13px;color:#777;margin-bottom:22px;min-height:18px}
+.boot-bar{
+  height:3px;width:100%;border-radius:99px;background:#1a1a1a;overflow:hidden;margin-bottom:18px;
+}
+.boot-bar > i{
+  display:block;height:100%;width:12%;border-radius:99px;
+  background:linear-gradient(90deg,#555,#f0f0f0,#555);background-size:200% 100%;
+  animation:bootSlide 1.1s ease infinite;
+}
+@keyframes bootSlide{
+  0%{width:12%;margin-left:0;opacity:.7}
+  50%{width:55%;margin-left:20%;opacity:1}
+  100%{width:12%;margin-left:88%;opacity:.5}
+}
+.boot-steps{text-align:left;font-size:12px;color:#666;line-height:1.7}
+.boot-steps .ok{color:#8fdf8a}
+.boot-steps .fail{color:#ff7b7b}
+.boot-steps .run{color:#c8c8c8}
+.boot-error{
+  display:none;margin-top:8px;padding:14px 16px;border-radius:12px;
+  border:1px solid #3a2020;background:#181010;text-align:left;
+}
+#veilBoot.err .boot-error{display:block;animation:bootIn .35s ease both}
+#veilBoot.err .boot-bar{display:none}
+.boot-error h3{font-size:14px;color:#ff9a9a;margin:0 0 8px;font-weight:650}
+.boot-error p{font-size:13px;color:#aaa;line-height:1.5;margin:0 0 10px;word-break:break-word}
+.boot-error a{color:#f0f0f0;text-decoration:underline}
+.boot-error .boot-retry{
+  margin-top:12px;width:100%;height:40px;border:0;border-radius:10px;
+  background:#f0f0f0;color:#111;font-weight:650;cursor:pointer;font-size:13px;
+}
+body.booting #accessGate,body.booting #browser,body.booting #app{visibility:hidden!important}
+body.boot-reveal #accessGate .box,
+body.boot-reveal #browser{
+  animation:bootReveal .55s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes bootReveal{
+  from{opacity:0;transform:translateY(14px) scale(.985);filter:blur(4px)}
+  to{opacity:1;transform:none;filter:none}
+}
+
+
 /* History panel */
 .history-panel{position:fixed;top:0;right:0;width:min(360px,100%);height:100%;background:var(--panel);
   border-left:1px solid var(--border);z-index:1200;display:none;flex-direction:column;padding:16px;
@@ -386,7 +450,136 @@ body.gate-lock{background:#101010}
 }
 </style>
 </head>
-<body class="gate-lock">
+<body class="gate-lock booting">
+<div id="veilBoot" aria-live="polite">
+  <div class="boot-card">
+    <div class="boot-mark"><img src="image/favi.png" alt="" onerror="this.style.display='none'"></div>
+    <div class="boot-title">Veil</div>
+    <div class="boot-sub" id="bootSub">Starting…</div>
+    <div class="boot-bar"><i></i></div>
+    <div class="boot-steps" id="bootSteps"></div>
+    <div class="boot-error" id="bootError">
+      <h3>Couldn’t start Veil</h3>
+      <p id="bootErrorMsg"></p>
+      <p>If this keeps happening, email support:<br>
+        <a href="mailto:veilsupport01@gmail.com">veilsupport01@gmail.com</a>
+      </p>
+      <button type="button" class="boot-retry" id="bootRetry">Try again</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var SUPPORT = "veilsupport01@gmail.com";
+  var WORKER = (localStorage.getItem("veil_worker_url") || "https://veil-access.retropixel404.workers.dev").replace(/\/$/, "");
+  var sub = document.getElementById("bootSub");
+  var stepsEl = document.getElementById("bootSteps");
+  var boot = document.getElementById("veilBoot");
+  var steps = [];
+
+  function setSub(t) { if (sub) sub.textContent = t; }
+  function addStep(label, state) {
+    steps.push({ label: label, state: state || "run" });
+    renderSteps();
+  }
+  function setStep(i, state, label) {
+    if (!steps[i]) return;
+    steps[i].state = state;
+    if (label) steps[i].label = label;
+    renderSteps();
+  }
+  function renderSteps() {
+    if (!stepsEl) return;
+    stepsEl.innerHTML = steps.map(function (s) {
+      var mark = s.state === "ok" ? "✓ " : s.state === "fail" ? "✕ " : "· ";
+      return '<div class="' + s.state + '">' + mark + s.label + "</div>";
+    }).join("");
+  }
+
+  function fail(err) {
+    document.body.classList.add("boot-failed");
+    if (boot) boot.classList.add("err");
+    setSub("Something went wrong");
+    var msg = document.getElementById("bootErrorMsg");
+    if (msg) msg.textContent = String(err && err.message ? err.message : err || "Unknown error");
+    var retry = document.getElementById("bootRetry");
+    if (retry) retry.onclick = function () { location.reload(); };
+  }
+
+  function succeed() {
+    setSub("Ready");
+    document.body.classList.remove("booting");
+    document.body.classList.add("boot-reveal");
+    if (boot) boot.classList.add("done");
+    setTimeout(function () {
+      try { if (boot && boot.parentNode) boot.parentNode.removeChild(boot); } catch (e) {}
+      document.body.classList.remove("boot-reveal");
+    }, 700);
+    try { window.dispatchEvent(new CustomEvent("veil-boot-ready")); } catch (e) {}
+  }
+
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  async function checkScripts() {
+    addStep("Core scripts", "run");
+    await wait(80);
+    if (typeof window === "undefined") throw new Error("Browser environment missing");
+    setStep(0, "ok", "Core scripts");
+  }
+
+  async function checkWorker() {
+    addStep("Access service", "run");
+    setSub("Connecting…");
+    var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var t = setTimeout(function () { try { ctrl && ctrl.abort(); } catch (e) {} }, 10000);
+    try {
+      var res = await fetch(WORKER + "/api/health", {
+        method: "GET",
+        signal: ctrl ? ctrl.signal : undefined,
+        cache: "no-store",
+      });
+      clearTimeout(t);
+      if (!res.ok) throw new Error("Access service returned " + res.status);
+      var data = await res.json().catch(function () { return {}; });
+      if (!data.ok) throw new Error("Access service is not healthy");
+      setStep(1, "ok", "Access service");
+    } catch (e) {
+      clearTimeout(t);
+      setStep(1, "fail", "Access service");
+      throw new Error("Could not reach access service. Check your connection, then try again. (" + (e.message || e) + ")");
+    }
+  }
+
+  async function checkAssets() {
+    addStep("Interface", "run");
+    setSub("Loading interface…");
+    await wait(120);
+    var gate = document.getElementById("accessGate");
+    if (!gate) throw new Error("Interface failed to load (missing access gate)");
+    setStep(2, "ok", "Interface");
+  }
+
+  async function run() {
+    try {
+      setSub("Starting…");
+      await checkScripts();
+      await checkWorker();
+      await checkAssets();
+      setSub("Almost there…");
+      await wait(280);
+      succeed();
+    } catch (e) {
+      fail(e);
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () { run(); });
+  } else {
+    run();
+  }
+})();
+</script>
 <div id="accessGate">
   <div class="box" id="gateAuthBox">
     <h1>Veil</h1>
