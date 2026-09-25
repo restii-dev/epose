@@ -14,7 +14,9 @@ var WORKER_URL = (
 
 var adminToken = "";
 
-function $(id) { return document.getElementById(id); }
+function $(id) {
+  return document.getElementById(id);
+}
 
 function flash(el, text, ok) {
   if (!el) return;
@@ -36,17 +38,24 @@ function api(path, opts) {
   return fetch(WORKER_URL + path, {
     method: opts.method || "GET",
     headers: headers,
-    body: opts.body
-  }).then(function (res) {
-    return res.json().catch(function () { return {}; }).then(function (data) {
-      return { res: res, data: data };
+    body: opts.body,
+  })
+    .then(function (res) {
+      return res.json().catch(function () {
+        return {};
+      }).then(function (data) {
+        return { res: res, data: data };
+      });
+    })
+    .catch(function (err) {
+      return {
+        res: { ok: false, status: 0 },
+        data: {
+          ok: false,
+          error: "Could not reach server (" + (err && err.message ? err.message : "network") + ")",
+        },
+      };
     });
-  }).catch(function (err) {
-    return {
-      res: { ok: false, status: 0 },
-      data: { ok: false, error: "Could not reach server (" + (err && err.message ? err.message : "network") + ")" }
-    };
-  });
 }
 
 function showApp(ok) {
@@ -59,7 +68,7 @@ $("loginBtn").onclick = function () {
   flash($("loginMsg"), "Checking…");
   api("/api/admin/login", {
     method: "POST",
-    body: JSON.stringify({ password: $("adminPass").value })
+    body: JSON.stringify({ password: $("adminPass").value }),
   }).then(function (r) {
     if (!r.data.ok) {
       flash($("loginMsg"), r.data.error || "Wrong password", false);
@@ -69,9 +78,7 @@ $("loginBtn").onclick = function () {
     $("adminPass").value = "";
     flash($("loginMsg"), "");
     showApp(true);
-    loadIps();
-  }).catch(function () {
-    flash($("loginMsg"), "Could not reach server", false);
+    loadUsers();
   });
 };
 
@@ -79,68 +86,140 @@ $("adminPass").addEventListener("keydown", function (e) {
   if (e.key === "Enter") $("loginBtn").click();
 });
 
-$("genKey").onclick = function () {
-  api("/api/admin/generate-key", {
-    method: "POST",
-    body: JSON.stringify({ duration: $("keyDur").value })
-  }).then(function (r) {
-    if (!r.data.ok) {
-      flash($("keyMsg"), r.data.error || "Failed", false);
-      return;
-    }
-    $("keyOut").textContent = r.data.key;
-    flash($("keyMsg"), "Created · " + r.data.duration + (r.data.infinite ? " (unlimited)" : "") + " · one-time", true);
-  });
-};
-
 $("signoutAll").onclick = function () {
   if (!confirm("Sign out everyone?")) return;
   api("/api/admin/signout-all", { method: "POST", body: "{}" }).then(function (r) {
-    flash($("globalMsg"), r.data.ok ? "Everyone signed out." : (r.data.error || "Failed"), !!r.data.ok);
-    loadIps();
+    flash($("globalMsg"), r.data.ok ? "Everyone signed out." : r.data.error || "Failed", !!r.data.ok);
   });
 };
 
-$("refreshIps").onclick = function () { loadIps(); };
+$("refreshUsers").onclick = function () {
+  loadUsers();
+};
 
-var openIp = null;
+var searchTimer = null;
+$("userSearch").addEventListener("input", function () {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(loadUsers, 250);
+});
 
-function loadIps() {
-  api("/api/admin/ips").then(function (r) {
-    var list = $("ipList");
+function badge(status) {
+  var s = status || "pending";
+  return '<span class="badge ' + s + '">' + s + "</span>";
+}
+
+function loadUsers() {
+  var q = ($("userSearch").value || "").trim();
+  var path = "/api/admin/users" + (q ? "?q=" + encodeURIComponent(q) : "");
+  api(path).then(function (r) {
+    var list = $("userList");
     list.innerHTML = "";
     if (!r.data.ok) {
       list.innerHTML = '<div class="msg err">' + (r.data.error || "Failed") + "</div>";
       return;
     }
-    var ips = r.data.ips || [];
-    if (!ips.length) {
-      list.innerHTML = '<div class="msg">No IPs yet</div>';
+    var users = r.data.users || [];
+    if (!users.length) {
+      list.innerHTML = '<div class="msg">No users yet</div>';
       return;
     }
-    ips.forEach(function (row) {
-      var box = document.createElement("div");
-      box.className = "ip-row";
-      var accessOk = row.access && row.access.valid;
-      var status = row.blocked
-        ? '<span class="tag bad">blocked</span>'
-        : accessOk
-          ? '<span class="tag ok">active</span>'
-          : '<span class="tag mute">none</span>';
-      var label = row.label ? '<span class="ip-label">' + escapeHtml(row.label) + "</span>" : "";
-      box.innerHTML =
-        '<div class="ip-main">' +
-        '<div class="ip-addr">' + escapeHtml(row.ip) + "</div>" +
-        label + status +
+    users.forEach(function (u) {
+      var div = document.createElement("div");
+      div.className = "user";
+      var time =
+        u.infinite || u.remainingLabel === "inf"
+          ? "unlimited"
+          : u.remainingHuman || u.remainingLabel || "none";
+      div.innerHTML =
+        '<div class="user-email">' +
+        escapeHtml(u.email) +
+        badge(u.status) +
+        (u.emailVerified ? "" : '<span class="badge">unverified</span>') +
         "</div>" +
-        '<div class="ip-detail" data-ip="' + escapeHtml(row.ip) + '"></div>';
-      box.querySelector(".ip-main").onclick = function () {
-        toggleDetail(box, row.ip);
+        '<div class="user-meta">Time: ' +
+        escapeHtml(time) +
+        (u.created ? " · joined " + new Date(u.created).toLocaleString() : "") +
+        "</div>" +
+        '<div class="detail">' +
+        '<label class="hint">Grant time (30m, 2h, 1d, inf)</label>' +
+        '<div class="row">' +
+        '<input type="text" class="dur" placeholder="1d" value="1d" />' +
+        '<select class="mode"><option value="set">Set</option><option value="add">Add</option></select>' +
+        '<button type="button" class="primary grant">Grant</button>' +
+        "</div>" +
+        '<label class="hint">Set Veil password</label>' +
+        '<div class="row">' +
+        '<input type="text" class="newpass" placeholder="New password" />' +
+        '<button type="button" class="setpass">Save password</button>' +
+        "</div>" +
+        '<div class="row" style="margin-top:10px">' +
+        (u.status === "banned"
+          ? '<button type="button" class="unban">Unban</button>'
+          : '<button type="button" class="danger ban">Ban</button>') +
+        "</div>" +
+        '<div class="msg actmsg"></div>' +
+        "</div>";
+
+      div.addEventListener("click", function (e) {
+        if (e.target.closest("button, input, select")) return;
+        div.classList.toggle("open");
+      });
+
+      var msg = div.querySelector(".actmsg");
+
+      div.querySelector(".grant").onclick = function (e) {
+        e.stopPropagation();
+        var duration = div.querySelector(".dur").value;
+        var mode = div.querySelector(".mode").value;
+        api("/api/admin/users/grant", {
+          method: "POST",
+          body: JSON.stringify({ email: u.email, duration: duration, mode: mode }),
+        }).then(function (res) {
+          flash(msg, res.data.ok ? "Granted" : res.data.error || "Failed", !!res.data.ok);
+          if (res.data.ok) loadUsers();
+        });
       };
-      list.appendChild(box);
-      if (openIp === row.ip) {
-        toggleDetail(box, row.ip, true);
+
+      div.querySelector(".setpass").onclick = function (e) {
+        e.stopPropagation();
+        var password = div.querySelector(".newpass").value;
+        api("/api/admin/users/set-password", {
+          method: "POST",
+          body: JSON.stringify({ email: u.email, password: password }),
+        }).then(function (res) {
+          flash(msg, res.data.ok ? "Password updated" : res.data.error || "Failed", !!res.data.ok);
+        });
+      };
+
+      var banBtn = div.querySelector(".ban");
+      if (banBtn) {
+        banBtn.onclick = function (e) {
+          e.stopPropagation();
+          if (!confirm("Ban " + u.email + "?")) return;
+          api("/api/admin/users/ban", {
+            method: "POST",
+            body: JSON.stringify({ email: u.email }),
+          }).then(function (res) {
+            flash(msg, res.data.ok ? "Banned" : res.data.error || "Failed", !!res.data.ok);
+            if (res.data.ok) loadUsers();
+          });
+        };
       }
+      var unbanBtn = div.querySelector(".unban");
+      if (unbanBtn) {
+        unbanBtn.onclick = function (e) {
+          e.stopPropagation();
+          api("/api/admin/users/unban", {
+            method: "POST",
+            body: JSON.stringify({ email: u.email }),
+          }).then(function (res) {
+            flash(msg, res.data.ok ? "Unbanned" : res.data.error || "Failed", !!res.data.ok);
+            if (res.data.ok) loadUsers();
+          });
+        };
+      }
+
+      list.appendChild(div);
     });
   });
 }
@@ -152,114 +231,3 @@ function escapeHtml(s) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
-
-function toggleDetail(box, ip, forceOpen) {
-  var detail = box.querySelector(".ip-detail");
-  var wasOpen = detail.classList.contains("open");
-  document.querySelectorAll(".ip-detail.open").forEach(function (el) {
-    el.classList.remove("open");
-    el.innerHTML = "";
-  });
-  if (wasOpen && !forceOpen) {
-    openIp = null;
-    return;
-  }
-  openIp = ip;
-  detail.classList.add("open");
-  detail.innerHTML = '<div class="msg">Loading…</div>';
-  api("/api/admin/ip/" + encodeURIComponent(ip)).then(function (r) {
-    if (!r.data.ok) {
-      detail.innerHTML = '<div class="msg err">' + (r.data.error || "Failed") + "</div>";
-      return;
-    }
-    var rec = r.data.ip;
-    var g = rec.geo || {};
-    var blockedLine = "no";
-    if (r.data.blocked) {
-      blockedLine =
-        "yes — " +
-        (r.data.blockLeftHuman || r.data.blockLeft || "?") +
-        " left" +
-        (r.data.blockDurationHuman ? " (blocked for " + r.data.blockDurationHuman + ")" : "");
-    }
-    var reasonLine = r.data.reason
-      ? "<div><b>Block reason</b> — " + escapeHtml(r.data.reason) + "</div>"
-      : "";
-    detail.innerHTML =
-      '<div class="detail">' +
-      "<div><b>IP</b> — " + escapeHtml(rec.ip) + "</div>" +
-      "<div><b>Name</b> — " + escapeHtml(rec.label || "—") + "</div>" +
-      "<div><b>Hits</b> — " + (rec.hits || 0) + "</div>" +
-      "<div><b>First seen</b> — " + new Date(rec.firstSeen).toLocaleString() + "</div>" +
-      "<div><b>Last seen</b> — " + new Date(rec.lastSeen).toLocaleString() + "</div>" +
-      "<div><b>Location</b> — " + escapeHtml([g.city, g.region, g.country].filter(Boolean).join(", ") || "—") + "</div>" +
-      "<div><b>Blocked</b> — " + escapeHtml(blockedLine) + "</div>" +
-      reasonLine +
-      "<div><b>Key</b> — " + escapeHtml((rec.access && rec.access.key) || "none") + "</div>" +
-      "</div>" +
-      '<label>Rename this IP</label>' +
-      '<div class="row">' +
-      '<input class="rename-input" placeholder="e.g. School laptop" value="' + escapeHtml(rec.label || "") + '">' +
-      '<button type="button" class="sm rename-btn">Save name</button>' +
-      "</div>" +
-      '<label style="margin-top:10px">Block time</label>' +
-      '<div class="row">' +
-      '<input class="block-input" placeholder="30m, 2h, 1d, inf">' +
-      "</div>" +
-      '<label style="margin-top:8px">Block reason (shown to user)</label>' +
-      '<div class="row">' +
-      '<input class="reason-input" placeholder="e.g. Sharing keys">' +
-      "</div>" +
-      '<div class="row" style="margin-top:10px">' +
-      '<button type="button" class="sm red block-btn">Block</button>' +
-      '<button type="button" class="sm unblock-btn">Unblock</button>' +
-      '<button type="button" class="sm red kill-btn">Invalidate key</button>' +
-      "</div>" +
-      '<div class="msg detail-msg"></div>';
-
-    detail.querySelector(".rename-btn").onclick = function () {
-      var label = detail.querySelector(".rename-input").value;
-      api("/api/admin/rename-ip", {
-        method: "POST",
-        body: JSON.stringify({ ip: ip, label: label })
-      }).then(function (res) {
-        flash(detail.querySelector(".detail-msg"), res.data.ok ? "Name saved" : (res.data.error || "Failed"), !!res.data.ok);
-        if (res.data.ok) loadIps();
-      });
-    };
-    detail.querySelector(".block-btn").onclick = function () {
-      var duration = detail.querySelector(".block-input").value;
-      var reason = detail.querySelector(".reason-input").value;
-      api("/api/admin/block", {
-        method: "POST",
-        body: JSON.stringify({ ip: ip, duration: duration, reason: reason })
-      }).then(function (res) {
-        var okMsg = res.data.ok
-          ? "Blocked · " + (res.data.blockLeftHuman || res.data.blockLeft || "")
-          : (res.data.error || "Failed");
-        flash(detail.querySelector(".detail-msg"), okMsg, !!res.data.ok);
-        if (res.data.ok) loadIps();
-      });
-    };
-    detail.querySelector(".unblock-btn").onclick = function () {
-      api("/api/admin/unblock", {
-        method: "POST",
-        body: JSON.stringify({ ip: ip })
-      }).then(function (res) {
-        flash(detail.querySelector(".detail-msg"), res.data.ok ? "Unblocked" : (res.data.error || "Failed"), !!res.data.ok);
-        if (res.data.ok) loadIps();
-      });
-    };
-    detail.querySelector(".kill-btn").onclick = function () {
-      api("/api/admin/invalidate", {
-        method: "POST",
-        body: JSON.stringify({ ip: ip })
-      }).then(function (res) {
-        flash(detail.querySelector(".detail-msg"), res.data.ok ? "Key invalidated — they need a new key" : (res.data.error || "Failed"), !!res.data.ok);
-        if (res.data.ok) loadIps();
-      });
-    };
-  });
-}
-
-showApp(false);

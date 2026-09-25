@@ -1,5 +1,5 @@
 /**
- * Veil access gate — simple matte, no animations
+ * Veil access gate — email accounts + pending approval
  */
 (function () {
   try {
@@ -16,13 +16,12 @@
 
   var SESSION_KEY = "veil_access_token";
   var SESSION_META = "veil_access_meta";
+  var PENDING_EMAIL = "veil_pending_email";
 
   var gate = document.getElementById("accessGate");
   var appRoot = document.getElementById("browser") || document.getElementById("app");
-  var keyInput = document.getElementById("accessKey");
-  var keyBtn = document.getElementById("accessSubmit");
   var keyMsg = document.getElementById("accessMsg");
-  var gateBox = gate && gate.querySelector(".box");
+  var gateBox = document.getElementById("gateAuthBox") || (gate && gate.querySelector(".box"));
 
   function readCookie(name) {
     try {
@@ -60,34 +59,35 @@
     }
   }
 
-  function setToken(token, infinite, expires) {
+  function setToken(token, user) {
     try {
       if (token) localStorage.setItem(SESSION_KEY, token);
       else localStorage.removeItem(SESSION_KEY);
     } catch (e) {}
     if (!token) {
       clearCookie(SESSION_KEY);
+      try { localStorage.removeItem(SESSION_META); } catch (e2) {}
       return;
     }
-    // Persist session in a cookie too (not tied to IP) so it survives better across tabs/restarts
-    var maxAge = 60 * 60 * 24 * 400; // ~13 months for infinite / long sessions
-    if (!infinite && expires) {
-      var left = Math.floor((Number(expires) - Date.now()) / 1000);
+    var maxAge = 60 * 60 * 24 * 400;
+    if (user && !user.infinite && user.expires) {
+      var left = Math.floor((Number(user.expires) - Date.now()) / 1000);
       if (left > 0) maxAge = left;
     }
     writeCookie(SESSION_KEY, token, maxAge);
+    try {
+      localStorage.setItem(SESSION_META, JSON.stringify({
+        email: user && user.email,
+        expires: user && user.expires,
+        infinite: user && user.infinite,
+        status: user && user.status
+      }));
+    } catch (e) {}
   }
 
   function clearToken() {
-    setToken("", false, null);
-    try { localStorage.removeItem(SESSION_META); } catch (e) {}
-  }
-
-  var sessionMeta = null;
-  try {
-    sessionMeta = JSON.parse(localStorage.getItem(SESSION_META) || "null");
-  } catch (e) {
-    sessionMeta = null;
+    setToken("", null);
+    try { localStorage.removeItem(PENDING_EMAIL); } catch (e) {}
   }
 
   function setBodyLocked(locked) {
@@ -122,23 +122,43 @@
     if (keyMsg) keyMsg.textContent = "";
   }
 
-  var DEFAULT_GATE_MSG = "Enter a valid access key to use Veil";
+  var DEFAULT_MSG = "Sign in with your email to use Veil";
 
-  function setGateMsg(msg, isErr, autoRestore) {
+  function setMsg(msg, isErr, autoRestore) {
     if (!keyMsg) return;
     clearTimeout(keyMsg._t);
-    keyMsg.textContent = msg || DEFAULT_GATE_MSG;
+    keyMsg.textContent = msg || DEFAULT_MSG;
     keyMsg.style.color = isErr ? "#ff5c5c" : "#888888";
     if (autoRestore && isErr && msg) {
       keyMsg._t = setTimeout(function () {
-        keyMsg.textContent = DEFAULT_GATE_MSG;
+        keyMsg.textContent = DEFAULT_MSG;
         keyMsg.style.color = "#888888";
-      }, 3500);
+      }, 4000);
     }
   }
 
-  function flashMsg(msg, isErr) {
-    setGateMsg(msg, isErr, true);
+  function showPanel(name) {
+    document.querySelectorAll(".gate-panel").forEach(function (p) {
+      p.classList.toggle("active", p.id === "panel" + name.charAt(0).toUpperCase() + name.slice(1));
+    });
+    // panels: login, signup, verify, pending
+    var map = { login: "panelLogin", signup: "panelSignup", verify: "panelVerify", pending: "panelPending" };
+    document.querySelectorAll(".gate-panel").forEach(function (p) {
+      p.classList.remove("active");
+    });
+    var el = document.getElementById(map[name] || "panelLogin");
+    if (el) el.classList.add("active");
+    document.querySelectorAll("[data-gate-tab]").forEach(function (t) {
+      t.classList.toggle("active", t.getAttribute("data-gate-tab") === name);
+    });
+    var tabs = document.querySelector(".gate-tabs");
+    if (tabs) tabs.style.display = name === "login" || name === "signup" ? "flex" : "none";
+    var sub = document.getElementById("gateSub");
+    if (sub) {
+      if (name === "pending") sub.textContent = "";
+      else if (name === "verify") sub.textContent = "Check your inbox for a code";
+      else sub.textContent = "Sign in to continue";
+    }
   }
 
   function showGate(msg, isErr) {
@@ -150,190 +170,262 @@
       gate.style.display = "flex";
       gate.classList.remove("checking", "is-blocked");
     }
-    if (gateBox) {
-      gateBox.style.visibility = "visible";
-      gateBox.style.pointerEvents = "";
-      gateBox.style.opacity = "";
-      gateBox.style.filter = "";
-    }
-    if (keyInput) keyInput.disabled = false;
-    if (keyBtn) keyBtn.disabled = false;
-    if (isErr && msg) {
-      setGateMsg(msg, true, true);
-    } else {
-      setGateMsg(msg || DEFAULT_GATE_MSG, false, false);
-    }
-    window.__VEIL_ACCESS_OK = false;
+    if (gateBox) gateBox.style.visibility = "visible";
+    setMsg(msg || DEFAULT_MSG, !!isErr, !!isErr);
   }
 
-  function showBlocked(message) {
+  function showPending(user) {
+    showGate("", false);
+    showPanel("pending");
+    var t = document.getElementById("pendingText");
+    if (t) {
+      var email = (user && user.email) || localStorage.getItem(PENDING_EMAIL) || "";
+      t.textContent =
+        (email ? email + " — " : "") +
+        "Your account is pending. An admin must grant you access time before you can use Veil.";
+    }
+  }
+
+  function showBlocked(msg) {
     setBodyLocked(true);
     if (appRoot) appRoot.style.display = "none";
     if (gate) {
-      gate.style.display = "flex";
-      gate.classList.remove("checking");
-      gate.classList.add("is-blocked");
+      gate.style.display = "none";
     }
-    if (gateBox) {
-      gateBox.style.visibility = "visible";
-      gateBox.style.pointerEvents = "none";
-      gateBox.style.opacity = "0.2";
-      gateBox.style.filter = "grayscale(1)";
-    }
-    if (keyInput) {
-      keyInput.disabled = true;
-      keyInput.value = "";
-    }
-    if (keyBtn) keyBtn.disabled = true;
-    if (keyMsg) keyMsg.textContent = "";
-    var layer = ensureBlockedLayer();
-    layer.style.display = "flex";
-    var tm = document.getElementById("blockedTimeMsg");
-    if (tm) tm.textContent = message || "You are blocked from entering Veil.";
-    window.__VEIL_ACCESS_OK = false;
+    var el = ensureBlockedLayer();
+    el.style.display = "flex";
+    var p = document.getElementById("blockedTimeMsg");
+    if (p) p.textContent = msg || "Contact an admin if you think this is a mistake.";
   }
 
-  function showApp() {
+  function unlockApp() {
     setBodyLocked(false);
-    if (gate) {
-      gate.style.display = "none";
-      gate.classList.remove("checking", "is-blocked");
-    }
+    if (gate) gate.style.display = "none";
     var bl = document.getElementById("accessBlocked");
     if (bl) bl.style.display = "none";
     if (appRoot) appRoot.style.display = "";
-    window.__VEIL_ACCESS_OK = true;
-    window.dispatchEvent(new Event("veil-access-ok"));
-    window.dispatchEvent(new CustomEvent("veil-session-meta", { detail: sessionMeta }));
+    try {
+      if (typeof window.__veilStartApp === "function") window.__veilStartApp();
+      else if (typeof window.bootVeilApp === "function") window.bootVeilApp();
+    } catch (e) {
+      console.error(e);
+    }
   }
 
-  function forceUnloadToGate(msg, blocked) {
-    clearToken();
-    sessionMeta = null;
-    window.__VEIL_ACCESS_OK = false;
-    try {
-      document.querySelectorAll(".engine-frame, #browser iframe").forEach(function (el) {
-        try { el.src = "about:blank"; } catch (e) {}
-        try { el.remove(); } catch (e) {}
+  function api(path, body) {
+    return fetch(WORKER_URL + path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body || {}),
+    })
+      .then(function (res) {
+        return res.json().catch(function () {
+          return {};
+        }).then(function (data) {
+          return { res: res, data: data };
+        });
+      })
+      .catch(function (err) {
+        return {
+          res: { ok: false, status: 0 },
+          data: { ok: false, error: "Could not reach server" },
+        };
       });
-    } catch (e) {}
-    if (appRoot) appRoot.style.display = "none";
-    if (blocked) showBlocked(msg);
-    else showGate(msg || "Session ended. Enter a new key.", true);
   }
 
-  function saveMeta(data) {
-    sessionMeta = {
-      expires: data.expires || null,
-      infinite: !!data.infinite,
-      timeLeft: data.timeLeft || null,
-      key: data.key || null
-    };
-    try {
-      localStorage.setItem(SESSION_META, JSON.stringify(sessionMeta));
-    } catch (e) {}
-    window.dispatchEvent(new CustomEvent("veil-session-meta", { detail: sessionMeta }));
+  function handleAuthResult(data, tokenFromLogin) {
+    var token = tokenFromLogin || data.token || getToken();
+    var user = data.user;
+
+    if (data.ok && user && user.hasAccess) {
+      setToken(token, user);
+      unlockApp();
+      return;
+    }
+
+    if (data.reason === "banned" || (user && user.status === "banned")) {
+      clearToken();
+      showBlocked(data.error || "You are banned from Veil");
+      return;
+    }
+
+    if (data.reason === "unverified" || (user && user.emailVerified === false)) {
+      if (user && user.email) {
+        try { localStorage.setItem(PENDING_EMAIL, user.email); } catch (e) {}
+      }
+      if (token) setToken(token, user);
+      showGate(data.error || "Verify your email", true);
+      showPanel("verify");
+      return;
+    }
+
+    if (data.reason === "pending" || data.reason === "expired" || (user && user.status === "pending")) {
+      if (token) setToken(token, user);
+      if (user && user.email) {
+        try { localStorage.setItem(PENDING_EMAIL, user.email); } catch (e) {}
+      }
+      showPending(user);
+      if (data.reason === "expired") setMsg(data.error || "No time remaining", true, false);
+      return;
+    }
+
+    if (!data.ok) {
+      showGate(data.error || "Sign in failed", true);
+      showPanel("login");
+    }
   }
 
   function checkSession() {
     var token = getToken();
-    if (!token) return Promise.resolve(false);
-    return fetch(WORKER_URL + "/api/session/check", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ token: token })
-    })
-      .then(function (res) { return res.json(); })
-      .then(function (data) {
-        if (data.blocked) {
-          forceUnloadToGate(data.error || "You are blocked from entering Veil.", true);
-          return "blocked";
-        }
-        if (!data.ok) {
-          clearToken();
-          return false;
-        }
-        // Refresh cookie max-age from server meta
-        setToken(token, !!data.infinite, data.expires);
-        saveMeta(data);
-        return true;
-      })
-      .catch(function () { return false; });
-  }
-
-  function redeem() {
-    var key = ((keyInput && keyInput.value) || "").trim();
-    if (!key) {
-      showGate("Enter a key", true);
-      return;
+    if (!token) {
+      showGate(DEFAULT_MSG, false);
+      showPanel("login");
+      return Promise.resolve();
     }
-    if (keyBtn) keyBtn.disabled = true;
-    fetch(WORKER_URL + "/api/redeem", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ key: key })
-    })
-      .then(function (res) { return res.json().catch(function () { return {}; }); })
-      .then(function (data) {
-        if (data.blocked) {
-          showBlocked(data.error || "You are blocked from entering Veil.");
-          return;
-        }
-        if (!data.ok || !data.token) {
-          showGate(data.error || "Invalid key", true);
-          return;
-        }
-        setToken(data.token, !!data.infinite, data.expires);
-        saveMeta(data);
-        if (keyInput) keyInput.value = "";
-        showApp();
-        startWatch();
-      })
-      .catch(function () {
-        showGate("Could not reach access server", true);
-      })
-      .finally(function () {
-        if (keyBtn) keyBtn.disabled = false;
-      });
-  }
-
-  var watchTimer;
-  function startWatch() {
-    if (watchTimer) clearInterval(watchTimer);
-    watchTimer = setInterval(function () {
-      checkSession().then(function (ok) {
-        if (ok === true) return;
-        if (ok === "blocked") return;
-        forceUnloadToGate("Session ended. Enter a new key.", false);
-      });
-    }, 15000);
-  }
-
-  function boot() {
     showBlack();
-    checkSession().then(function (ok) {
-      if (ok === true) {
-        showApp();
-        startWatch();
+    return api("/api/session/check", { token: token }).then(function (r) {
+      if (r.data && r.data.ok) {
+        setToken(token, r.data.user);
+        unlockApp();
         return;
       }
-      if (ok === "blocked") return;
-      showGate(DEFAULT_GATE_MSG, false);
+      if (r.data && (r.data.reason === "pending" || r.data.reason === "expired" || r.data.reason === "unverified" || r.data.reason === "banned")) {
+        handleAuthResult(r.data, token);
+        return;
+      }
+      clearToken();
+      showGate(DEFAULT_MSG, false);
+      showPanel("login");
     });
   }
 
-  if (keyBtn) keyBtn.addEventListener("click", redeem);
-  if (keyInput) {
-    keyInput.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") redeem();
+  // Tabs
+  document.querySelectorAll("[data-gate-tab]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      showPanel(btn.getAttribute("data-gate-tab"));
+      setMsg(DEFAULT_MSG, false);
     });
+  });
+
+  var loginBtn = document.getElementById("loginBtn");
+  var signupBtn = document.getElementById("signupBtn");
+  var verifyBtn = document.getElementById("verifyBtn");
+  var resendBtn = document.getElementById("resendVerifyBtn");
+  var backBtn = document.getElementById("backToLoginBtn");
+  var pendingRefresh = document.getElementById("pendingRefreshBtn");
+  var pendingLogout = document.getElementById("pendingLogoutBtn");
+
+  if (loginBtn) {
+    loginBtn.onclick = function () {
+      var email = (document.getElementById("loginEmail") || {}).value || "";
+      var password = (document.getElementById("loginPass") || {}).value || "";
+      setMsg("Signing in…", false);
+      api("/api/auth/login", { email: email, password: password }).then(function (r) {
+        if (r.data.token) setToken(r.data.token, r.data.user);
+        handleAuthResult(r.data, r.data.token);
+        if (!r.data.ok && !r.data.reason) setMsg(r.data.error || "Login failed", true, true);
+      });
+    };
   }
 
-  window.VeilAccess = {
-    workerUrl: WORKER_URL,
-    getMeta: function () { return sessionMeta; },
-    logout: function () { forceUnloadToGate("Signed out.", false); }
-  };
+  if (signupBtn) {
+    signupBtn.onclick = function () {
+      var email = (document.getElementById("signupEmail") || {}).value || "";
+      var password = (document.getElementById("signupPass") || {}).value || "";
+      setMsg("Creating account…", false);
+      api("/api/auth/signup", { email: email, password: password }).then(function (r) {
+        if (!r.data.ok && !r.data.needsVerify) {
+          setMsg(r.data.error || "Signup failed", true, true);
+          return;
+        }
+        try { localStorage.setItem(PENDING_EMAIL, email.trim().toLowerCase()); } catch (e) {}
+        showPanel("verify");
+        if (r.data.emailSent) setMsg("Code sent — check your inbox (and spam)", false);
+        else setMsg(r.data.error || "Account created, but email could not be sent", true, false);
+      });
+    };
+  }
 
-  boot();
+  if (verifyBtn) {
+    verifyBtn.onclick = function () {
+      var email =
+        localStorage.getItem(PENDING_EMAIL) ||
+        (document.getElementById("signupEmail") || {}).value ||
+        (document.getElementById("loginEmail") || {}).value ||
+        "";
+      var code = (document.getElementById("verifyCode") || {}).value || "";
+      setMsg("Verifying…", false);
+      api("/api/auth/verify", { email: email, code: code }).then(function (r) {
+        if (!r.data.ok) {
+          setMsg(r.data.error || "Invalid code", true, true);
+          return;
+        }
+        setMsg("Email verified. Log in to continue.", false);
+        showPanel("login");
+        var le = document.getElementById("loginEmail");
+        if (le && email) le.value = email;
+      });
+    };
+  }
+
+  if (resendBtn) {
+    resendBtn.onclick = function () {
+      var email =
+        localStorage.getItem(PENDING_EMAIL) ||
+        (document.getElementById("signupEmail") || {}).value ||
+        (document.getElementById("loginEmail") || {}).value ||
+        "";
+      setMsg("Sending…", false);
+      api("/api/auth/resend-verify", { email: email }).then(function (r) {
+        if (!r.data.ok) setMsg(r.data.error || "Could not resend", true, true);
+        else setMsg("Code sent", false);
+      });
+    };
+  }
+
+  if (backBtn) {
+    backBtn.onclick = function () {
+      showPanel("login");
+      setMsg(DEFAULT_MSG, false);
+    };
+  }
+
+  if (pendingRefresh) {
+    pendingRefresh.onclick = function () {
+      setMsg("Checking…", false);
+      checkSession();
+    };
+  }
+
+  if (pendingLogout) {
+    pendingLogout.onclick = function () {
+      var token = getToken();
+      if (token) api("/api/auth/logout", { token: token });
+      clearToken();
+      showGate(DEFAULT_MSG, false);
+      showPanel("login");
+    };
+  }
+
+  // Enter keys
+  ["loginPass", "loginEmail"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && loginBtn) loginBtn.click();
+    });
+  });
+  ["signupPass", "signupEmail"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && signupBtn) signupBtn.click();
+    });
+  });
+  var vc = document.getElementById("verifyCode");
+  if (vc) vc.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && verifyBtn) verifyBtn.click();
+  });
+
+  // Boot
+  showBlack();
+  checkSession();
 })();
