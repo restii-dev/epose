@@ -180,8 +180,6 @@ function loadUsers() {
         "</div>" +
         '<div class="row actions" style="margin-top:12px">' +
         '<button type="button" class="kick">Invalidate</button>' +
-        '<button type="button" class="revoke">Revoke time</button>' +
-        '<button type="button" class="pending">Pending</button>' +
         (u.status === "banned" ? '<button type="button" class="unban">Unban</button>' : "") +
         (!u.emailVerified ? '<button type="button" class="verify">Verify email</button>' : "") +
         "</div>" +
@@ -227,18 +225,8 @@ function loadUsers() {
 
       div.querySelector(".kick").onclick = function (e) {
         e.stopPropagation();
-        postUser("/api/admin/users/invalidate", u.email, {}, msg, "Session invalidated");
-      };
-
-      div.querySelector(".revoke").onclick = function (e) {
-        e.stopPropagation();
-        if (!confirm("Revoke access time for " + u.email + "?")) return;
-        postUser("/api/admin/users/revoke", u.email, {}, msg, "Access revoked");
-      };
-
-      div.querySelector(".pending").onclick = function (e) {
-        e.stopPropagation();
-        postUser("/api/admin/users/pending", u.email, {}, msg, "Set to pending");
+        if (!confirm("Invalidate " + u.email + "? Clears all time and kicks them out.")) return;
+        postUser("/api/admin/users/invalidate", u.email, {}, msg, "Invalidated");
       };
 
       var unban = div.querySelector(".unban");
