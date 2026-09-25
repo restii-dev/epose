@@ -2507,6 +2507,14 @@ function updateAccessTimeBar() {
 setInterval(updateAccessTimeBar, 1000);
 window.addEventListener("veil-session-meta", updateAccessTimeBar);
 window.addEventListener("veil-access-ok", updateAccessTimeBar);
+// Admin ban / revoke while using Veil — gate handles UI; stop chrome updates
+window.addEventListener("veil-access-revoked", function () {
+  try {
+    document.body.classList.add("gate-lock");
+    const app = document.getElementById("browser") || document.getElementById("app");
+    if (app) app.style.display = "none";
+  } catch (e) {}
+});
 
 
 let __veilBootStarted = false;

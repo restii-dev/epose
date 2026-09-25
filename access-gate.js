@@ -59,6 +59,16 @@
     }
   }
 
+  var livePollTimer = null;
+  var lastUser = null;
+
+  function stopLivePoll() {
+    if (livePollTimer) {
+      clearInterval(livePollTimer);
+      livePollTimer = null;
+    }
+  }
+
   function setToken(token, user) {
     try {
       if (token) localStorage.setItem(SESSION_KEY, token);
@@ -67,6 +77,8 @@
     if (!token) {
       clearCookie(SESSION_KEY);
       try { localStorage.removeItem(SESSION_META); } catch (e2) {}
+      lastUser = null;
+      stopLivePoll();
       return;
     }
     var maxAge = 60 * 60 * 24 * 400;
@@ -75,13 +87,19 @@
       if (left > 0) maxAge = left;
     }
     writeCookie(SESSION_KEY, token, maxAge);
+    lastUser = user || null;
     try {
       localStorage.setItem(SESSION_META, JSON.stringify({
         email: user && user.email,
         expires: user && user.expires,
         infinite: user && user.infinite,
-        status: user && user.status
+        status: user && user.status,
+        remainingMs: user && user.remainingMs,
+        remainingLabel: user && user.remainingLabel
       }));
+    } catch (e) {}
+    try {
+      window.dispatchEvent(new CustomEvent("veil-session-meta", { detail: user }));
     } catch (e) {}
   }
 
@@ -89,6 +107,47 @@
     setToken("", null);
     try { localStorage.removeItem(PENDING_EMAIL); } catch (e) {}
   }
+
+  /** Ban / grant / expiry apply live without full page refresh */
+  function startLivePoll() {
+    stopLivePoll();
+    livePollTimer = setInterval(function () {
+      var token = getToken();
+      if (!token) {
+        stopLivePoll();
+        return;
+      }
+      api("/api/session/check", { token: token }).then(function (r) {
+        if (!r.data) return;
+        if (r.data.ok && r.data.user) {
+          setToken(token, r.data.user);
+          return;
+        }
+        stopLivePoll();
+        handleAuthResult(r.data, token);
+        try {
+          window.dispatchEvent(new CustomEvent("veil-access-revoked", { detail: r.data }));
+        } catch (e) {}
+      });
+    }, 12000);
+  }
+
+  window.VeilAccess = {
+    getToken: getToken,
+    getMeta: function () {
+      try {
+        return lastUser || JSON.parse(localStorage.getItem(SESSION_META) || "null");
+      } catch (e) {
+        return null;
+      }
+    },
+    getUser: function () {
+      return lastUser;
+    },
+    checkNow: function () {
+      return checkSession();
+    },
+  };
 
   function setBodyLocked(locked) {
     document.body.classList.toggle("gate-lock", !!locked);
@@ -204,6 +263,10 @@
     var bl = document.getElementById("accessBlocked");
     if (bl) bl.style.display = "none";
     if (appRoot) appRoot.style.display = "";
+    startLivePoll();
+    try {
+      window.dispatchEvent(new CustomEvent("veil-access-ok"));
+    } catch (e) {}
     try {
       if (typeof window.__veilStartApp === "function") window.__veilStartApp();
       else if (typeof window.bootVeilApp === "function") window.bootVeilApp();

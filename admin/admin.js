@@ -108,6 +108,15 @@ function badge(status) {
   return '<span class="badge ' + s + '">' + s + "</span>";
 }
 
+function fmtDate(ts) {
+  if (!ts) return "—";
+  try {
+    return new Date(ts).toLocaleString();
+  } catch (e) {
+    return "—";
+  }
+}
+
 function loadUsers() {
   var q = ($("userSearch").value || "").trim();
   var path = "/api/admin/users" + (q ? "?q=" + encodeURIComponent(q) : "");
@@ -130,29 +139,60 @@ function loadUsers() {
         u.infinite || u.remainingLabel === "inf"
           ? "unlimited"
           : u.remainingHuman || u.remainingLabel || "none";
+      var banLine = "";
+      if (u.banned || u.status === "banned") {
+        banLine =
+          " · ban: " +
+          escapeHtml(u.banRemainingHuman || "permanent") +
+          (u.banReason ? " — " + escapeHtml(u.banReason) : "");
+      }
       div.innerHTML =
         '<div class="user-email">' +
         escapeHtml(u.email) +
         badge(u.status) +
         (u.emailVerified ? "" : '<span class="badge">unverified</span>') +
+        (u.googleLinked ? '<span class="badge">google</span>' : "") +
         "</div>" +
-        '<div class="user-meta">Time: ' +
+        '<div class="user-meta">Access: ' +
         escapeHtml(time) +
-        (u.created ? " · joined " + new Date(u.created).toLocaleString() : "") +
+        banLine +
+        (u.created ? " · joined " + fmtDate(u.created) : "") +
         "</div>" +
         '<div class="detail">' +
-        '<label class="hint">Grant time (30m, 2h, 1d, inf)</label>' +
+        '<div class="user-meta" style="margin-bottom:10px">' +
+        "ID: " +
+        escapeHtml(u.id || "") +
+        "<br>Last login: " +
+        escapeHtml(fmtDate(u.lastLogin)) +
+        "<br>Email verified: " +
+        (u.emailVerified ? "yes" : "no") +
+        "<br>Google linked: " +
+        (u.googleLinked ? "yes" : "no") +
+        "<br>Password set: " +
+        (u.hasPassword ? "yes (hashed — cannot view)" : "no (Google-only or unset)") +
+        (u.banned
+          ? "<br>Ban: " +
+            escapeHtml(u.banRemainingHuman || "permanent") +
+            (u.banReason ? " — " + escapeHtml(u.banReason) : "")
+          : "") +
+        "</div>" +
+        '<label class="hint">Grant access time (30m, 2h, 1d, inf)</label>' +
         '<div class="row">' +
         '<input type="text" class="dur" placeholder="1d" value="1d" />' +
         '<select class="mode"><option value="set">Set</option><option value="add">Add</option></select>' +
         '<button type="button" class="primary grant">Grant</button>' +
         "</div>" +
-        '<label class="hint">Set Veil password</label>' +
+        '<label class="hint">Set Veil password (cannot view old password — hashed)</label>' +
         '<div class="row">' +
-        '<input type="text" class="newpass" placeholder="New password" />' +
+        '<input type="text" class="newpass" placeholder="New password (min 6)" />' +
         '<button type="button" class="setpass">Save password</button>' +
         "</div>" +
-        '<div class="row" style="margin-top:10px">' +
+        '<label class="hint">Ban duration (30m, 2h, 1d, inf = permanent) + reason</label>' +
+        '<div class="row">' +
+        '<input type="text" class="bandur" placeholder="1d or inf" value="1d" />' +
+        '<input type="text" class="banreason" placeholder="Reason (optional)" />' +
+        "</div>" +
+        '<div class="row" style="margin-top:8px">' +
         (u.status === "banned"
           ? '<button type="button" class="unban">Unban</button>'
           : '<button type="button" class="danger ban">Ban</button>') +
@@ -175,7 +215,7 @@ function loadUsers() {
           method: "POST",
           body: JSON.stringify({ email: u.email, duration: duration, mode: mode }),
         }).then(function (res) {
-          flash(msg, res.data.ok ? "Granted" : res.data.error || "Failed", !!res.data.ok);
+          flash(msg, res.data.ok ? "Granted (live within ~12s for user)" : res.data.error || "Failed", !!res.data.ok);
           if (res.data.ok) loadUsers();
         });
       };
@@ -188,6 +228,7 @@ function loadUsers() {
           body: JSON.stringify({ email: u.email, password: password }),
         }).then(function (res) {
           flash(msg, res.data.ok ? "Password updated" : res.data.error || "Failed", !!res.data.ok);
+          if (res.data.ok) loadUsers();
         });
       };
 
@@ -195,12 +236,14 @@ function loadUsers() {
       if (banBtn) {
         banBtn.onclick = function (e) {
           e.stopPropagation();
-          if (!confirm("Ban " + u.email + "?")) return;
+          var duration = (div.querySelector(".bandur") || {}).value || "inf";
+          var reason = (div.querySelector(".banreason") || {}).value || "";
+          if (!confirm("Ban " + u.email + " for " + duration + "?")) return;
           api("/api/admin/users/ban", {
             method: "POST",
-            body: JSON.stringify({ email: u.email }),
+            body: JSON.stringify({ email: u.email, duration: duration, reason: reason }),
           }).then(function (res) {
-            flash(msg, res.data.ok ? "Banned" : res.data.error || "Failed", !!res.data.ok);
+            flash(msg, res.data.ok ? "Banned (live within ~12s)" : res.data.error || "Failed", !!res.data.ok);
             if (res.data.ok) loadUsers();
           });
         };
