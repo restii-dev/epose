@@ -346,6 +346,7 @@
     showGate("", false);
     if (keyMsg) keyMsg.textContent = "";
     showPanel("pending");
+    setGoogleVisible(false);
 
     var title = document.getElementById("pendingTitle");
     var emailEl = document.getElementById("pendingEmail");
@@ -851,6 +852,33 @@
     });
   }
 
+  function currentGatePanel() {
+    var map = ["panelLogin", "panelSignup", "panelVerify", "panelPending"];
+    for (var i = 0; i < map.length; i++) {
+      var el = document.getElementById(map[i]);
+      if (el && el.style.display !== "none" && el.offsetParent !== null) {
+        if (map[i] === "panelLogin") return "login";
+        if (map[i] === "panelSignup") return "signup";
+        if (map[i] === "panelVerify") return "verify";
+        if (map[i] === "panelPending") return "pending";
+      }
+    }
+    return "login";
+  }
+
+  function setGoogleVisible(show) {
+    var wrap = document.getElementById("googleSignInWrap");
+    if (wrap) wrap.style.display = show ? "block" : "none";
+    try {
+      if (window.google && google.accounts && google.accounts.id) {
+        if (!show) {
+          google.accounts.id.cancel();
+          google.accounts.id.disableAutoSelect();
+        }
+      }
+    } catch (e) {}
+  }
+
   function initGoogleButton() {
     if (!googleClientId || googleReady) return;
     if (!window.google || !google.accounts || !google.accounts.id) return;
@@ -860,6 +888,7 @@
         callback: onGoogleCredential,
         auto_select: false,
         cancel_on_tap_outside: true,
+        use_fedcm_for_prompt: false,
       });
       var host = document.getElementById("googleSignInBtn");
       var wrap = document.getElementById("googleSignInWrap");
@@ -876,8 +905,10 @@
           text: "continue_with",
           width: w,
         });
-        wrap.style.display = "block";
         googleReady = true;
+        /* Only show on login/signup — never on pending / verify / paused */
+        var panel = currentGatePanel();
+        setGoogleVisible(panel === "login" || panel === "signup");
       }
     } catch (e) {
       console.warn("Google button init", e);
@@ -916,11 +947,7 @@
   var _origShowPanel = showPanel;
   showPanel = function (name) {
     _origShowPanel(name);
-    var wrap = document.getElementById("googleSignInWrap");
-    if (wrap) {
-      wrap.style.display =
-        googleReady && (name === "login" || name === "signup") ? "block" : "none";
-    }
+    setGoogleVisible(name === "login" || name === "signup");
   };
 
     window.VeilAccess.signOut = doSignOut;
