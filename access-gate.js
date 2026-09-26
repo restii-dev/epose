@@ -720,9 +720,13 @@
           return;
         }
         try { localStorage.setItem(PENDING_EMAIL, email.trim().toLowerCase()); } catch (e) {}
+        /* Must enter email code before pending — code was sent on create */
         showPanel("verify");
-        if (r.data.emailSent) setMsg("Code sent — check your inbox (and spam)", false);
-        else setMsg(r.data.error || "Account created, but email could not be sent", true, false);
+        if (r.data.emailSent) {
+          setMsg("We emailed you a 6-digit code. Enter it below to continue.", false);
+        } else {
+          setMsg(r.data.error || "Account created, but the verification email could not be sent. Contact an admin.", true, false);
+        }
       });
     };
   }
@@ -737,24 +741,22 @@
       var code = (document.getElementById("verifyCode") || {}).value || "";
       setMsg("Verifying…", false);
       api("/api/auth/verify", { email: email, code: code }).then(function (r) {
-        if (!r.data.ok && !r.data.reason) {
+        if (!r.data.ok && !r.data.reason && !r.data.user) {
           setMsg(r.data.error || "Invalid code", true, true);
           return;
         }
-        /* After verify: enter Veil, or pending — never stay unverified */
+        /* Correct code → marked verified → pending (or enter if already granted) */
         if (r.data.token) setToken(r.data.token, r.data.user);
-        if (r.data.ok && r.data.user && r.data.user.hasAccess) {
-          handleAuthResult(r.data, r.data.token);
-          return;
-        }
-        if (r.data.user || r.data.reason) {
-          handleAuthResult(r.data, r.data.token);
-          return;
-        }
-        setMsg("Email verified. Log in to continue.", false);
-        showPanel("login");
-        var le = document.getElementById("loginEmail");
-        if (le && email) le.value = email;
+        handleAuthResult(
+          {
+            ok: !!(r.data.ok && r.data.user && r.data.user.hasAccess),
+            reason: r.data.reason || (r.data.user && r.data.user.hasAccess ? undefined : "pending"),
+            error: r.data.error,
+            user: r.data.user || { email: email, emailVerified: true, status: "pending", hasAccess: false },
+            token: r.data.token,
+          },
+          r.data.token
+        );
       });
     };
   }
@@ -766,10 +768,20 @@
         (document.getElementById("signupEmail") || {}).value ||
         (document.getElementById("loginEmail") || {}).value ||
         "";
-      setMsg("Sending…", false);
+      setMsg("Checking…", false);
       api("/api/auth/resend-verify", { email: email }).then(function (r) {
-        if (!r.data.ok) setMsg(r.data.error || "Could not resend", true, true);
-        else setMsg("Code sent", false);
+        if (r.data && r.data.alreadyVerified) {
+          setMsg("Already verified — log in", false);
+          showPanel("login");
+          return;
+        }
+        /* Extra codes are admin-only (abuse / email limits) */
+        setMsg(
+          (r.data && r.data.error) ||
+            "A code was already sent when you signed up. Ask an admin if you need a new one.",
+          true,
+          true
+        );
       });
     };
   }

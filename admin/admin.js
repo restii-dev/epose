@@ -214,7 +214,7 @@ function loadUsers() {
         '<button type="button" class="kick">End access</button>' +
         (u.status === "banned" ? '<button type="button" class="unban">Remove ban</button>' : "") +
         (!u.emailVerified
-          ? '<button type="button" class="verify">Mark verified</button>'
+          ? '<button type="button" class="verify">Mark verified</button><button type="button" class="sendverify">Send verify code</button>'
           : '<button type="button" class="deverify">De-verify email</button>') +
         '<button type="button" class="danger delacc">Delete account</button>' +
         "</div>" +
@@ -285,6 +285,15 @@ function loadUsers() {
           e.stopPropagation();
           if (!confirm("De-verify " + u.email + "?\n\nThey must enter a new email code before pending/access.")) return;
           postUser("/api/admin/users/deverify", u.email, {}, msg, "Email de-verified");
+        };
+      }
+
+      var sendverify = div.querySelector(".sendverify");
+      if (sendverify) {
+        sendverify.onclick = function (e) {
+          e.stopPropagation();
+          if (!confirm("Send a new verification code to " + u.email + "?")) return;
+          postUser("/api/admin/users/send-verify", u.email, {}, msg, "Verification email sent");
         };
       }
 
