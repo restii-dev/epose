@@ -657,49 +657,59 @@
   }
 
   function handleAuthResult(data, tokenFromLogin) {
-    var token = tokenFromLogin || data.token || getToken();
-    var user = data.user;
+    data = data || {};
+    var user = data.user || null;
+    var token = tokenFromLogin || data.token || "";
 
+    // Success with access → enter Veil
     if (data.ok && user && user.hasAccess) {
-      setToken(token, user);
+      if (token) setToken(token, user);
       unlockApp();
       return;
     }
 
-    if (data.reason === "banned" || (user && (user.status === "banned" || user.banned))) {
-      clearToken();
-      showBlocked(data.error || "You are banned from Veil");
+    // Banned
+    if (data.reason === "banned") {
+      if (token) setToken(token, user);
+      showBlocked((data.error || "You are banned from Veil") + "");
       return;
     }
 
-    /* Must verify email before pending (or any waiting screen) */
+    // FLOW: must verify email before pending
+    // (signup / login unverified / session check unverified)
     var needsVerify =
       data.reason === "unverified" ||
       data.needsVerify ||
-      (user && user.emailVerified === false) ||
-      (user && user.status === "unverified");
+      (user && user.emailVerified === false);
     if (needsVerify) {
       if (user && user.email) {
         try { localStorage.setItem(PENDING_EMAIL, user.email); } catch (e) {}
       }
-      if (token) setToken(token, user);
-      showGate(data.error || "Verify your email", false);
+      // Do not keep a session while unverified — refresh should not trap here
+      // unless they explicitly stayed on verify with PENDING_EMAIL only
+      if (!user || user.emailVerified === false) {
+        // Clear any old session so refresh on login stays on login
+        // (PENDING_EMAIL kept for the code form)
+        try {
+          localStorage.removeItem(SESSION_KEY);
+          clearCookie(SESSION_KEY);
+        } catch (e) {}
+        lastUser = user || null;
+      }
+      showGate(data.error || "Enter the code sent to your email", false);
       showPanel("verify");
       clearOtp();
       return;
     }
 
-    // Verified only: pending / expired / session ended → waiting screen
+    // Verified → pending / expired / waiting
     if (
       data.reason === "pending" ||
       data.reason === "expired" ||
       data.reason === "signed_out" ||
-      (user && (user.status === "pending" || user.status === "expired" || user.hasAccess === false))
+      (user && user.emailVerified && !user.hasAccess)
     ) {
       if (token) setToken(token, user);
-      if (user && user.email) {
-        try { localStorage.setItem(PENDING_EMAIL, user.email); } catch (e) {}
-      }
       var mode = "pending";
       if (data.reason === "expired" || data.reason === "signed_out") mode = "expired";
       else if (user && user.status === "expired") mode = "expired";
@@ -713,7 +723,6 @@
     }
   }
 
-  
   function checkSession() {
     var token = getToken();
     if (!token) {
@@ -721,7 +730,6 @@
       showPanel("login");
       return Promise.resolve();
     }
-    // Quiet check — no boot animation on gate
     setBodyLocked(true);
     if (appRoot) appRoot.style.display = "none";
     return api("/api/session/check", { token: token }).then(function (r) {
@@ -731,12 +739,20 @@
         return;
       }
       if (r.data) {
-        /* Keep token on pending/expired/unverified so refresh stays signed in */
+        // Unverified session → clear token, show login (not stuck on verify)
+        if (r.data.reason === "unverified" || r.data.needsVerify) {
+          clearToken();
+          if (r.data.user && r.data.user.email) {
+            try { localStorage.setItem(PENDING_EMAIL, r.data.user.email); } catch (e) {}
+          }
+          showGate("Verify your email, then log in", false);
+          showPanel("login");
+          return;
+        }
         if (r.data.token) token = r.data.token;
         if (
           r.data.reason === "pending" ||
           r.data.reason === "expired" ||
-          r.data.reason === "unverified" ||
           r.data.reason === "signed_out" ||
           (r.data.user && r.data.user.email)
         ) {
@@ -745,7 +761,6 @@
         handleAuthResult(r.data, token);
         return;
       }
-      /* Only clear when server truly has no session */
       clearToken();
       showGate(DEFAULT_MSG, false);
       showPanel("login");
@@ -773,9 +788,20 @@
       var password = (document.getElementById("loginPass") || {}).value || "";
       setMsg("Signing in…", false);
       api("/api/auth/login", { email: email, password: password }).then(function (r) {
-        if (r.data.token) setToken(r.data.token, r.data.user);
-        handleAuthResult(r.data, r.data.token);
-        if (!r.data.ok && !r.data.reason) setMsg(r.data.error || "Login failed", true, true);
+        var data = r.data || {};
+        // FLOW: existing verified → pending/app; unverified → verify code; unknown → error
+        if (data.token && data.user && data.user.emailVerified) {
+          setToken(data.token, data.user);
+        }
+        if (data.needsVerify || data.reason === "unverified") {
+          try { localStorage.setItem(PENDING_EMAIL, (email || "").trim().toLowerCase()); } catch (e) {}
+          showGate(data.error || "Enter the verification code sent to your email", false);
+          showPanel("verify");
+          clearOtp();
+          return;
+        }
+        handleAuthResult(data, data.token);
+        if (!data.ok && !data.reason) setMsg(data.error || "Login failed", true, true);
       });
     };
   }
@@ -786,19 +812,19 @@
       var password = (document.getElementById("signupPass") || {}).value || "";
       setMsg("Creating account…", false);
       api("/api/auth/signup", { email: email, password: password }).then(function (r) {
-        if (!r.data.ok && !r.data.needsVerify) {
-          setMsg(r.data.error || "Signup failed", true, true);
+        var data = r.data || {};
+        if (!data.ok || !data.emailSent) {
+          setMsg(data.error || "Signup failed — verification email was not sent", true, true);
           return;
         }
+        // FLOW: Sign up → Brevo code → verify screen (no session yet)
         try { localStorage.setItem(PENDING_EMAIL, email.trim().toLowerCase()); } catch (e) {}
-        /* Must enter email code before pending — code was sent on create */
+        clearToken();
+        try { localStorage.setItem(PENDING_EMAIL, email.trim().toLowerCase()); } catch (e) {}
+        showGate("", false);
         showPanel("verify");
         clearOtp();
-        if (r.data.emailSent) {
-          setMsg("We emailed you a 6-digit code. Enter it below to continue.", false);
-        } else {
-          setMsg(r.data.error || "Account created, but the verification email could not be sent. Contact an admin.", true, false);
-        }
+        setMsg("We emailed you a 6-digit code. Enter it below.", false);
       });
     };
   }
@@ -839,6 +865,9 @@
 
   if (backBtn) {
     backBtn.onclick = function () {
+      clearToken();
+      stopPendingPoll();
+      showGate(DEFAULT_MSG, false);
       showPanel("login");
       setMsg(DEFAULT_MSG, false);
     };
