@@ -1471,43 +1471,20 @@ function setupHomeFx(wrapper) {
   state.clouds = [];
 
   if (style === "rain") {
-    // Diagonal rain (top-left → bottom-right), varied length/opacity
+    // Spawn fully above/left of frame so drops enter from off-screen
     for (let i = 0; i < n; i++) {
+      const ang = 0.45 + Math.random() * 0.25;
       state.particles.push({
-        x: Math.random() * 1.3 - 0.15,
-        y: Math.random() * 1.2 - 0.1,
+        x: Math.random() * 1.4 - 0.35,
+        y: -0.15 - Math.random() * 0.9,
         len: (0.035 + Math.random() * 0.07) * sizeMul,
         spd: 0.006 + Math.random() * 0.012,
         thick: 0.9 + Math.random() * 1.6,
         alpha: 0.25 + Math.random() * 0.55,
-        // strong diagonal: down + to the right (like reference)
-        ang: 0.45 + Math.random() * 0.25
+        ang
       });
     }
-    // Random organic clouds: varied blob count, size, darkness
-    const cloudN = Math.max(4, Math.min(12, Math.round(n / 8) + 3));
-    for (let i = 0; i < cloudN; i++) {
-      const blobs = 4 + Math.floor(Math.random() * 5);
-      const parts = [];
-      for (let b = 0; b < blobs; b++) {
-        parts.push({
-          ox: (Math.random() - 0.5) * 0.9,
-          oy: (Math.random() - 0.5) * 0.55,
-          rx: 0.22 + Math.random() * 0.55,
-          ry: 0.35 + Math.random() * 0.55
-        });
-      }
-      state.clouds.push({
-        x: Math.random() * 1.1 - 0.05,
-        y: 0.02 + Math.random() * 0.28,
-        w: 0.16 + Math.random() * 0.32,
-        h: 0.05 + Math.random() * 0.09,
-        spd: 0.00008 + Math.random() * 0.00022,
-        dark: 0.08 + Math.random() * 0.28,
-        parts
-      });
-    }
-    } else {
+  } else {
     for (let i = 0; i < n; i++) {
       const isStars = style === "stars";
       state.particles.push({
@@ -1556,29 +1533,6 @@ function setupHomeFx(wrapper) {
       ctx.fillStyle = sky;
       ctx.fillRect(0, 0, w, h * 0.55);
 
-      // Organic multi-blob clouds (random shape / size / darkness)
-      state.clouds.forEach((c) => {
-        c.x += c.spd * speed;
-        if (c.x > 1.25) c.x = -0.35;
-        const cx = c.x * w;
-        const cy = c.y * h;
-        const cw = c.w * w;
-        const ch = c.h * h;
-        const shade = Math.floor(40 + c.dark * 90);
-        ctx.fillStyle = "rgba(" + shade + "," + shade + "," + Math.min(255, shade + 12) + "," + (0.35 + c.dark) + ")";
-        ctx.beginPath();
-        (c.parts || []).forEach((p) => {
-          ctx.ellipse(
-            cx + p.ox * cw,
-            cy + p.oy * ch,
-            Math.max(4, p.rx * cw * 0.55),
-            Math.max(3, p.ry * ch * 0.7),
-            0, 0, Math.PI * 2
-          );
-        });
-        ctx.fill();
-      });
-
       // Thunder / lightning (kept)
       if (Math.random() < 0.0022 * speed) spawnBolt(w, h);
       if (state.flash > 0) {
@@ -1618,8 +1572,9 @@ function setupHomeFx(wrapper) {
         p.x += Math.sin(tilt) * step;
         p.y += Math.cos(tilt * 0.15) * step * 1.35;
         if (p.y > 1.12 || p.x > 1.25) {
-          p.x = Math.random() * 1.15 - 0.25;
-          p.y = -0.1 - Math.random() * 0.2;
+          // Re-enter from above / upper-left (never pop in mid-frame)
+          p.x = Math.random() * 1.2 - 0.35;
+          p.y = -0.12 - Math.random() * 0.35;
         }
         const x0 = p.x * w;
         const y0 = p.y * h;
@@ -1644,16 +1599,18 @@ function setupHomeFx(wrapper) {
         ctx.fill();
       });
       if (Math.random() < 0.008 * speed) {
+        // Start fully off-screen (top / top-left), then travel into view
         state.shooters.push({
-          x: Math.random(), y: Math.random() * 0.4,
-          vx: 0.008 + Math.random() * 0.01,
-          vy: 0.004 + Math.random() * 0.006,
+          x: -0.08 - Math.random() * 0.2,
+          y: -0.08 - Math.random() * 0.15,
+          vx: 0.01 + Math.random() * 0.012,
+          vy: 0.006 + Math.random() * 0.008,
           life: 1
         });
       }
       state.shooters = state.shooters.filter((s) => {
-        s.x += s.vx * speed; s.y += s.vy * speed; s.life -= 0.02 * speed;
-        if (s.life <= 0) return false;
+        s.x += s.vx * speed; s.y += s.vy * speed; s.life -= 0.018 * speed;
+        if (s.life <= 0 || s.x > 1.2 || s.y > 1.2) return false;
         const x0 = s.x * w, y0 = s.y * h;
         const x1 = (s.x - s.vx * 4) * w, y1 = (s.y - s.vy * 4) * h;
         const grd = ctx.createLinearGradient(x0, y0, x1, y1);
@@ -2257,6 +2214,32 @@ on("menuLock", () => lockVeil());
 on("menuHistory", () => { openHistory(); });
 on("menuBookmarks", () => { closeMenu(); openPanel("bookmarksPanel"); });
 on("menuDevtools", () => toggleEruda());
+on("menuFullscreen", () => { closeMenu(); togglePageFullscreen(); });
+
+function togglePageFullscreen() {
+  try {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) exit.call(document);
+      return;
+    }
+    // Fullscreen the active tab's page iframe when available
+    let el = null;
+    try {
+      const tab = getActiveTab();
+      if (tab && tab.engineFrame) {
+        el = tab.engineFrame.element || tab.engineFrame.frame || tab.engineFrame;
+      }
+    } catch (e) {}
+    if (!el || !el.requestFullscreen && !el.webkitRequestFullscreen) {
+      el = document.querySelector("#pages .page-wrap.active iframe, .page-wrap.active iframe, #pages iframe") || document.documentElement;
+    }
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) req.call(el);
+  } catch (e) {
+    console.warn("Fullscreen failed", e);
+  }
+}
 const launchNowBtn = document.getElementById("launchNowBtn");
 if (launchNowBtn) launchNowBtn.onclick = () => openLaunchModal();
 const searchEngineSelect = document.getElementById("searchEngineSelect");
