@@ -284,7 +284,7 @@ function loadUsers() {
         deverify.onclick = function (e) {
           e.stopPropagation();
           if (!confirm("De-verify " + u.email + "?\n\nThey must enter a new email code before pending/access.")) return;
-          postUser("/api/admin/users/deverify", u.email, {}, msg, "Email de-verified");
+          postUser("/api/admin/users/deverify", u.email, {}, msg, "De-verified — new code emailed");
         };
       }
 

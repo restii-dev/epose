@@ -284,11 +284,81 @@
     if (tabs) tabs.style.display = name === "login" || name === "signup" ? "flex" : "none";
     var sub = document.getElementById("gateSub");
     if (sub) {
-      if (name === "pending") sub.textContent = "";
-      else if (name === "verify") sub.textContent = "Check your inbox for a code";
-      else sub.textContent = "Sign in to continue";
+      if (name === "pending" || name === "verify") {
+        sub.textContent = "";
+        sub.classList.add("hidden-sub");
+      } else {
+        sub.classList.remove("hidden-sub");
+        sub.textContent = "Sign in to continue";
+      }
     }
   }
+
+  function getOtpCode() {
+    var digits = document.querySelectorAll(".otp-digit");
+    var out = "";
+    digits.forEach(function (d) {
+      out += String(d.value || "").replace(/\D/g, "").slice(0, 1);
+    });
+    var hidden = document.getElementById("verifyCode");
+    if (hidden) hidden.value = out;
+    return out;
+  }
+
+  function clearOtp() {
+    document.querySelectorAll(".otp-digit").forEach(function (d) {
+      d.value = "";
+    });
+    var hidden = document.getElementById("verifyCode");
+    if (hidden) hidden.value = "";
+  }
+
+  function wireOtpInputs() {
+    var digits = Array.prototype.slice.call(document.querySelectorAll(".otp-digit"));
+    if (!digits.length) return;
+    digits.forEach(function (el, idx) {
+      el.addEventListener("input", function () {
+        var v = String(el.value || "").replace(/\D/g, "");
+        // paste of full code into one box
+        if (v.length > 1) {
+          for (var i = 0; i < digits.length; i++) {
+            digits[i].value = v[i] || "";
+          }
+          getOtpCode();
+          if (v.length >= 6 && verifyBtn) verifyBtn.click();
+          return;
+        }
+        el.value = v.slice(0, 1);
+        getOtpCode();
+        if (el.value && idx < digits.length - 1) digits[idx + 1].focus();
+        if (getOtpCode().length === 6 && verifyBtn) {
+          // optional: don't auto-submit, user clicks Verify
+        }
+      });
+      el.addEventListener("keydown", function (e) {
+        if (e.key === "Backspace" && !el.value && idx > 0) {
+          digits[idx - 1].focus();
+          digits[idx - 1].value = "";
+          getOtpCode();
+        }
+        if (e.key === "Enter" && verifyBtn) verifyBtn.click();
+      });
+      el.addEventListener("paste", function (e) {
+        var t = (e.clipboardData || window.clipboardData).getData("text") || "";
+        t = t.replace(/\D/g, "").slice(0, 6);
+        if (!t) return;
+        e.preventDefault();
+        for (var i = 0; i < digits.length; i++) digits[i].value = t[i] || "";
+        getOtpCode();
+        if (t.length >= 6 && verifyBtn) verifyBtn.click();
+        else if (t.length < digits.length) digits[t.length].focus();
+      });
+      el.addEventListener("focus", function () {
+        el.select();
+      });
+    });
+  }
+
 
   function showGate(msg, isErr) {
     setBodyLocked(true);
@@ -615,6 +685,7 @@
       if (token) setToken(token, user);
       showGate(data.error || "Verify your email", false);
       showPanel("verify");
+      clearOtp();
       return;
     }
 
@@ -692,7 +763,6 @@
   var loginBtn = document.getElementById("loginBtn");
   var signupBtn = document.getElementById("signupBtn");
   var verifyBtn = document.getElementById("verifyBtn");
-  var resendBtn = document.getElementById("resendVerifyBtn");
   var backBtn = document.getElementById("backToLoginBtn");
   var pendingRefresh = document.getElementById("pendingRefreshBtn");
   var pendingLogout = document.getElementById("pendingLogoutBtn");
@@ -723,6 +793,7 @@
         try { localStorage.setItem(PENDING_EMAIL, email.trim().toLowerCase()); } catch (e) {}
         /* Must enter email code before pending — code was sent on create */
         showPanel("verify");
+        clearOtp();
         if (r.data.emailSent) {
           setMsg("We emailed you a 6-digit code. Enter it below to continue.", false);
         } else {
@@ -739,7 +810,11 @@
         (document.getElementById("signupEmail") || {}).value ||
         (document.getElementById("loginEmail") || {}).value ||
         "";
-      var code = (document.getElementById("verifyCode") || {}).value || "";
+      var code = getOtpCode();
+      if (code.length !== 6) {
+        setMsg("Enter the 6-digit code", true, true);
+        return;
+      }
       setMsg("Verifying…", false);
       api("/api/auth/verify", { email: email, code: code }).then(function (r) {
         if (!r.data.ok && !r.data.reason && !r.data.user) {
@@ -757,31 +832,6 @@
             token: r.data.token,
           },
           r.data.token
-        );
-      });
-    };
-  }
-
-  if (resendBtn) {
-    resendBtn.onclick = function () {
-      var email =
-        localStorage.getItem(PENDING_EMAIL) ||
-        (document.getElementById("signupEmail") || {}).value ||
-        (document.getElementById("loginEmail") || {}).value ||
-        "";
-      setMsg("Checking…", false);
-      api("/api/auth/resend-verify", { email: email }).then(function (r) {
-        if (r.data && r.data.alreadyVerified) {
-          setMsg("Already verified — log in", false);
-          showPanel("login");
-          return;
-        }
-        /* Extra codes are admin-only (abuse / email limits) */
-        setMsg(
-          (r.data && r.data.error) ||
-            "A code was already sent when you signed up. Ask an admin if you need a new one.",
-          true,
-          true
         );
       });
     };
@@ -819,10 +869,6 @@
     if (el) el.addEventListener("keydown", function (e) {
       if (e.key === "Enter" && signupBtn) signupBtn.click();
     });
-  });
-  var vc = document.getElementById("verifyCode");
-  if (vc) vc.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && verifyBtn) verifyBtn.click();
   });
 
   // ——— Google Sign-In ———
