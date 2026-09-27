@@ -764,10 +764,39 @@ function engineOptionsHTML() {
   ).join("");
 }
 
+
+const HOME_DESIGN_W = 700;
+const HOME_DESIGN_H = 620;
+const homeScaleObservers = new WeakMap();
+
+function fitHomeScale(wrapper) {
+  if (!wrapper) return;
+  const page = wrapper.classList.contains("newtab-page") ? wrapper : wrapper.querySelector(".newtab-page");
+  const stage = wrapper.querySelector(".newtab-stage");
+  if (!page || !stage) return;
+  const pw = page.clientWidth || 1;
+  const ph = page.clientHeight || 1;
+  // Fit entire stage inside page; keep aspect, never crop features
+  const s = Math.min(pw / HOME_DESIGN_W, ph / HOME_DESIGN_H);
+  const clamped = Math.max(0.4, Math.min(s, 1.25));
+  stage.style.setProperty("--home-scale", String(clamped));
+}
+
+function observeHomeScale(wrapper) {
+  fitHomeScale(wrapper);
+  if (homeScaleObservers.has(wrapper)) return;
+  const page = wrapper.classList.contains("newtab-page") ? wrapper : wrapper.querySelector(".newtab-page");
+  if (!page || typeof ResizeObserver === "undefined") return;
+  const ro = new ResizeObserver(() => fitHomeScale(wrapper));
+  ro.observe(page);
+  homeScaleObservers.set(wrapper, ro);
+}
+
 function homepageHTML(pageId) {
   return (
     '<div class="newtab-page"><canvas class="home-fx" data-home-fx></canvas><div class="newtab-overlay">' +
-    '<div class="newtab-top">' + welcomeHTML() + '</div>' +
+    '<div class="newtab-stage">' +
+    welcomeHTML() +
     '<div class="newtab-center">' +
     '<div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div>' +
     '<div class="newtab-title">Veil</div>' +
@@ -787,7 +816,7 @@ function homepageHTML(pageId) {
     '<button class="quick-link soon" title="Utilities (soon)" data-soon="1">' + imgIcon("util.svg") + '</button>' +
     '</div>' +
     '<button class="launch-btn" id="launchOptionsBtn" type="button">Launch Options...</button>' +
-    '</div></div>' +
+    '</div></div></div>' +
     '<div class="time-bar" id="timeBar">Time Remaining: …</div></div>'
   );
 }
@@ -795,6 +824,7 @@ function homepageHTML(pageId) {
 function wireHome(wrapper, page) {
   applyNewTabBackground();
   startWelcomeClock();
+  observeHomeScale(wrapper);
   setupHomeFx(wrapper);
   wrapper.querySelectorAll(".newtab-search").forEach(input => {
     input.addEventListener("keydown", e => {
