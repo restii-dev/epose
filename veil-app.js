@@ -767,7 +767,7 @@ function engineOptionsHTML() {
 function homepageHTML(pageId) {
   return (
     '<div class="newtab-page"><canvas class="home-fx" data-home-fx></canvas><div class="newtab-overlay">' +
-    welcomeHTML() +
+    '<div class="newtab-top">' + welcomeHTML() + '</div>' +
     '<div class="newtab-center">' +
     '<div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div>' +
     '<div class="newtab-title">Veil</div>' +
@@ -2838,7 +2838,7 @@ on("openAdminPanel", () => {
       newTab: false,
       isAdmin: true,
       engineFrame: null,
-      favicon: (typeof IMG !== "undefined" ? IMG : "image/") + "home.svg",
+      favicon: FAVI,
       animOpen: true,
       lastActive: Date.now()
     };
@@ -2846,7 +2846,7 @@ on("openAdminPanel", () => {
   } else {
     page.url = adminUrl;
     page.title = "Admin Panel";
-    page.favicon = (typeof IMG !== "undefined" ? IMG : "image/") + "home.svg";
+    page.favicon = FAVI;
     page.lastActive = Date.now();
   }
   activeTabId = page.id;

@@ -80,11 +80,12 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
   radial-gradient(circle at 15% 80%, rgba(255,255,255,.03), transparent 40%),
   radial-gradient(circle at 85% 70%, rgba(255,255,255,.025), transparent 40%);
   pointer-events:none}
-.newtab-overlay{position:relative;z-index:1;width:100%;flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 20px 24px}
-.welcome-bar{width:min(640px,100%);margin-bottom:28px;padding:14px 18px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(12px);text-align:center}
-.welcome-bar .welcome-line{font-size:14px;font-weight:600;letter-spacing:.01em;color:var(--text);margin-bottom:4px;text-align:center}
-.welcome-bar .welcome-time{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:center}
-.newtab-center{width:min(640px,100%);text-align:center;display:flex;flex-direction:column;align-items:center}
+.newtab-overlay{position:relative;z-index:1;width:100%;flex:1;min-height:0;overflow-x:hidden;overflow-y:auto;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:16px 16px 20px;box-sizing:border-box}
+.newtab-top{width:min(640px,100%);flex:0 0 auto;margin:0 auto 16px;box-sizing:border-box}
+.welcome-bar{width:100%;box-sizing:border-box;padding:12px 16px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(12px);text-align:center}
+.welcome-bar .welcome-line{font-size:14px;font-weight:600;letter-spacing:.01em;color:var(--text);margin-bottom:4px;text-align:center;overflow-wrap:anywhere}
+.welcome-bar .welcome-time{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:center;overflow-wrap:anywhere}
+.newtab-center{width:min(640px,100%);flex:1 1 auto;min-height:0;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;padding-bottom:8px;box-sizing:border-box}
 .veil-mark{width:92px;height:92px;margin:0 auto 16px;border-radius:28px;background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.12);box-shadow:0 12px 40px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;overflow:hidden}
 .veil-mark img{width:56px;height:56px;object-fit:contain;display:block}
 .newtab-title{font-size:clamp(40px,6.5vw,58px);font-weight:700;letter-spacing:-2.2px;line-height:1;margin-bottom:8px}
@@ -484,8 +485,9 @@ body.boot-reveal #browser{
   .toolbar .icon-btn{width:30px;height:30px}
   .url-wrap{height:30px}
   .url-input{font-size:12px}
-  .newtab-overlay{padding:12px 12px 16px;justify-content:flex-start;padding-top:18px}
-  .welcome-bar{margin-bottom:12px;padding:10px 12px}
+  .newtab-overlay{padding:12px 12px 16px;justify-content:flex-start}
+  .newtab-top{margin-bottom:10px}
+  .welcome-bar{padding:10px 12px}
   .welcome-bar .welcome-line{font-size:12px}
   .welcome-bar .welcome-time{font-size:11px}
   .veil-mark{width:52px;height:52px;margin-bottom:8px}
