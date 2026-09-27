@@ -301,7 +301,7 @@ const THEMES = {
 
 const DEFAULT_SETTINGS = {
   theme: "matte", transport: "epoxy", wispId: "default", wispCustom: "",
-  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "duckduckgo", wispId: "va1", customServers: [], lockUnload: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", ...THEMES.matte
+  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "duckduckgo", wispId: "va1", customServers: [], lockUnload: false, confirmLeave: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", ...THEMES.matte
 };
 const DEFAULT_PANIC = { key: "", code: "", url: "https://classroom.google.com" };
 
@@ -765,8 +765,8 @@ function engineOptionsHTML() {
 }
 
 
-const HOME_DESIGN_W = 700;
-const HOME_DESIGN_H = 620;
+const HOME_DESIGN_W = 720;
+const HOME_DESIGN_H = 700;
 const homeScaleObservers = new WeakMap();
 
 function fitHomeScale(wrapper) {
@@ -778,7 +778,7 @@ function fitHomeScale(wrapper) {
   const ph = page.clientHeight || 1;
   // Fit entire stage inside page; keep aspect, never crop features
   const s = Math.min(pw / HOME_DESIGN_W, ph / HOME_DESIGN_H);
-  const clamped = Math.max(0.4, Math.min(s, 1.25));
+  const clamped = Math.max(0.35, Math.min(s, 1));
   stage.style.setProperty("--home-scale", String(clamped));
 }
 
@@ -786,7 +786,10 @@ function observeHomeScale(wrapper) {
   fitHomeScale(wrapper);
   if (homeScaleObservers.has(wrapper)) return;
   const page = wrapper.classList.contains("newtab-page") ? wrapper : wrapper.querySelector(".newtab-page");
-  if (!page || typeof ResizeObserver === "undefined") return;
+  if (!page || typeof ResizeObserver === "undefined") {
+    window.addEventListener("resize", () => fitHomeScale(wrapper));
+    return;
+  }
   const ro = new ResizeObserver(() => fitHomeScale(wrapper));
   ro.observe(page);
   homeScaleObservers.set(wrapper, ro);
@@ -820,6 +823,118 @@ function homepageHTML(pageId) {
     '<div class="time-bar" id="timeBar">Time Remaining: …</div></div>'
   );
 }
+
+
+const SETTINGS_INFO = {
+  theme: {
+    title: "Site theme colors",
+    body: "Changes the colors of Veil’s toolbars, menus, and panels. Pick a preset that feels comfortable — it only affects the Veil browser chrome, not the websites you visit."
+  },
+  background: {
+    title: "Home page background",
+    body: "Sets a custom background on the New Tab page. You can paste a link to an image, GIF, or video (mp4/webm). Leave it empty to use the solid theme background."
+  },
+  time24: {
+    title: "24-hour time",
+    body: "Switches the welcome clock between 12-hour time (with AM/PM) and 24-hour time. This only changes how the time is shown on the home page."
+  },
+  animations: {
+    title: "Home page animations",
+    body: "Turns on a soft animated background on the New Tab page (orbs, stars, rain, and more). You can change the style, speed, amount, size, and colors. Animations only run when cookies are allowed."
+  },
+  cloak: {
+    title: "Tab cloak",
+    body: "Changes what the browser tab shows — the title and the little icon. Use a preset (like Google Drive or Gmail) or type your own. Helpful if you want the tab to look like schoolwork at a glance."
+  },
+  panic: {
+    title: "Panic key",
+    body: "Choose a keyboard key and a website. When you press that key (while not typing in a text box), Veil jumps to the website you set. Useful for a quick switch if someone walks by."
+  },
+  aboutblank: {
+    title: "About:blank launch",
+    body: "Controls whether Veil opens inside a special about:blank window. Manual means you choose when; automatic tries to open that way for you. It is skipped if you are already in that mode."
+  },
+  pagelock: {
+    title: "Page lock",
+    body: "When you lock Veil from the menu, this chooses whether open pages are unloaded to hide what you were viewing. If this is off, pages stay loaded in the background until you unlock."
+  },
+  confirmleave: {
+    title: "Leave warning",
+    body: "When this is on, closing the browser tab or refreshing the page shows the browser’s “are you sure you want to leave?” message. It can stop someone from closing Veil with one click. Off by default."
+  },
+  search: {
+    title: "Search engine",
+    body: "When you type words in the address bar or home search box instead of a full website address, Veil searches with this engine (for example DuckDuckGo or Google)."
+  },
+  adblock: {
+    title: "Ad blocker",
+    body: "Blocks many common ads and trackers on sites you open through Veil. Turning it off can help if a site breaks or looks incomplete."
+  },
+  maxtabs: {
+    title: "Loaded tabs at once",
+    body: "Limits how many tabs keep a live page running at the same time. Extra tabs are unloaded until you switch back to them. A lower number uses less memory on school devices."
+  },
+  proxy: {
+    title: "Proxy servers",
+    body: "These are the connection servers Veil uses to open websites. Pick one that shows a fast ping (green). If a site will not load, try another server from the list."
+  },
+  engine: {
+    title: "Browser engine",
+    body: "The technical method Veil uses to talk to the proxy. Epoxy works for most people. If pages fail to load or get stuck, switch to Libcurl and try again."
+  },
+  username: {
+    title: "Change username",
+    body: "Updates the display name shown in the welcome message on the home page. This stays on this device and is not your account email."
+  },
+  password: {
+    title: "Change password",
+    body: "Changes the local password used to lock and unlock Veil on this device. It is separate from your email login password for the access system."
+  },
+  account: {
+    title: "Account",
+    body: "Signs you out of Veil on this device and clears the Google sign-in session used for access. You will need to log in again next time."
+  },
+  cleardata: {
+    title: "Clear cookies & cache",
+    body: "Wipes Veil’s saved data on this device (settings storage, cookies, and cache) and signs you out. Use this if something is stuck or you want a clean slate."
+  },
+  reset: {
+    title: "Factory reset",
+    body: "Restores theme, cloak, and browser options to the defaults. Your profile password is kept unless you also clear site data."
+  },
+  admin: {
+    title: "Admin",
+    body: "Opens the admin panel in a Veil tab so you can manage accounts, time grants, and bans. You will need the admin password from the worker setup."
+  }
+};
+
+function showSettingsInfo(key) {
+  const info = SETTINGS_INFO[key];
+  if (!info) return;
+  const existing = document.querySelector(".modal-overlay.veil-info");
+  if (existing) existing.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay veil-info";
+  overlay.innerHTML =
+    '<div class="modal-box info-modal" role="dialog" aria-modal="true">' +
+    "<h2>" + escapeHTML(info.title) + "</h2>" +
+    "<p>" + escapeHTML(info.body) + "</p>" +
+    '<div class="modal-actions"><button type="button" class="primary-btn" data-info-ok>Got it</button></div>' +
+    "</div>";
+  document.body.appendChild(overlay);
+  const close = () => { try { overlay.remove(); } catch (e) {} };
+  overlay.querySelector("[data-info-ok]").onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+}
+
+document.addEventListener("click", (e) => {
+  const btn = e.target && e.target.closest && e.target.closest(".info-btn[data-info]");
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  showSettingsInfo(btn.getAttribute("data-info"));
+});
+
 
 function wireHome(wrapper, page) {
   applyNewTabBackground();
@@ -1804,6 +1919,7 @@ function highlightTheme() {
     setSwitch(document.getElementById("adblockSwitch"), settings.adBlocker !== false);
     setSwitch(document.getElementById("animEnabledSwitch"), !!settings.animEnabled);
     setSwitch(document.getElementById("lockUnloadSwitch"), !!settings.lockUnload);
+    setSwitch(document.getElementById("confirmLeaveSwitch"), !!settings.confirmLeave);
     setSwitch(document.getElementById("time24Switch"), settings.timeFormat === "24");
     const animOpts = document.getElementById("animOpts");
     if (animOpts) animOpts.classList.toggle("enabled", !!settings.animEnabled);
@@ -1858,7 +1974,7 @@ function pushAdblockToSW() {
 
 function applyTheme(name) {
   if (!THEMES[name]) return;
-  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, wispId: settings.wispId, timeFormat: settings.timeFormat };
+  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, confirmLeave: settings.confirmLeave, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, wispId: settings.wispId, timeFormat: settings.timeFormat };
   settings = Object.assign({}, settings, THEMES[name], keep, { theme: name });
   const editor = document.getElementById("customColorCard");
   if (editor) editor.classList.remove("open", "force-open");
@@ -2305,6 +2421,10 @@ on("lockUnloadSwitch", () => {
   settings.lockUnload = !settings.lockUnload;
   save(); highlightTheme();
 });
+on("confirmLeaveSwitch", () => {
+  settings.confirmLeave = !settings.confirmLeave;
+  save(); highlightTheme();
+});
 on("time24Switch", () => {
   settings.timeFormat = settings.timeFormat === "24" ? "12" : "24";
   save(); highlightTheme(); startWelcomeClock();
@@ -2485,7 +2605,14 @@ document.addEventListener("keydown", e => {
   if (e.altKey && e.key === "ArrowRight") { e.preventDefault(); goForward(); }
   if (mod && e.key.toLowerCase() === "r") { e.preventDefault(); reload(); }
 });
-window.addEventListener("beforeunload", () => { if (COOKIE.consent) save(); });
+window.addEventListener("beforeunload", (e) => {
+  try { if (COOKIE.consent) save(); } catch (err) {}
+  if (settings && settings.confirmLeave) {
+    e.preventDefault();
+    e.returnValue = "";
+    return "";
+  }
+});
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") reconnectTransport();
 });
