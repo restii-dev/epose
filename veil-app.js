@@ -815,7 +815,7 @@ function homepageHTML(pageId) {
     '<button class="quick-link" title="GeForce NOW" data-url="https://play.geforcenow.com/mall">' + imgIcon("nvidia.svg") + '</button>' +
     '</div>' +
     '<div class="quick-links row2">' +
-    '<button class="quick-link soon" title="Games (soon)" data-soon="1">' + imgIcon("games.svg") + '</button>' +
+    '<button class="quick-link" title="Games" data-games="1">' + imgIcon("games.svg") + '</button>' +
     '<button class="quick-link soon" title="Utilities (soon)" data-soon="1">' + imgIcon("util.svg") + '</button>' +
     '</div>' +
     '<button class="launch-btn" id="launchOptionsBtn" type="button">Launch Options...</button>' +
@@ -958,6 +958,12 @@ function wireHome(wrapper, page) {
       navigate(btn.getAttribute("data-url") || btn.dataset.url);
     });
   });
+  wrapper.querySelectorAll(".quick-link[data-games]").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      openGamesPage();
+    });
+  });
   const lob = wrapper.querySelector("#launchOptionsBtn");
   if (lob) lob.onclick = () => openLaunchModal();
 }
@@ -1004,6 +1010,8 @@ function maxLoaded() {
 }
 
 function showActiveOnly() {
+  try { updateGamesChromeLocks(); } catch (e) {}
+
   const viewport = document.getElementById("viewport");
   if (!viewport) return;
   const limit = maxLoaded();
@@ -1982,25 +1990,29 @@ function applyTheme(name) {
 }
 function applyCustomColors() {
   const bgEl = document.getElementById("colorBg");
-  if (bgEl && bgEl.value) settings.bg = bgEl.value;
   const panelEl = document.getElementById("colorPanel");
-  if (panelEl && panelEl.value) settings.panel = panelEl.value;
   const accentEl = document.getElementById("colorAccent");
-  if (accentEl && accentEl.value) settings.accent = accentEl.value;
   const textEl = document.getElementById("colorText");
-  if (textEl && textEl.value) settings.text = textEl.value;
-  // Single-color custom editor: derive the rest from background
-  if (!panelEl) {
-    settings.panel = settings.bg;
-    settings.panel2 = settings.bg;
-    settings.bg2 = settings.bg;
-    settings.bg3 = settings.bg;
-  }
-  if (!settings.accent) settings.accent = "#ffffff";
-  if (!settings.text) settings.text = "#f0f0f0";
+  const bg = (bgEl && bgEl.value) || settings.bg || "#101010";
+  const panel = (panelEl && panelEl.value) || bg;
+  const accent = (accentEl && accentEl.value) || "#ffffff";
+  const text = (textEl && textEl.value) || "#f2f2f2";
+  settings.bg = bg;
+  settings.bg2 = panel;
+  settings.bg3 = panel;
+  settings.panel = panel;
+  settings.panel2 = panel;
+  settings.border = panel;
+  settings.accent = accent;
+  settings.accentText = bg;
+  settings.text = text;
+  settings.muted = text;
+  settings.newtab = bg;
   settings.theme = "custom";
-  settings.newtab = settings.bg;
-  applyCSSVariables(); save(); highlightTheme();
+  applyCSSVariables();
+  save();
+  highlightTheme();
+  loadColorInputs();
 }
 function applyBackground() {
   const el = document.getElementById("backgroundUrl");
@@ -2972,6 +2984,578 @@ on("signOutBtn", () => {
     location.reload();
   }
 });
+
+
+/* ===================== Games ===================== */
+const GAMES_CATS = ["Sports", "Adventure", "Sandbox", "Casual", "Idle", "Racing", "Arcade", "FNF", "Emulators"];
+let gamesCatalog = [];
+let gamesUserData = { favorites: [], recent: [], notes: {} };
+let gamesPopularTimer = null;
+let gamesPageActive = false;
+
+function gameSlug(name) {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .slice(0, 40);
+}
+
+function gameId(g) {
+  return g.id || gameSlug(g.name) || g.url || g.name;
+}
+
+function resolveGameAsset(path) {
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+  const p = String(path).replace(/^\//, "");
+  return REPO_PATH + p;
+}
+
+function smallThumb(g) {
+  const slug = gameSlug(g.name);
+  if (g.image && /games\/small/i.test(g.image)) return resolveGameAsset(g.image);
+  return resolveGameAsset("image/games/small/" + slug + ".png");
+}
+
+function largeThumb(g) {
+  const slug = gameSlug(g.name);
+  if (g.imageLarge) return resolveGameAsset(g.imageLarge);
+  if (g.image && /games\/large/i.test(g.image)) return resolveGameAsset(g.image);
+  return resolveGameAsset("image/games/large/" + slug + ".png");
+}
+
+function gamePlayUrl(g) {
+  return resolveGameAsset(g.url || g.path || "");
+}
+
+async function loadGameCatalog() {
+  try {
+    const res = await fetch(REPO_PATH + "game-data.html", { cache: "no-store" });
+    const html = await res.text();
+    const m = html.match(/<script[^>]*id=["']sgs-game-data["'][^>]*>([\s\S]*?)<\/script>/i);
+    if (m) {
+      const data = JSON.parse(m[1].trim());
+      gamesCatalog = Array.isArray(data.games) ? data.games : [];
+    }
+  } catch (e) {
+    console.warn("game-data load", e);
+  }
+  if (!gamesCatalog.length) {
+    gamesCatalog = [
+      {
+        name: "Retrobowl",
+        image: "image/games/small/retrobowl.png",
+        imageLarge: "image/games/large/retrobowl.png",
+        url: "HTML/RB.html",
+        category: "Sports",
+        description: "A retro-style football game.",
+        controls: "Mouse or touch to manage your team.",
+        howToPlay: "Build your roster and win the season.",
+        sideNotes: "Placeholder until full game-data is deployed.",
+        rating: "4.6",
+        difficulty: "3",
+      },
+    ];
+  }
+  return gamesCatalog;
+}
+
+async function loadGamesUserData() {
+  const token = window.VeilAccess && window.VeilAccess.getToken ? window.VeilAccess.getToken() : "";
+  if (token) {
+    try {
+      const base = (localStorage.getItem("veil_worker_url") || "https://veil-access.retropixel404.workers.dev").replace(
+        /\/$/,
+        ""
+      );
+      const r = await fetch(base + "/api/user/data", {
+        method: "GET",
+        headers: { authorization: "Bearer " + token },
+      });
+      const j = await r.json();
+      if (j && j.ok && j.data) {
+        gamesUserData = {
+          favorites: j.data.favorites || [],
+          recent: j.data.recent || [],
+          notes: j.data.notes || {},
+        };
+        return gamesUserData;
+      }
+    } catch (e) {
+      console.warn("prefs load", e);
+    }
+  }
+  try {
+    const raw = localStorage.getItem("veil_games_data");
+    if (raw) gamesUserData = { ...gamesUserData, ...JSON.parse(raw) };
+  } catch (e) {}
+  return gamesUserData;
+}
+
+async function saveGamesUserData() {
+  try {
+    localStorage.setItem("veil_games_data", JSON.stringify(gamesUserData));
+  } catch (e) {}
+  const token = window.VeilAccess && window.VeilAccess.getToken ? window.VeilAccess.getToken() : "";
+  if (!token) return;
+  try {
+    const base = (localStorage.getItem("veil_worker_url") || "https://veil-access.retropixel404.workers.dev").replace(
+      /\/$/,
+      ""
+    );
+    await fetch(base + "/api/user/data", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token, data: gamesUserData }),
+    });
+  } catch (e) {
+    console.warn("prefs save", e);
+  }
+}
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = a[i];
+    a[i] = a[j];
+    a[j] = t;
+  }
+  return a;
+}
+
+function isFavorite(id) {
+  return (gamesUserData.favorites || []).indexOf(id) !== -1;
+}
+
+function toggleFavorite(id) {
+  const set = new Set(gamesUserData.favorites || []);
+  if (set.has(id)) set.delete(id);
+  else set.add(id);
+  gamesUserData.favorites = Array.from(set);
+  saveGamesUserData();
+}
+
+function pushRecent(id) {
+  let r = (gamesUserData.recent || []).filter((x) => x !== id);
+  r.unshift(id);
+  gamesUserData.recent = r.slice(0, 10);
+  saveGamesUserData();
+}
+
+function openGamesPage() {
+  closePanels();
+  closeMenu();
+  try {
+    closeHistory();
+  } catch (e) {}
+  let page = tabs.find((t) => t.isGames);
+  if (!page) {
+    if (tabs.length >= MAX_TABS) {
+      alert("Too many tabs");
+      return;
+    }
+    page = {
+      id: uid(),
+      title: "Games",
+      url: "",
+      history: [],
+      historyIndex: -1,
+      newTab: false,
+      isGames: true,
+      isAdmin: false,
+      engineFrame: null,
+      favicon: IMG + "games.svg",
+      animOpen: true,
+      lastActive: Date.now(),
+    };
+    tabs.push(page);
+  } else {
+    page.title = "Games";
+    page.favicon = IMG + "games.svg";
+    page.lastActive = Date.now();
+  }
+  activeTabId = page.id;
+  gamesPageActive = true;
+  const viewport = document.getElementById("viewport");
+  if (!viewport) return;
+  let wrap = viewport.querySelector('.page[data-page-id="' + page.id + '"]');
+  if (!wrap) {
+    wrap = document.createElement("section");
+    wrap.className = "page";
+    wrap.dataset.pageId = page.id;
+    viewport.appendChild(wrap);
+  }
+  wrap.innerHTML = '<div class="games-page" id="gamesRoot"><div class="games-inner">Loading games…</div></div>';
+  showActiveOnly();
+  renderChrome();
+  const addr = document.getElementById("address");
+  if (addr) addr.value = "Games";
+  updateGamesChromeLocks();
+  renderGamesPage(wrap.querySelector("#gamesRoot"));
+}
+
+function updateGamesChromeLocks() {
+  const tab = getActiveTab();
+  const onGames = !!(tab && tab.isGames);
+  gamesPageActive = onGames;
+  const fs = document.getElementById("menuFullscreen");
+  const dt = document.getElementById("menuDevtools");
+  if (fs) {
+    fs.classList.toggle("disabled", onGames);
+    fs.disabled = onGames;
+  }
+  if (dt) {
+    dt.classList.toggle("disabled", onGames);
+    dt.disabled = onGames;
+  }
+}
+
+async function renderGamesPage(root) {
+  if (!root) return;
+  await loadGameCatalog();
+  await loadGamesUserData();
+  const cats = GAMES_CATS;
+  root.innerHTML =
+    '<div class="games-inner">' +
+    '<div class="games-header">' +
+    '<div class="games-search-wrap"><span class="gs-icon"></span>' +
+    '<input class="games-search" id="gamesSearch" type="search" placeholder="Search games..." autocomplete="off">' +
+    "</div>" +
+    '<div class="games-cats" id="gamesCats">' +
+    '<button type="button" class="games-cat active" data-cat="all">All</button>' +
+    cats.map((c) => '<button type="button" class="games-cat" data-cat="' + escapeHTML(c) + '">' + escapeHTML(c) + "</button>").join("") +
+    "</div></div>" +
+    '<div class="games-section"><h3>Popular</h3><div class="games-popular" id="gamesPopular"></div></div>' +
+    '<div class="games-section" id="gamesFavSection" style="display:none"><h3>Favorites</h3><div class="games-row" id="gamesFavRow"></div></div>' +
+    '<div class="games-section" id="gamesRecentSection" style="display:none"><h3>Recently played</h3><div class="games-row" id="gamesRecentRow"></div></div>' +
+    '<div class="games-section"><h3>All games</h3><div class="games-row" id="gamesAllRow"></div></div>' +
+    "</div>";
+
+  let activeCat = "all";
+  let query = "";
+
+  const popular = root.querySelector("#gamesPopular");
+  const popList = shuffle(gamesCatalog).slice(0, Math.min(8, gamesCatalog.length));
+  popular.innerHTML = popList
+    .map((g) => {
+      const id = gameId(g);
+      return (
+        '<div class="games-popular-card" data-play="' +
+        escapeHTML(id) +
+        '"><img src="' +
+        escapeHTML(largeThumb(g)) +
+        '" alt="" onerror="this.style.opacity=.2"><div class="pop-label">' +
+        escapeHTML(g.name) +
+        "</div></div>"
+      );
+    })
+    .join("");
+
+  // Carousel scroll
+  if (gamesPopularTimer) clearInterval(gamesPopularTimer);
+  let popIdx = 0;
+  gamesPopularTimer = setInterval(() => {
+    if (!popular.isConnected) {
+      clearInterval(gamesPopularTimer);
+      return;
+    }
+    const cards = popular.querySelectorAll(".games-popular-card");
+    if (!cards.length) return;
+    popIdx = (popIdx + 1) % cards.length;
+    cards[popIdx].scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+  }, 3500);
+
+  function filtered() {
+    let list = gamesCatalog.slice();
+    if (activeCat !== "all") {
+      list = list.filter((g) => String(g.category || "").toLowerCase() === activeCat.toLowerCase());
+    }
+    if (query) {
+      const q = query.toLowerCase();
+      list = list.filter(
+        (g) =>
+          String(g.name || "")
+            .toLowerCase()
+            .indexOf(q) !== -1 ||
+          String(g.category || "")
+            .toLowerCase()
+            .indexOf(q) !== -1
+      );
+    }
+    return shuffle(list);
+  }
+
+  function tileHTML(g) {
+    const id = gameId(g);
+    const fav = isFavorite(id);
+    return (
+      '<div class="game-tile' +
+      (fav ? " fav" : "") +
+      '" data-play="' +
+      escapeHTML(id) +
+      '"><div class="thumb"><img src="' +
+      escapeHTML(smallThumb(g)) +
+      '" alt="" onerror="this.style.opacity=.25"></div><div class="meta"><div class="name">' +
+      escapeHTML(g.name) +
+      '</div><div class="cat">' +
+      escapeHTML(g.category || "") +
+      "</div></div></div>"
+    );
+  }
+
+  function byIds(ids) {
+    const map = {};
+    gamesCatalog.forEach((g) => {
+      map[gameId(g)] = g;
+    });
+    return ids.map((id) => map[id]).filter(Boolean);
+  }
+
+  function paint() {
+    const all = filtered();
+    const allRow = root.querySelector("#gamesAllRow");
+    allRow.innerHTML = all.length ? all.map(tileHTML).join("") : '<div class="games-empty">No games match.</div>';
+
+    const favs = byIds(gamesUserData.favorites || []);
+    const favSec = root.querySelector("#gamesFavSection");
+    const favRow = root.querySelector("#gamesFavRow");
+    if (favs.length) {
+      favSec.style.display = "";
+      favRow.innerHTML = favs.map(tileHTML).join("");
+    } else favSec.style.display = "none";
+
+    const rec = byIds(gamesUserData.recent || []);
+    const recSec = root.querySelector("#gamesRecentSection");
+    const recRow = root.querySelector("#gamesRecentRow");
+    if (rec.length) {
+      recSec.style.display = "";
+      recRow.innerHTML = rec.map(tileHTML).join("");
+    } else recSec.style.display = "none";
+  }
+
+  paint();
+
+  root.querySelector("#gamesSearch").addEventListener("input", (e) => {
+    query = e.target.value.trim();
+    paint();
+  });
+  root.querySelectorAll(".games-cat").forEach((btn) => {
+    btn.onclick = () => {
+      root.querySelectorAll(".games-cat").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      activeCat = btn.getAttribute("data-cat") || "all";
+      paint();
+    };
+  });
+  root.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-play]");
+    if (!el) return;
+    const id = el.getAttribute("data-play");
+    const g = gamesCatalog.find((x) => gameId(x) === id);
+    if (g) openGamePlayer(g);
+  });
+}
+
+function openGamePlayer(g) {
+  const id = gameId(g);
+  pushRecent(id);
+  const rating = g.rating || "—";
+  const diff = g.difficulty || "—";
+  const title =
+    escapeHTML(g.name) + " | rating " + escapeHTML(String(rating)) + " | difficulty " + escapeHTML(String(diff)) + "/10";
+
+  const existing = document.querySelector(".game-player-overlay");
+  if (existing) existing.remove();
+
+  const overlay = document.createElement("div");
+  overlay.className = "game-player-overlay";
+  overlay.innerHTML =
+    '<div class="game-player" id="gamePlayer">' +
+    '<div class="game-player-main" style="flex:1;min-width:0;display:flex;flex-direction:column;min-height:0">' +
+    '<div class="game-player-bar">' +
+    '<button type="button" class="game-player-btn" data-gp="close" title="Close"><img src="' +
+    IMG +
+    'exit.svg" alt=""></button>' +
+    '<div class="game-player-title">' +
+    title +
+    "</div>" +
+    '<button type="button" class="game-player-btn" data-gp="info" title="Info"><img src="' +
+    IMG +
+    'info.svg" alt=""></button>' +
+    '<button type="button" class="game-player-btn" data-gp="notes" title="Notes"><img src="' +
+    IMG +
+    'pencil.svg" alt=""></button>' +
+    '<button type="button" class="game-player-btn' +
+    (isFavorite(id) ? " star-on" : "") +
+    '" data-gp="star" title="Favorite"><img src="' +
+    IMG +
+    'star.svg" alt="" style="' +
+    (isFavorite(id) ? "filter:none;opacity:1" : "") +
+    '"></button>' +
+    '<button type="button" class="game-player-btn" data-gp="fs" title="Fullscreen"><img src="' +
+    IMG +
+    'zoom.svg" alt=""></button>' +
+    '<button type="button" class="game-player-btn" data-gp="reload" title="Reload"><img src="' +
+    IMG +
+    'refresh.svg" alt=""></button>' +
+    "</div>" +
+    '<div class="game-player-frame"><iframe id="gameFrame" src="' +
+    escapeHTML(gamePlayUrl(g)) +
+    '" allow="gamepad *; autoplay *; fullscreen *"></iframe></div>' +
+    "</div>" +
+    '<div class="game-notes" id="gameNotes">' +
+    '<div class="game-notes-tabs" id="gameNoteTabs"></div>' +
+    '<div class="game-notes-body"><textarea id="gameNoteBody" placeholder="Write a note…"></textarea></div>' +
+    "</div></div>";
+
+  document.body.appendChild(overlay);
+  const player = overlay.querySelector("#gamePlayer");
+  const frame = overlay.querySelector("#gameFrame");
+
+  // star yellow via CSS filter when on
+  function syncStar(btn) {
+    if (!btn) return;
+    const on = isFavorite(id);
+    btn.classList.toggle("star-on", on);
+    const img = btn.querySelector("img");
+    if (img) img.style.filter = on ? "none" : "invert(1)";
+    if (img) img.style.opacity = on ? "1" : ".85";
+    if (on) img.style.setProperty("filter", "invert(79%) sepia(61%) saturate(600%) hue-rotate(5deg)");
+  }
+  syncStar(overlay.querySelector('[data-gp="star"]'));
+
+  // Notes
+  if (!gamesUserData.notes[id]) gamesUserData.notes[id] = [];
+  let notes = gamesUserData.notes[id];
+  let activeNote = 0;
+
+  function paintNotes() {
+    const tabs = overlay.querySelector("#gameNoteTabs");
+    tabs.innerHTML =
+      notes
+        .map(
+          (n, i) =>
+            '<button type="button" class="game-note-tab' +
+            (i === activeNote ? " active" : "") +
+            '" data-note="' +
+            i +
+            '">' +
+            escapeHTML(n.title || "Note") +
+            "</button>"
+        )
+        .join("") +
+      '<button type="button" class="game-note-tab" data-note-add title="New note">+</button>';
+    const body = overlay.querySelector("#gameNoteBody");
+    if (notes[activeNote]) body.value = notes[activeNote].body || "";
+    else body.value = "";
+  }
+  paintNotes();
+
+  overlay.querySelector("#gameNoteTabs").onclick = (e) => {
+    const add = e.target.closest("[data-note-add]");
+    if (add) {
+      if (notes.length >= 20) {
+        alert("Max 20 notes");
+        return;
+      }
+      notes.push({ id: uid(), title: "Note " + (notes.length + 1), body: "" });
+      activeNote = notes.length - 1;
+      gamesUserData.notes[id] = notes;
+      saveGamesUserData();
+      paintNotes();
+      return;
+    }
+    const t = e.target.closest("[data-note]");
+    if (!t) return;
+    // save current
+    const body = overlay.querySelector("#gameNoteBody");
+    if (notes[activeNote]) notes[activeNote].body = body.value;
+    activeNote = parseInt(t.getAttribute("data-note"), 10) || 0;
+    paintNotes();
+  };
+  overlay.querySelector("#gameNoteBody").addEventListener("change", () => {
+    if (notes[activeNote]) {
+      notes[activeNote].body = overlay.querySelector("#gameNoteBody").value;
+      gamesUserData.notes[id] = notes;
+      saveGamesUserData();
+    }
+  });
+
+  overlay.onclick = (e) => {
+    if (e.target === overlay) {
+      // don't close on backdrop accidentally — only X
+    }
+  };
+
+  overlay.querySelector(".game-player-bar").onclick = (e) => {
+    const btn = e.target.closest("[data-gp]");
+    if (!btn) return;
+    const act = btn.getAttribute("data-gp");
+    if (act === "close") {
+      const body = overlay.querySelector("#gameNoteBody");
+      if (notes[activeNote]) notes[activeNote].body = body.value;
+      gamesUserData.notes[id] = notes;
+      saveGamesUserData();
+      overlay.remove();
+      return;
+    }
+    if (act === "reload") {
+      frame.src = frame.src;
+      return;
+    }
+    if (act === "fs") {
+      const el = frame;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req) req.call(el);
+      return;
+    }
+    if (act === "star") {
+      toggleFavorite(id);
+      syncStar(btn);
+      return;
+    }
+    if (act === "notes") {
+      player.classList.toggle("notes-open");
+      return;
+    }
+    if (act === "info") {
+      showGameInfo(g);
+    }
+  };
+}
+
+function showGameInfo(g) {
+  const existing = document.querySelector(".modal-overlay.game-info-modal");
+  if (existing) existing.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay game-info-modal";
+  overlay.innerHTML =
+    '<div class="modal-box info-modal" role="dialog">' +
+    "<h2>" +
+    escapeHTML(g.name) +
+    "</h2>" +
+    "<h3>Description</h3><p>" +
+    escapeHTML(g.description || "—") +
+    "</p>" +
+    "<h3>Controls</h3><p>" +
+    escapeHTML(g.controls || "—") +
+    "</p>" +
+    "<h3>How to play</h3><p>" +
+    escapeHTML(g.howToPlay || "—") +
+    "</p>" +
+    "<h3>Side notes</h3><p>" +
+    escapeHTML(g.sideNotes || "—") +
+    "</p>" +
+    '<div class="modal-actions"><button type="button" class="primary-btn" data-ok>Got it</button></div></div>';
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector("[data-ok]").onclick = close;
+  overlay.onclick = (e) => {
+    if (e.target === overlay) close();
+  };
+}
+
 
 on("openAdminPanel", () => {
   closePanels();

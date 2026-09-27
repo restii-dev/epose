@@ -512,6 +512,101 @@ body.boot-reveal #browser{
   .toolbar .icon-btn#menuBtn{margin-left:0}
   .omnibox-form{gap:2px}
 }
+
+/* ——— Games page ——— */
+.games-page{width:100%;height:100%;overflow:auto;background:var(--bg);color:var(--text);position:relative}
+.games-inner{max-width:1200px;margin:0 auto;padding:20px 18px 48px;box-sizing:border-box}
+.games-header{display:flex;flex-direction:column;gap:12px;margin-bottom:18px}
+.games-search-row{display:flex;align-items:center;gap:10px}
+.games-search{
+  flex:1;height:42px;border-radius:12px;border:1px solid var(--border);background:var(--bg2);
+  color:var(--text);padding:0 14px 0 40px;font-size:14px;outline:none;position:relative;
+}
+.games-search-wrap{flex:1;position:relative}
+.games-search-wrap .gs-icon{
+  position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;
+  background:var(--muted);-webkit-mask:url("image/search.svg") center/contain no-repeat;mask:url("image/search.svg") center/contain no-repeat;
+  pointer-events:none;
+}
+.games-cats{display:flex;flex-wrap:wrap;gap:8px}
+.games-cat{
+  height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--border);background:var(--bg2);
+  color:var(--muted);font-size:12px;cursor:pointer;
+}
+.games-cat.active,.games-cat:hover{border-color:var(--accent);color:var(--text);background:var(--panel2)}
+.games-section{margin-bottom:22px}
+.games-section h3{font-size:14px;font-weight:650;margin:0 0 12px;color:var(--text);letter-spacing:.02em}
+.games-popular{
+  display:flex;gap:12px;overflow:hidden;scroll-behavior:smooth;border-radius:14px;
+  border:1px solid var(--border);background:var(--panel);padding:10px;min-height:160px;
+}
+.games-popular-card{
+  flex:0 0 min(78%,420px);height:150px;border-radius:12px;overflow:hidden;position:relative;
+  border:1px solid var(--border);cursor:pointer;background:var(--bg3);
+}
+.games-popular-card img{width:100%;height:100%;object-fit:cover;display:block}
+.games-popular-card .pop-label{
+  position:absolute;left:0;right:0;bottom:0;padding:10px 12px;
+  background:linear-gradient(transparent,rgba(0,0,0,.75));font-size:13px;font-weight:600;
+}
+.games-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:12px}
+.game-tile{
+  border-radius:14px;border:1px solid var(--border);background:var(--panel);overflow:hidden;cursor:pointer;
+  transition:transform .15s ease,border-color .15s ease;
+}
+.game-tile:hover{transform:translateY(-2px);border-color:var(--accent)}
+.game-tile .thumb{width:100%;aspect-ratio:1;background:var(--bg3);overflow:hidden}
+.game-tile .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.game-tile .meta{padding:8px 9px 10px}
+.game-tile .meta .name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.game-tile .meta .cat{font-size:10px;color:var(--muted);margin-top:2px}
+.game-tile.fav .meta .name::after{content:" ★";color:#f5c542}
+.games-empty{color:var(--muted);font-size:13px;padding:16px 4px}
+
+/* Game player window */
+.game-player-overlay{
+  position:fixed;inset:0;z-index:4000;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;
+  padding:18px;box-sizing:border-box;
+}
+.game-player{
+  width:min(1100px,100%);height:min(720px,100%);background:var(--panel);border:1px solid var(--border);
+  border-radius:14px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45);
+}
+.game-player-bar{
+  height:44px;flex:0 0 44px;display:flex;align-items:center;gap:8px;padding:0 10px;
+  border-bottom:1px solid var(--border);background:var(--bg2);
+}
+.game-player-title{flex:1;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.game-player-btn{
+  width:32px;height:32px;border-radius:8px;border:0;background:transparent;color:var(--muted);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+.game-player-btn:hover{background:var(--panel2);color:var(--text)}
+.game-player-btn img{width:16px;height:16px;filter:invert(1);opacity:.85}
+.game-player-btn.star-on img{filter:none;opacity:1}
+.game-player-frame{flex:1;min-height:0;background:#111;position:relative}
+.game-player-frame iframe{width:100%;height:100%;border:0;display:block;background:#0a0a0a}
+.game-notes{
+  width:280px;border-left:1px solid var(--border);background:var(--bg2);display:none;flex-direction:column;min-height:0;
+}
+.game-player.notes-open{flex-direction:row}
+.game-player.notes-open .game-player-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.game-player.notes-open .game-notes{display:flex}
+.game-notes-tabs{display:flex;gap:4px;padding:8px;border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center}
+.game-note-tab{
+  height:26px;padding:0 8px;border-radius:6px;border:1px solid var(--border);background:var(--panel);
+  color:var(--muted);font-size:11px;cursor:pointer;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.game-note-tab.active{border-color:var(--accent);color:var(--text)}
+.game-notes-body{flex:1;padding:8px;min-height:0}
+.game-notes-body textarea{
+  width:100%;height:100%;border:1px solid var(--border);border-radius:8px;background:var(--panel);
+  color:var(--text);padding:10px;resize:none;font-size:12px;box-sizing:border-box;
+}
+.game-info-modal .modal-box{width:min(440px,100%)}
+.game-info-modal h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:12px 0 4px}
+.game-info-modal h3:first-child{margin-top:0}
+
 </style>
 </head>
 <body class="gate-lock">
@@ -756,7 +851,12 @@ body.boot-reveal #browser{
         <button class="preset" type="button" id="customThemeCard"><div class="preset-name">Custom</div><div class="preset-preview"><span class="preset-dot" style="background:#333"></span><span class="preset-dot" style="background:#666"></span><span class="preset-dot" style="background:#999"></span></div></button>
       </div>
       <div class="custom-card" id="customColorCard">
-        <div class="input-row"><label class="input-label">Background</label><input class="color-input" type="color" id="colorBg"></div>
+        <div class="input-row"><label class="input-label">Background</label><input class="color-input" type="color" id="colorBg" value="#101010"></div>
+        <div class="input-row"><label class="input-label">Panel</label><input class="color-input" type="color" id="colorPanel" value="#181818"></div>
+        <div class="input-row"><label class="input-label">Accent</label><input class="color-input" type="color" id="colorAccent" value="#ffffff"></div>
+        <div class="input-row"><label class="input-label">Text</label><input class="color-input" type="color" id="colorText" value="#f2f2f2"></div>
+        <button class="primary-btn" id="applyColors" type="button">Apply colors</button>
+      </div>
     </section>
     <section class="setting-section">
       <div class="setting-title">Home page background <button type="button" class="info-btn" data-info="background" title="About this option" aria-label="About Home page background"><img src="image/info.svg" alt=""></button></div>
