@@ -1046,8 +1046,19 @@ function switchTab(id) {
   activeTabId = id;
   const tab = getTab(id);
   if (tab) tab.lastActive = Date.now();
+  try {
+    if (tab && tab.isGames) sessionStorage.setItem("veil_active_special", "games");
+    else if (tab && tab.isAdmin) sessionStorage.setItem("veil_active_special", "admin");
+    else sessionStorage.removeItem("veil_active_special");
+  } catch (e) {}
   showActiveOnly();
-  if (tab && !tab.newTab && tab.url && !tab.engineFrame) {
+  if (tab && tab.isGames) {
+    const pageEl = document.querySelector('.page[data-page-id="' + tab.id + '"]');
+    if (pageEl && !pageEl.querySelector("#gamesRoot")) {
+      pageEl.innerHTML = '<div class="games-page" id="gamesRoot"><div class="games-inner">Loading games…</div></div>';
+      renderGamesPage(pageEl.querySelector("#gamesRoot"));
+    }
+  } else if (tab && !tab.newTab && tab.url && tab.url !== "veil://games" && !tab.engineFrame && !tab.isAdmin) {
     const pageEl = document.querySelector('.page[data-page-id="' + tab.id + '"]');
     if (pageEl) {
       pageEl.innerHTML = "";
@@ -1061,13 +1072,21 @@ function switchTab(id) {
   }
   renderTabs();
   renderToolbar();
+  updateGamesChromeLocks();
 }
 
 function renderToolbar() {
   const page = getActiveTab();
-  document.getElementById("address").value = page && page.url ? page.url : "";
-  document.getElementById("backBtn").disabled = !page || !page.url;
-  document.getElementById("forwardBtn").disabled = !page || !page.url;
+  let addr = "";
+  if (page) {
+    if (page.isGames) addr = "veil://games";
+    else if (page.isAdmin) addr = "veil://admin";
+    else addr = page.url || "";
+  }
+  const addrEl = document.getElementById("address");
+  if (addrEl) addrEl.value = addr;
+  document.getElementById("backBtn").disabled = !page || !page.url || page.isGames || page.isAdmin;
+  document.getElementById("forwardBtn").disabled = !page || !page.url || page.isGames || page.isAdmin;
   const b = document.getElementById("bookmarkBtn");
   if (page && page.url && isBookmarked(page.url)) b.classList.add("saved");
   else b.classList.remove("saved");
@@ -2743,15 +2762,16 @@ function showSignup() {
 function forceHomeTab() {
   tabs = (tabs || []).filter(Boolean);
 
-  // Keep admin tabs; collapse extra empty "New Tab" homes into one
+  // Keep admin + games tabs; collapse extra empty "New Tab" homes into one
   const adminTabs = tabs.filter((t) => t.isAdmin);
-  const withUrl = tabs.filter((t) => !t.isAdmin && t.url && !t.newTab);
-  let home = tabs.find((t) => !t.isAdmin && t.newTab && !t.url) || tabs.find((t) => !t.isAdmin) || null;
+  const gamesTabs = tabs.filter((t) => t.isGames);
+  const withUrl = tabs.filter((t) => !t.isAdmin && !t.isGames && t.url && !t.newTab && t.url !== "veil://games");
+  let home = tabs.find((t) => !t.isAdmin && !t.isGames && t.newTab && !t.url) || tabs.find((t) => !t.isAdmin && !t.isGames) || null;
 
   if (!home) {
     const tab = {
       id: uid(), title: "New Tab", url: "", history: [], historyIndex: -1,
-      newTab: true, engineFrame: null, favicon: FAVI, animOpen: true, lastActive: Date.now(), isAdmin: false
+      newTab: true, engineFrame: null, favicon: FAVI, animOpen: true, lastActive: Date.now(), isAdmin: false, isGames: false
     };
     home = tab;
   } else {
@@ -2761,11 +2781,22 @@ function forceHomeTab() {
     home.favicon = FAVI;
     home.engineFrame = null;
     home.isAdmin = false;
+    home.isGames = false;
   }
 
-  // Exactly one home + any real pages + admin tabs (no duplicate empty homes)
-  tabs = [home].concat(withUrl.filter((t) => t.id !== home.id)).concat(adminTabs.filter((t) => t.id !== home.id));
-  activeTabId = home.id;
+  // Exactly one home + real pages + admin + games
+  tabs = [home]
+    .concat(withUrl.filter((t) => t.id !== home.id))
+    .concat(adminTabs.filter((t) => t.id !== home.id))
+    .concat(gamesTabs.filter((t) => t.id !== home.id));
+  // Prefer restoring games tab after refresh
+  let restoreGames = false;
+  try { restoreGames = sessionStorage.getItem("veil_active_special") === "games"; } catch (e) {}
+  if (restoreGames && gamesTabs.length) {
+    activeTabId = gamesTabs[0].id;
+  } else {
+    activeTabId = home.id;
+  }
   home.lastActive = Date.now();
 
   const viewport = document.getElementById("viewport");
@@ -2803,6 +2834,11 @@ function forceHomeTab() {
       p.style.display = "none";
     }
   });
+  try {
+    if (sessionStorage.getItem("veil_active_special") === "games") {
+      setTimeout(function () { try { openGamesPage(); } catch (e) {} }, 0);
+    }
+  } catch (e) {}
   return home;
 }
 
@@ -2992,40 +3028,31 @@ let gamesCatalog = [];
 let gamesUserData = { favorites: [], recent: [], notes: {} };
 let gamesPopularTimer = null;
 let gamesPageActive = false;
+let gamesRenderRoot = null;
 
 function gameSlug(name) {
-  return String(name || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "")
-    .slice(0, 40);
+  return String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 40);
 }
-
-function gameId(g) {
-  return g.id || gameSlug(g.name) || g.url || g.name;
-}
-
+function gameId(g) { return g.id || gameSlug(g.name) || g.url || g.name; }
 function resolveGameAsset(path) {
   if (!path) return "";
   if (/^https?:\/\//i.test(path)) return path;
-  const p = String(path).replace(/^\//, "");
-  return REPO_PATH + p;
+  return REPO_PATH + String(path).replace(/^\//, "");
 }
-
 function smallThumb(g) {
   const slug = gameSlug(g.name);
   if (g.image && /games\/small/i.test(g.image)) return resolveGameAsset(g.image);
   return resolveGameAsset("image/games/small/" + slug + ".png");
 }
-
 function largeThumb(g) {
   const slug = gameSlug(g.name);
   if (g.imageLarge) return resolveGameAsset(g.imageLarge);
   if (g.image && /games\/large/i.test(g.image)) return resolveGameAsset(g.image);
   return resolveGameAsset("image/games/large/" + slug + ".png");
 }
-
-function gamePlayUrl(g) {
-  return resolveGameAsset(g.url || g.path || "");
+function gamePlayUrl(g) { return resolveGameAsset(g.url || g.path || ""); }
+function maturityLabel(g) {
+  return g.maturity || g.rating || g.maturityRating || "NR";
 }
 
 async function loadGameCatalog() {
@@ -3037,25 +3064,21 @@ async function loadGameCatalog() {
       const data = JSON.parse(m[1].trim());
       gamesCatalog = Array.isArray(data.games) ? data.games : [];
     }
-  } catch (e) {
-    console.warn("game-data load", e);
-  }
+  } catch (e) { console.warn("game-data load", e); }
   if (!gamesCatalog.length) {
-    gamesCatalog = [
-      {
-        name: "Retrobowl",
-        image: "image/games/small/retrobowl.png",
-        imageLarge: "image/games/large/retrobowl.png",
-        url: "HTML/RB.html",
-        category: "Sports",
-        description: "A retro-style football game.",
-        controls: "Mouse or touch to manage your team.",
-        howToPlay: "Build your roster and win the season.",
-        sideNotes: "Placeholder until full game-data is deployed.",
-        rating: "4.6",
-        difficulty: "3",
-      },
-    ];
+    gamesCatalog = [{
+      name: "Retrobowl",
+      image: "image/games/small/retrobowl.png",
+      imageLarge: "image/games/large/retrobowl.png",
+      url: "HTML/RB.html",
+      category: "Sports",
+      description: "A retro-style football game.",
+      controls: "Mouse or touch to manage your team.",
+      howToPlay: "Build your roster and win the season.",
+      sideNotes: "Placeholder until full game-data is deployed.",
+      maturity: "E",
+      difficulty: "3",
+    }];
   }
   return gamesCatalog;
 }
@@ -3064,26 +3087,14 @@ async function loadGamesUserData() {
   const token = window.VeilAccess && window.VeilAccess.getToken ? window.VeilAccess.getToken() : "";
   if (token) {
     try {
-      const base = (localStorage.getItem("veil_worker_url") || "https://veil-access.retropixel404.workers.dev").replace(
-        /\/$/,
-        ""
-      );
-      const r = await fetch(base + "/api/user/data", {
-        method: "GET",
-        headers: { authorization: "Bearer " + token },
-      });
+      const base = (localStorage.getItem("veil_worker_url") || "https://veil-access.retropixel404.workers.dev").replace(/\/$/, "");
+      const r = await fetch(base + "/api/user/data", { method: "GET", headers: { authorization: "Bearer " + token } });
       const j = await r.json();
       if (j && j.ok && j.data) {
-        gamesUserData = {
-          favorites: j.data.favorites || [],
-          recent: j.data.recent || [],
-          notes: j.data.notes || {},
-        };
+        gamesUserData = { favorites: j.data.favorites || [], recent: j.data.recent || [], notes: j.data.notes || {} };
         return gamesUserData;
       }
-    } catch (e) {
-      console.warn("prefs load", e);
-    }
+    } catch (e) { console.warn("prefs load", e); }
   }
   try {
     const raw = localStorage.getItem("veil_games_data");
@@ -3093,74 +3104,61 @@ async function loadGamesUserData() {
 }
 
 async function saveGamesUserData() {
-  try {
-    localStorage.setItem("veil_games_data", JSON.stringify(gamesUserData));
-  } catch (e) {}
+  try { localStorage.setItem("veil_games_data", JSON.stringify(gamesUserData)); } catch (e) {}
   const token = window.VeilAccess && window.VeilAccess.getToken ? window.VeilAccess.getToken() : "";
   if (!token) return;
   try {
-    const base = (localStorage.getItem("veil_worker_url") || "https://veil-access.retropixel404.workers.dev").replace(
-      /\/$/,
-      ""
-    );
+    const base = (localStorage.getItem("veil_worker_url") || "https://veil-access.retropixel404.workers.dev").replace(/\/$/, "");
     await fetch(base + "/api/user/data", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ token, data: gamesUserData }),
     });
-  } catch (e) {
-    console.warn("prefs save", e);
-  }
+  } catch (e) { console.warn("prefs save", e); }
 }
 
 function shuffle(arr) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    const t = a[i];
-    a[i] = a[j];
-    a[j] = t;
+    const t = a[i]; a[i] = a[j]; a[j] = t;
   }
   return a;
 }
-
-function isFavorite(id) {
-  return (gamesUserData.favorites || []).indexOf(id) !== -1;
-}
-
+function isFavorite(id) { return (gamesUserData.favorites || []).indexOf(id) !== -1; }
 function toggleFavorite(id) {
   const set = new Set(gamesUserData.favorites || []);
-  if (set.has(id)) set.delete(id);
-  else set.add(id);
+  if (set.has(id)) set.delete(id); else set.add(id);
   gamesUserData.favorites = Array.from(set);
   saveGamesUserData();
+  // live refresh open games page lists
+  if (gamesRenderRoot && gamesRenderRoot.isConnected) {
+    try { paintGamesLists(gamesRenderRoot); } catch (e) {}
+  }
 }
-
 function pushRecent(id) {
   let r = (gamesUserData.recent || []).filter((x) => x !== id);
   r.unshift(id);
   gamesUserData.recent = r.slice(0, 10);
   saveGamesUserData();
+  if (gamesRenderRoot && gamesRenderRoot.isConnected) {
+    try { paintGamesLists(gamesRenderRoot); } catch (e) {}
+  }
 }
 
 function openGamesPage() {
   closePanels();
   closeMenu();
-  try {
-    closeHistory();
-  } catch (e) {}
+  try { closeHistory(); } catch (e) {}
   let page = tabs.find((t) => t.isGames);
   if (!page) {
-    if (tabs.length >= MAX_TABS) {
-      alert("Too many tabs");
-      return;
-    }
+    if (tabs.length >= MAX_TABS) { alert("Too many tabs"); return; }
     page = {
       id: uid(),
       title: "Games",
-      url: "",
-      history: [],
-      historyIndex: -1,
+      url: "veil://games",
+      history: ["veil://games"],
+      historyIndex: 0,
       newTab: false,
       isGames: true,
       isAdmin: false,
@@ -3172,11 +3170,14 @@ function openGamesPage() {
     tabs.push(page);
   } else {
     page.title = "Games";
+    page.url = "veil://games";
     page.favicon = IMG + "games.svg";
+    page.isGames = true;
     page.lastActive = Date.now();
   }
   activeTabId = page.id;
   gamesPageActive = true;
+  try { sessionStorage.setItem("veil_active_special", "games"); } catch (e) {}
   const viewport = document.getElementById("viewport");
   if (!viewport) return;
   let wrap = viewport.querySelector('.page[data-page-id="' + page.id + '"]');
@@ -3186,11 +3187,9 @@ function openGamesPage() {
     wrap.dataset.pageId = page.id;
     viewport.appendChild(wrap);
   }
-  wrap.innerHTML = '<div class="games-page" id="gamesRoot"><div class="games-inner">Loading games…</div></div>';
+  wrap.innerHTML = '<div class="games-page" id="gamesRoot"></div>';
   showActiveOnly();
   renderChrome();
-  const addr = document.getElementById("address");
-  if (addr) addr.value = "Games";
   updateGamesChromeLocks();
   renderGamesPage(wrap.querySelector("#gamesRoot"));
 }
@@ -3201,313 +3200,287 @@ function updateGamesChromeLocks() {
   gamesPageActive = onGames;
   const fs = document.getElementById("menuFullscreen");
   const dt = document.getElementById("menuDevtools");
-  if (fs) {
-    fs.classList.toggle("disabled", onGames);
-    fs.disabled = onGames;
+  if (fs) { fs.classList.toggle("disabled", onGames); fs.disabled = onGames; }
+  if (dt) { dt.classList.toggle("disabled", onGames); dt.disabled = onGames; }
+}
+
+function tileHTML(g) {
+  const id = gameId(g);
+  const fav = isFavorite(id);
+  return (
+    '<div class="game-tile' + (fav ? " fav" : "") + '" data-play="' + escapeHTML(id) + '">' +
+    '<div class="thumb"><img src="' + escapeHTML(smallThumb(g)) + '" alt="" onerror="this.style.opacity=.25"></div>' +
+    '<div class="meta"><div class="name">' + escapeHTML(g.name) + '</div>' +
+    '<div class="cat">' + escapeHTML(g.category || "") + "</div></div></div>"
+  );
+}
+
+function byIds(ids) {
+  const map = {};
+  gamesCatalog.forEach((g) => { map[gameId(g)] = g; });
+  return (ids || []).map((id) => map[id]).filter(Boolean);
+}
+
+function paintGamesLists(root, state) {
+  if (!root) return;
+  state = state || root._gamesState || { activeCat: "all", query: "" };
+  root._gamesState = state;
+  let list = gamesCatalog.slice();
+  if (state.activeCat !== "all") {
+    list = list.filter((g) => String(g.category || "").toLowerCase() === state.activeCat.toLowerCase());
   }
-  if (dt) {
-    dt.classList.toggle("disabled", onGames);
-    dt.disabled = onGames;
+  if (state.query) {
+    const q = state.query.toLowerCase();
+    list = list.filter((g) => String(g.name || "").toLowerCase().indexOf(q) !== -1 || String(g.category || "").toLowerCase().indexOf(q) !== -1);
+  }
+  list = shuffle(list);
+  const allRow = root.querySelector("#gamesAllRow");
+  if (allRow) allRow.innerHTML = list.length ? list.map(tileHTML).join("") : '<div class="games-empty">No games match.</div>';
+
+  const favs = byIds(gamesUserData.favorites || []);
+  const favSec = root.querySelector("#gamesFavSection");
+  const favRow = root.querySelector("#gamesFavRow");
+  if (favSec && favRow) {
+    if (favs.length) { favSec.style.display = ""; favRow.innerHTML = favs.map(tileHTML).join(""); }
+    else favSec.style.display = "none";
+  }
+  const rec = byIds(gamesUserData.recent || []);
+  const recSec = root.querySelector("#gamesRecentSection");
+  const recRow = root.querySelector("#gamesRecentRow");
+  if (recSec && recRow) {
+    if (rec.length) { recSec.style.display = ""; recRow.innerHTML = rec.map(tileHTML).join(""); }
+    else recSec.style.display = "none";
   }
 }
 
 async function renderGamesPage(root) {
   if (!root) return;
+  gamesRenderRoot = root;
   await loadGameCatalog();
   await loadGamesUserData();
-  const cats = GAMES_CATS;
+  const popList = shuffle(gamesCatalog).slice(0, Math.min(8, Math.max(1, gamesCatalog.length)));
+
   root.innerHTML =
+    '<div class="games-hero" id="gamesHero">' +
+    popList.map((g, i) => {
+      const id = gameId(g);
+      const desc = String(g.description || "").slice(0, 180);
+      return (
+        '<div class="games-hero-slide' + (i === 0 ? " active" : "") + '" data-play="' + escapeHTML(id) + '">' +
+        '<div class="games-hero-bg"><img src="' + escapeHTML(largeThumb(g)) + '" alt="" onerror="this.style.opacity=.15"></div>' +
+        '<div class="games-hero-shade"></div>' +
+        '<div class="games-hero-content">' +
+        '<h1 class="games-hero-title">' + escapeHTML(g.name) + "</h1>" +
+        '<div class="games-hero-tags">' +
+        '<span class="games-tag">' + escapeHTML(maturityLabel(g)) + "</span>" +
+        (g.category ? '<span class="games-tag">' + escapeHTML(g.category) + "</span>" : "") +
+        (g.difficulty ? '<span class="games-tag">Difficulty ' + escapeHTML(String(g.difficulty)) + "/10</span>" : "") +
+        "</div>" +
+        '<p class="games-hero-desc">' + escapeHTML(desc) + (desc.length >= 180 ? "…" : "") + "</p>" +
+        '<div class="games-hero-actions">' +
+        '<button type="button" class="games-play-btn" data-play="' + escapeHTML(id) + '">Play</button>' +
+        '<button type="button" class="games-more-btn" data-info="' + escapeHTML(id) + '">See more</button>' +
+        "</div></div></div>"
+      );
+    }).join("") +
+    '<div class="games-hero-dots" id="gamesHeroDots">' +
+    popList.map((_, i) => '<button type="button" class="games-dot' + (i === 0 ? " active" : "") + '" data-dot="' + i + '"></button>').join("") +
+    "</div></div>" +
     '<div class="games-inner">' +
     '<div class="games-header">' +
     '<div class="games-search-wrap"><span class="gs-icon"></span>' +
-    '<input class="games-search" id="gamesSearch" type="search" placeholder="Search games..." autocomplete="off">' +
-    "</div>" +
+    '<input class="games-search" id="gamesSearch" type="search" placeholder="Search games..." autocomplete="off"></div>' +
     '<div class="games-cats" id="gamesCats">' +
     '<button type="button" class="games-cat active" data-cat="all">All</button>' +
-    cats.map((c) => '<button type="button" class="games-cat" data-cat="' + escapeHTML(c) + '">' + escapeHTML(c) + "</button>").join("") +
+    GAMES_CATS.map((c) => '<button type="button" class="games-cat" data-cat="' + escapeHTML(c) + '">' + escapeHTML(c) + "</button>").join("") +
     "</div></div>" +
-    '<div class="games-section"><h3>Popular</h3><div class="games-popular" id="gamesPopular"></div></div>' +
     '<div class="games-section" id="gamesFavSection" style="display:none"><h3>Favorites</h3><div class="games-row" id="gamesFavRow"></div></div>' +
     '<div class="games-section" id="gamesRecentSection" style="display:none"><h3>Recently played</h3><div class="games-row" id="gamesRecentRow"></div></div>' +
     '<div class="games-section"><h3>All games</h3><div class="games-row" id="gamesAllRow"></div></div>' +
     "</div>";
 
-  let activeCat = "all";
-  let query = "";
+  const state = { activeCat: "all", query: "" };
+  root._gamesState = state;
+  paintGamesLists(root, state);
 
-  const popular = root.querySelector("#gamesPopular");
-  const popList = shuffle(gamesCatalog).slice(0, Math.min(8, gamesCatalog.length));
-  popular.innerHTML = popList
-    .map((g) => {
-      const id = gameId(g);
-      return (
-        '<div class="games-popular-card" data-play="' +
-        escapeHTML(id) +
-        '"><img src="' +
-        escapeHTML(largeThumb(g)) +
-        '" alt="" onerror="this.style.opacity=.2"><div class="pop-label">' +
-        escapeHTML(g.name) +
-        "</div></div>"
-      );
-    })
-    .join("");
-
-  // Carousel scroll
-  if (gamesPopularTimer) clearInterval(gamesPopularTimer);
+  // Hero carousel — one full image, advance every 5s
   let popIdx = 0;
+  const slides = () => root.querySelectorAll(".games-hero-slide");
+  const dots = () => root.querySelectorAll(".games-dot");
+  function showSlide(i) {
+    const s = slides();
+    const d = dots();
+    if (!s.length) return;
+    popIdx = ((i % s.length) + s.length) % s.length;
+    s.forEach((el, n) => el.classList.toggle("active", n === popIdx));
+    d.forEach((el, n) => el.classList.toggle("active", n === popIdx));
+  }
+  if (gamesPopularTimer) clearInterval(gamesPopularTimer);
   gamesPopularTimer = setInterval(() => {
-    if (!popular.isConnected) {
-      clearInterval(gamesPopularTimer);
-      return;
-    }
-    const cards = popular.querySelectorAll(".games-popular-card");
-    if (!cards.length) return;
-    popIdx = (popIdx + 1) % cards.length;
-    cards[popIdx].scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
-  }, 3500);
+    if (!root.isConnected) { clearInterval(gamesPopularTimer); return; }
+    showSlide(popIdx + 1);
+  }, 5000);
+  root.querySelector("#gamesHeroDots")?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-dot]");
+    if (!b) return;
+    showSlide(parseInt(b.getAttribute("data-dot"), 10) || 0);
+  });
 
-  function filtered() {
-    let list = gamesCatalog.slice();
-    if (activeCat !== "all") {
-      list = list.filter((g) => String(g.category || "").toLowerCase() === activeCat.toLowerCase());
-    }
-    if (query) {
-      const q = query.toLowerCase();
-      list = list.filter(
-        (g) =>
-          String(g.name || "")
-            .toLowerCase()
-            .indexOf(q) !== -1 ||
-          String(g.category || "")
-            .toLowerCase()
-            .indexOf(q) !== -1
-      );
-    }
-    return shuffle(list);
-  }
-
-  function tileHTML(g) {
-    const id = gameId(g);
-    const fav = isFavorite(id);
-    return (
-      '<div class="game-tile' +
-      (fav ? " fav" : "") +
-      '" data-play="' +
-      escapeHTML(id) +
-      '"><div class="thumb"><img src="' +
-      escapeHTML(smallThumb(g)) +
-      '" alt="" onerror="this.style.opacity=.25"></div><div class="meta"><div class="name">' +
-      escapeHTML(g.name) +
-      '</div><div class="cat">' +
-      escapeHTML(g.category || "") +
-      "</div></div></div>"
-    );
-  }
-
-  function byIds(ids) {
-    const map = {};
-    gamesCatalog.forEach((g) => {
-      map[gameId(g)] = g;
-    });
-    return ids.map((id) => map[id]).filter(Boolean);
-  }
-
-  function paint() {
-    const all = filtered();
-    const allRow = root.querySelector("#gamesAllRow");
-    allRow.innerHTML = all.length ? all.map(tileHTML).join("") : '<div class="games-empty">No games match.</div>';
-
-    const favs = byIds(gamesUserData.favorites || []);
-    const favSec = root.querySelector("#gamesFavSection");
-    const favRow = root.querySelector("#gamesFavRow");
-    if (favs.length) {
-      favSec.style.display = "";
-      favRow.innerHTML = favs.map(tileHTML).join("");
-    } else favSec.style.display = "none";
-
-    const rec = byIds(gamesUserData.recent || []);
-    const recSec = root.querySelector("#gamesRecentSection");
-    const recRow = root.querySelector("#gamesRecentRow");
-    if (rec.length) {
-      recSec.style.display = "";
-      recRow.innerHTML = rec.map(tileHTML).join("");
-    } else recSec.style.display = "none";
-  }
-
-  paint();
-
-  root.querySelector("#gamesSearch").addEventListener("input", (e) => {
-    query = e.target.value.trim();
-    paint();
+  root.querySelector("#gamesSearch")?.addEventListener("input", (e) => {
+    state.query = e.target.value.trim();
+    paintGamesLists(root, state);
   });
   root.querySelectorAll(".games-cat").forEach((btn) => {
     btn.onclick = () => {
       root.querySelectorAll(".games-cat").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
-      activeCat = btn.getAttribute("data-cat") || "all";
-      paint();
+      state.activeCat = btn.getAttribute("data-cat") || "all";
+      paintGamesLists(root, state);
     };
   });
   root.addEventListener("click", (e) => {
-    const el = e.target.closest("[data-play]");
-    if (!el) return;
-    const id = el.getAttribute("data-play");
-    const g = gamesCatalog.find((x) => gameId(x) === id);
-    if (g) openGamePlayer(g);
+    const info = e.target.closest("[data-info]");
+    if (info && !info.classList.contains("info-btn")) {
+      const id = info.getAttribute("data-info");
+      const g = gamesCatalog.find((x) => gameId(x) === id);
+      if (g) { e.preventDefault(); showGameInfo(g); return; }
+    }
+    const play = e.target.closest("[data-play]");
+    if (play) {
+      const id = play.getAttribute("data-play");
+      const g = gamesCatalog.find((x) => gameId(x) === id);
+      if (g) openGamePlayer(g);
+    }
   });
 }
 
 function openGamePlayer(g) {
   const id = gameId(g);
   pushRecent(id);
-  const rating = g.rating || "—";
+  const mat = maturityLabel(g);
   const diff = g.difficulty || "—";
-  const title =
-    escapeHTML(g.name) + " | rating " + escapeHTML(String(rating)) + " | difficulty " + escapeHTML(String(diff)) + "/10";
+  const titleText = escapeHTML(g.name) + " | " + escapeHTML(String(mat)) + " | difficulty " + escapeHTML(String(diff)) + "/10";
 
-  const existing = document.querySelector(".game-player-overlay");
-  if (existing) existing.remove();
-
+  document.querySelector(".game-player-overlay")?.remove();
   const overlay = document.createElement("div");
   overlay.className = "game-player-overlay";
+  const noteIcon = IMG + "notepad.svg";
   overlay.innerHTML =
     '<div class="game-player" id="gamePlayer">' +
-    '<div class="game-player-main" style="flex:1;min-width:0;display:flex;flex-direction:column;min-height:0">' +
+    '<div class="game-player-main">' +
     '<div class="game-player-bar">' +
-    '<button type="button" class="game-player-btn" data-gp="close" title="Close"><img src="' +
-    IMG +
-    'exit.svg" alt=""></button>' +
-    '<div class="game-player-title">' +
-    title +
+    '<button type="button" class="game-player-btn gp-close" data-gp="close" title="Close"><img src="' + IMG + 'exit.svg" alt=""></button>' +
+    '<div class="game-player-title">' + titleText + "</div>" +
+    '<button type="button" class="game-player-btn" data-gp="info" title="Info"><img src="' + IMG + 'info.svg" alt=""></button>' +
+    '<button type="button" class="game-player-btn" data-gp="notes" title="Notes"><img src="' + noteIcon + '" alt="" onerror="this.src=\'' + IMG + 'pencil.svg\'"></button>' +
+    '<button type="button" class="game-player-btn" data-gp="star" title="Favorite"><img src="' + IMG + 'star.svg" alt=""></button>' +
+    '<button type="button" class="game-player-btn" data-gp="fs" title="Fullscreen"><img src="' + IMG + 'zoom.svg" alt=""></button>' +
+    '<button type="button" class="game-player-btn" data-gp="reload" title="Reload"><img src="' + IMG + 'refresh.svg" alt=""></button>' +
     "</div>" +
-    '<button type="button" class="game-player-btn" data-gp="info" title="Info"><img src="' +
-    IMG +
-    'info.svg" alt=""></button>' +
-    '<button type="button" class="game-player-btn" data-gp="notes" title="Notes"><img src="' +
-    IMG +
-    'pencil.svg" alt=""></button>' +
-    '<button type="button" class="game-player-btn' +
-    (isFavorite(id) ? " star-on" : "") +
-    '" data-gp="star" title="Favorite"><img src="' +
-    IMG +
-    'star.svg" alt="" style="' +
-    (isFavorite(id) ? "filter:none;opacity:1" : "") +
-    '"></button>' +
-    '<button type="button" class="game-player-btn" data-gp="fs" title="Fullscreen"><img src="' +
-    IMG +
-    'zoom.svg" alt=""></button>' +
-    '<button type="button" class="game-player-btn" data-gp="reload" title="Reload"><img src="' +
-    IMG +
-    'refresh.svg" alt=""></button>' +
+    '<div class="game-player-frame"><iframe id="gameFrame" src="' + escapeHTML(gamePlayUrl(g)) + '" allow="gamepad *; autoplay *; fullscreen *"></iframe></div>' +
     "</div>" +
-    '<div class="game-player-frame"><iframe id="gameFrame" src="' +
-    escapeHTML(gamePlayUrl(g)) +
-    '" allow="gamepad *; autoplay *; fullscreen *"></iframe></div>' +
+    '<div class="game-notes" id="gameNotesPanel">' +
+    '<div class="game-notes-header">' +
+    '<span>Notes</span>' +
+    '<button type="button" class="game-player-btn" data-gp="notes-close" title="Close notes"><img src="' + IMG + 'exit.svg" alt=""></button>' +
     "</div>" +
-    '<div class="game-notes" id="gameNotes">' +
     '<div class="game-notes-tabs" id="gameNoteTabs"></div>' +
-    '<div class="game-notes-body"><textarea id="gameNoteBody" placeholder="Write a note…"></textarea></div>' +
-    "</div></div>";
+    '<div class="game-notes-editor">' +
+    '<input type="text" class="game-note-title" id="gameNoteTitle" maxlength="60" placeholder="Note title">' +
+    '<textarea id="gameNoteBody" placeholder="Write a note…"></textarea>' +
+    '<div class="game-notes-actions">' +
+    '<button type="button" class="game-note-action" data-note-new>New</button>' +
+    '<button type="button" class="game-note-action" data-note-del>Delete</button>' +
+    "</div></div></div></div>";
 
   document.body.appendChild(overlay);
   const player = overlay.querySelector("#gamePlayer");
   const frame = overlay.querySelector("#gameFrame");
 
-  // star yellow via CSS filter when on
   function syncStar(btn) {
     if (!btn) return;
     const on = isFavorite(id);
     btn.classList.toggle("star-on", on);
     const img = btn.querySelector("img");
-    if (img) img.style.filter = on ? "none" : "invert(1)";
-    if (img) img.style.opacity = on ? "1" : ".85";
-    if (on) img.style.setProperty("filter", "invert(79%) sepia(61%) saturate(600%) hue-rotate(5deg)");
+    if (img) {
+      if (on) img.style.filter = "invert(79%) sepia(61%) saturate(600%) hue-rotate(5deg)";
+      else img.style.filter = "invert(1)";
+      img.style.opacity = "1";
+    }
   }
   syncStar(overlay.querySelector('[data-gp="star"]'));
 
-  // Notes
   if (!gamesUserData.notes[id]) gamesUserData.notes[id] = [];
   let notes = gamesUserData.notes[id];
+  if (!notes.length) notes.push({ id: uid(), title: "Note 1", body: "" });
   let activeNote = 0;
+
+  function saveCurrentNote() {
+    const titleEl = overlay.querySelector("#gameNoteTitle");
+    const bodyEl = overlay.querySelector("#gameNoteBody");
+    if (notes[activeNote]) {
+      notes[activeNote].title = (titleEl.value || "Note").slice(0, 60);
+      notes[activeNote].body = bodyEl.value || "";
+    }
+    gamesUserData.notes[id] = notes;
+    saveGamesUserData();
+  }
 
   function paintNotes() {
     const tabs = overlay.querySelector("#gameNoteTabs");
-    tabs.innerHTML =
-      notes
-        .map(
-          (n, i) =>
-            '<button type="button" class="game-note-tab' +
-            (i === activeNote ? " active" : "") +
-            '" data-note="' +
-            i +
-            '">' +
-            escapeHTML(n.title || "Note") +
-            "</button>"
-        )
-        .join("") +
-      '<button type="button" class="game-note-tab" data-note-add title="New note">+</button>';
-    const body = overlay.querySelector("#gameNoteBody");
-    if (notes[activeNote]) body.value = notes[activeNote].body || "";
-    else body.value = "";
+    tabs.innerHTML = notes.map((n, i) =>
+      '<button type="button" class="game-note-tab' + (i === activeNote ? " active" : "") + '" data-note="' + i + '">' +
+      escapeHTML(n.title || "Note") + "</button>"
+    ).join("");
+    const n = notes[activeNote] || { title: "", body: "" };
+    overlay.querySelector("#gameNoteTitle").value = n.title || "";
+    overlay.querySelector("#gameNoteBody").value = n.body || "";
   }
   paintNotes();
 
   overlay.querySelector("#gameNoteTabs").onclick = (e) => {
-    const add = e.target.closest("[data-note-add]");
-    if (add) {
-      if (notes.length >= 20) {
-        alert("Max 20 notes");
-        return;
-      }
-      notes.push({ id: uid(), title: "Note " + (notes.length + 1), body: "" });
-      activeNote = notes.length - 1;
-      gamesUserData.notes[id] = notes;
-      saveGamesUserData();
-      paintNotes();
-      return;
-    }
     const t = e.target.closest("[data-note]");
     if (!t) return;
-    // save current
-    const body = overlay.querySelector("#gameNoteBody");
-    if (notes[activeNote]) notes[activeNote].body = body.value;
+    saveCurrentNote();
     activeNote = parseInt(t.getAttribute("data-note"), 10) || 0;
     paintNotes();
   };
-  overlay.querySelector("#gameNoteBody").addEventListener("change", () => {
-    if (notes[activeNote]) {
-      notes[activeNote].body = overlay.querySelector("#gameNoteBody").value;
-      gamesUserData.notes[id] = notes;
-      saveGamesUserData();
-    }
-  });
-
-  overlay.onclick = (e) => {
-    if (e.target === overlay) {
-      // don't close on backdrop accidentally — only X
-    }
+  overlay.querySelector("[data-note-new]").onclick = () => {
+    if (notes.length >= 20) { alert("Max 20 notes"); return; }
+    saveCurrentNote();
+    notes.push({ id: uid(), title: "Note " + (notes.length + 1), body: "" });
+    activeNote = notes.length - 1;
+    gamesUserData.notes[id] = notes;
+    saveGamesUserData();
+    paintNotes();
   };
+  overlay.querySelector("[data-note-del]").onclick = () => {
+    if (notes.length <= 1) {
+      notes[0] = { id: uid(), title: "Note 1", body: "" };
+    } else {
+      notes.splice(activeNote, 1);
+      if (activeNote >= notes.length) activeNote = notes.length - 1;
+    }
+    gamesUserData.notes[id] = notes;
+    saveGamesUserData();
+    paintNotes();
+  };
+  overlay.querySelector("#gameNoteTitle").addEventListener("change", saveCurrentNote);
+  overlay.querySelector("#gameNoteBody").addEventListener("change", saveCurrentNote);
 
   overlay.querySelector(".game-player-bar").onclick = (e) => {
     const btn = e.target.closest("[data-gp]");
     if (!btn) return;
     const act = btn.getAttribute("data-gp");
     if (act === "close") {
-      const body = overlay.querySelector("#gameNoteBody");
-      if (notes[activeNote]) notes[activeNote].body = body.value;
-      gamesUserData.notes[id] = notes;
-      saveGamesUserData();
+      saveCurrentNote();
       overlay.remove();
       return;
     }
-    if (act === "reload") {
-      frame.src = frame.src;
-      return;
-    }
+    if (act === "reload") { frame.src = frame.src; return; }
     if (act === "fs") {
-      const el = frame;
-      const req = el.requestFullscreen || el.webkitRequestFullscreen;
-      if (req) req.call(el);
+      const req = frame.requestFullscreen || frame.webkitRequestFullscreen;
+      if (req) req.call(frame);
       return;
     }
     if (act === "star") {
@@ -3516,43 +3489,62 @@ function openGamePlayer(g) {
       return;
     }
     if (act === "notes") {
-      player.classList.toggle("notes-open");
+      player.classList.add("notes-open");
       return;
     }
-    if (act === "info") {
-      showGameInfo(g);
-    }
+    if (act === "info") showGameInfo(g);
+  };
+  overlay.querySelector("[data-gp=\"notes-close\"]").onclick = () => {
+    saveCurrentNote();
+    player.classList.remove("notes-open");
   };
 }
 
 function showGameInfo(g) {
-  const existing = document.querySelector(".modal-overlay.game-info-modal");
-  if (existing) existing.remove();
+  document.querySelector(".modal-overlay.game-info-modal")?.remove();
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay game-info-modal";
+  const sections = [
+    { key: "description", label: "Description", body: g.description || "—" },
+    { key: "controls", label: "Controls", body: g.controls || "—" },
+    { key: "howToPlay", label: "How to play", body: g.howToPlay || "—" },
+    { key: "sideNotes", label: "Side notes", body: g.sideNotes || "—" },
+  ];
   overlay.innerHTML =
-    '<div class="modal-box info-modal" role="dialog">' +
-    "<h2>" +
-    escapeHTML(g.name) +
-    "</h2>" +
-    "<h3>Description</h3><p>" +
-    escapeHTML(g.description || "—") +
-    "</p>" +
-    "<h3>Controls</h3><p>" +
-    escapeHTML(g.controls || "—") +
-    "</p>" +
-    "<h3>How to play</h3><p>" +
-    escapeHTML(g.howToPlay || "—") +
-    "</p>" +
-    "<h3>Side notes</h3><p>" +
-    escapeHTML(g.sideNotes || "—") +
-    "</p>" +
-    '<div class="modal-actions"><button type="button" class="primary-btn" data-ok>Got it</button></div></div>';
+    '<div class="modal-box info-modal game-info-box" role="dialog">' +
+    '<div class="game-info-top">' +
+    "<h2>" + escapeHTML(g.name) + "</h2>" +
+    '<button type="button" class="game-player-btn" data-info-x title="Close"><img src="' + IMG + 'exit.svg" alt=""></button>' +
+    "</div>" +
+    '<div class="game-info-choices" id="gameInfoChoices">' +
+    sections.map((s) => '<button type="button" class="game-info-choice" data-sec="' + s.key + '">' + escapeHTML(s.label) + "</button>").join("") +
+    "</div>" +
+    '<div class="game-info-detail" id="gameInfoDetail" hidden>' +
+    '<button type="button" class="game-info-back" data-info-back type="button">' +
+    '<img src="' + IMG + 'backward.svg" alt=""> Back</button>' +
+    '<h3 id="gameInfoDetailTitle"></h3>' +
+    '<p id="gameInfoDetailBody"></p>' +
+    "</div></div>";
   document.body.appendChild(overlay);
+  const choices = overlay.querySelector("#gameInfoChoices");
+  const detail = overlay.querySelector("#gameInfoDetail");
   const close = () => overlay.remove();
-  overlay.querySelector("[data-ok]").onclick = close;
-  overlay.onclick = (e) => {
-    if (e.target === overlay) close();
+  overlay.querySelector("[data-info-x]").onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+  choices.onclick = (e) => {
+    const b = e.target.closest("[data-sec]");
+    if (!b) return;
+    const key = b.getAttribute("data-sec");
+    const sec = sections.find((s) => s.key === key);
+    if (!sec) return;
+    choices.hidden = true;
+    detail.hidden = false;
+    overlay.querySelector("#gameInfoDetailTitle").textContent = sec.label;
+    overlay.querySelector("#gameInfoDetailBody").textContent = sec.body;
+  };
+  overlay.querySelector("[data-info-back]").onclick = () => {
+    detail.hidden = true;
+    choices.hidden = false;
   };
 }
 
