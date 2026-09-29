@@ -168,7 +168,7 @@
     if (!url) {
       try {
         var parts = response.credential.split(".");
-        var payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
+        var payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
         var email = payload.email || "";
         var name = payload.name || payload.given_name || "User";
         if (isAdminEmail(email)) {
