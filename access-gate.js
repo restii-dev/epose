@@ -20,7 +20,7 @@
   var SESSION_META = "veil_access_meta";
 
   var ADMIN_EMAILS = [
-    "pitnernicholas30@walkerschools.org"
+    "nicholaspitner30@walkerschools.org"
   ];
 
   function isAdminEmail(email) {
