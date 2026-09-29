@@ -27,7 +27,6 @@
   ];
 
   var googleClientId = null;
-  var googleReady = false;
   var googleInitialized = false;
   var googleScriptLoading = false;
 
@@ -66,12 +65,8 @@
     try {
       if (token) localStorage.setItem(SESSION_KEY, token);
       localStorage.setItem(SESSION_META, JSON.stringify({
-        email: user.email || "",
-        name: user.name || "",
-        role: user.role || "",
-        hasAccess: !!user.hasAccess,
-        infinite: !!user.infinite,
-        status: user.status || ""
+        email: user.email || "", name: user.name || "", role: user.role || "",
+        hasAccess: !!user.hasAccess, infinite: !!user.infinite, status: user.status || ""
       }));
       if (user.email) localStorage.setItem(PENDING_EMAIL, user.email);
     } catch (e) {}
@@ -98,7 +93,7 @@
     var s = document.createElement("style");
     s.id = "skip-boot-css";
     s.textContent =
-      "#veilBoot,#eposeBoot,.boot-card{display:none!important;visibility:hidden!important;pointer-events:none!important}" +
+      "#veilBoot,#eposeBoot,.boot-card{display:none!important;visibility:hidden!important;pointer-events:none!important;z-index:-1!important}" +
       "body.gate-lock #accessGate,body.booting #accessGate{display:flex!important;visibility:visible!important}" +
       "#googleSignInWrap{display:block}";
     (document.head || document.documentElement).appendChild(s);
@@ -117,9 +112,20 @@
     injectSkipBootCss();
     rebrandToEpose();
     try {
+      document.body.classList.remove("booting", "boot-failed");
       var boot = $("veilBoot") || $("eposeBoot");
-      if (boot) { boot.classList.add("done"); boot.style.display = "none"; }
-      document.body.classList.remove("booting");
+      if (boot) {
+        boot.classList.add("done");
+        boot.classList.remove("err");
+        boot.style.cssText = "display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important;z-index:-1!important";
+        boot.setAttribute("aria-hidden", "true");
+      }
+      var gate = $("accessGate");
+      if (gate && document.body.classList.contains("gate-lock")) {
+        gate.style.display = "flex";
+        gate.style.visibility = "visible";
+      }
+      window.__VEIL_BOOT_READY = true;
     } catch (e) {}
   }
 
@@ -132,13 +138,8 @@
         (name === "signup" && id === "panelSignup") ||
         (name === "verify" && id === "panelVerify") ||
         (name === "pending" && id === "panelPending");
-      if (match) {
-        el.classList.add("active");
-        el.style.display = "";
-      } else {
-        el.classList.remove("active");
-        el.style.display = "none";
-      }
+      if (match) { el.classList.add("active"); el.style.display = ""; }
+      else { el.classList.remove("active"); el.style.display = "none"; }
     });
     document.querySelectorAll(".gate-tab").forEach(function (tab) {
       tab.classList.toggle("active", tab.getAttribute("data-gate-tab") === name);
@@ -157,9 +158,7 @@
       var gate = $("accessGate");
       if (gate) gate.style.display = "none";
     } catch (e) {}
-    try {
-      window.dispatchEvent(new CustomEvent("veil-session-meta", { detail: getMeta() }));
-    } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent("veil-session-meta", { detail: getMeta() })); } catch (e) {}
   }
 
   function showGate() {
@@ -168,7 +167,7 @@
     try {
       document.body.classList.add("gate-lock");
       var gate = $("accessGate");
-      if (gate) gate.style.display = "flex";
+      if (gate) { gate.style.display = "flex"; gate.style.visibility = "visible"; }
     } catch (e) {}
   }
 
@@ -191,7 +190,6 @@
     var user = data.user || null;
     if (user) user = elevateIfAdmin(user);
     token = token || data.token || "";
-
     if (data.ok && user && user.hasAccess) {
       if (token) setToken(token, user);
       unlockApp();
@@ -221,10 +219,7 @@
   function doLogin() {
     var email = ($("loginEmail") || {}).value || "";
     var password = ($("loginPass") || {}).value || "";
-    if (!email || !password) {
-      setMsg("Enter email and password", true);
-      return;
-    }
+    if (!email || !password) { setMsg("Enter email and password", true); return; }
     setMsg("Signing in…", false);
     api("/api/auth/login", { email: email, password: password }).then(function (r) {
       var data = r.data || {};
@@ -236,37 +231,24 @@
   function doSignup() {
     var email = ($("signupEmail") || {}).value || "";
     var password = ($("signupPass") || {}).value || "";
-    if (!email || !password) {
-      setMsg("Enter email and password", true);
-      return;
-    }
-    if (password.length < 6) {
-      setMsg("Password must be at least 6 characters", true);
-      return;
-    }
+    if (!email || !password) { setMsg("Enter email and password", true); return; }
+    if (password.length < 6) { setMsg("Password must be at least 6 characters", true); return; }
     setMsg("Creating account…", false);
     api("/api/auth/signup", { email: email, password: password }).then(function (r) {
       var data = r.data || {};
       if (data.token) setToken(data.token, data.user);
-      if (data.ok || data.user) {
-        handleAuthResult(data, data.token);
-      } else {
-        setMsg(data.error || "Sign up failed", true);
-      }
+      if (data.ok || data.user) handleAuthResult(data, data.token);
+      else setMsg(data.error || "Sign up failed", true);
     });
   }
 
   function doVerify() {
     var code = ($("verifyCode") || {}).value || "";
     if (!code) {
-      var digits = document.querySelectorAll(".otp-digit");
       code = "";
-      digits.forEach(function (d) { code += d.value || ""; });
+      document.querySelectorAll(".otp-digit").forEach(function (d) { code += d.value || ""; });
     }
-    if (code.length < 6) {
-      setMsg("Enter the 6-digit code", true);
-      return;
-    }
+    if (code.length < 6) { setMsg("Enter the 6-digit code", true); return; }
     setMsg("Verifying…", false);
     api("/api/auth/verify", { code: code, email: localStorage.getItem(PENDING_EMAIL) || "" }).then(function (r) {
       var data = r.data || {};
@@ -276,10 +258,7 @@
   }
 
   function onGoogleCredential(response) {
-    if (!response || !response.credential) {
-      setMsg("Google sign-in failed", true);
-      return;
-    }
+    if (!response || !response.credential) { setMsg("Google sign-in failed", true); return; }
     setMsg("Signing in with Google…", false);
     api("/api/auth/google", { credential: response.credential, origin: location.origin }).then(function (r) {
       var data = r.data || {};
@@ -295,13 +274,9 @@
     try {
       if (!googleInitialized) {
         google.accounts.id.initialize({
-          client_id: googleClientId,
-          callback: onGoogleCredential,
-          auto_select: false,
-          cancel_on_tap_outside: true,
-          use_fedcm_for_prompt: true,
-          context: "signin",
-          ux_mode: "popup"
+          client_id: googleClientId, callback: onGoogleCredential,
+          auto_select: false, cancel_on_tap_outside: true,
+          use_fedcm_for_prompt: true, context: "signin", ux_mode: "popup"
         });
         googleInitialized = true;
       }
@@ -314,37 +289,28 @@
         shape: "rectangular", text: "continue_with", width: 320
       });
       wrap.style.display = "block";
-      googleReady = true;
-    } catch (e) {
-      console.warn("[epose] Google init", e);
-    }
+    } catch (e) { console.warn("[epose] Google init", e); }
   }
 
   function loadGoogleScript(clientId) {
     if (!clientId || clientId.indexOf("apps.googleusercontent.com") === -1) return;
     googleClientId = clientId.trim();
-    if (window.google && google.accounts && google.accounts.id) {
-      initGoogleButton();
-      return;
-    }
+    if (window.google && google.accounts && google.accounts.id) { initGoogleButton(); return; }
     if (googleScriptLoading) return;
     googleScriptLoading = true;
     var s = document.createElement("script");
     s.src = "https://accounts.google.com/gsi/client";
-    s.async = true;
-    s.defer = true;
+    s.async = true; s.defer = true;
     s.onload = function () { googleScriptLoading = false; initGoogleButton(); };
     s.onerror = function () { googleScriptLoading = false; };
     document.head.appendChild(s);
   }
 
   function fetchAuthConfig() {
-    fetch(WORKER_URL + "/api/auth/config", {
-      headers: { Accept: "application/json" }
-    }).then(function (res) { return res.json().catch(function () { return {}; }); })
-      .then(function (data) {
-        if (data && data.googleClientId) loadGoogleScript(data.googleClientId);
-      }).catch(function () {});
+    fetch(WORKER_URL + "/api/auth/config", { headers: { Accept: "application/json" } })
+      .then(function (res) { return res.json().catch(function () { return {}; }); })
+      .then(function (data) { if (data && data.googleClientId) loadGoogleScript(data.googleClientId); })
+      .catch(function () {});
   }
 
   function checkSession() {
@@ -355,10 +321,7 @@
       unlockApp();
       return;
     }
-    if (meta && meta.hasAccess) {
-      unlockApp();
-      return;
-    }
+    if (meta && meta.hasAccess) { unlockApp(); return; }
     var token = getToken();
     if (token) {
       fetch(WORKER_URL + "/api/session/check", {
@@ -369,14 +332,8 @@
           if (data && data.ok && data.user && data.user.hasAccess) {
             setToken(token, data.user);
             unlockApp();
-          } else {
-            showGate();
-            showPanel("login");
-          }
-        }).catch(function () {
-          showGate();
-          showPanel("login");
-        });
+          } else { showGate(); showPanel("login"); }
+        }).catch(function () { showGate(); showPanel("login"); });
       return;
     }
     showGate();
@@ -384,47 +341,32 @@
   }
 
   function bindUI() {
-    var loginBtn = $("loginBtn");
-    var signupBtn = $("signupBtn");
-    var verifyBtn = $("verifyBtn");
-    var backBtn = $("backToLoginBtn");
-    var pendingRefresh = $("pendingRefreshBtn");
-    var pendingLogout = $("pendingLogoutBtn");
-
-    if (loginBtn) loginBtn.onclick = doLogin;
-    if (signupBtn) signupBtn.onclick = doSignup;
-    if (verifyBtn) verifyBtn.onclick = doVerify;
-    if (backBtn) backBtn.onclick = function () { showPanel("login"); };
-    if (pendingRefresh) pendingRefresh.onclick = checkSession;
-    if (pendingLogout) pendingLogout.onclick = function () {
-      clearToken();
-      showPanel("login");
-      setMsg("", false);
+    if ($("loginBtn")) $("loginBtn").onclick = doLogin;
+    if ($("signupBtn")) $("signupBtn").onclick = doSignup;
+    if ($("verifyBtn")) $("verifyBtn").onclick = doVerify;
+    if ($("backToLoginBtn")) $("backToLoginBtn").onclick = function () { showPanel("login"); };
+    if ($("pendingRefreshBtn")) $("pendingRefreshBtn").onclick = checkSession;
+    if ($("pendingLogoutBtn")) $("pendingLogoutBtn").onclick = function () {
+      clearToken(); showPanel("login"); setMsg("", false);
     };
-
     document.querySelectorAll(".gate-tab").forEach(function (tab) {
       tab.onclick = function () {
         var name = tab.getAttribute("data-gate-tab");
         if (name) showPanel(name);
       };
     });
-
-    var loginPass = $("loginPass");
-    if (loginPass) loginPass.addEventListener("keydown", function (e) {
+    if ($("loginPass")) $("loginPass").addEventListener("keydown", function (e) {
       if (e.key === "Enter") doLogin();
     });
-    var signupPass = $("signupPass");
-    if (signupPass) signupPass.addEventListener("keydown", function (e) {
+    if ($("signupPass")) $("signupPass").addEventListener("keydown", function (e) {
       if (e.key === "Enter") doSignup();
     });
-
     document.querySelectorAll(".otp-digit").forEach(function (digit, i, all) {
       digit.addEventListener("input", function () {
         if (digit.value && all[i + 1]) all[i + 1].focus();
         var code = "";
         all.forEach(function (d) { code += d.value || ""; });
-        var hidden = $("verifyCode");
-        if (hidden) hidden.value = code;
+        if ($("verifyCode")) $("verifyCode").value = code;
       });
     });
   }
@@ -433,23 +375,27 @@
     getToken: getToken,
     getMeta: getMeta,
     signOut: function () {
-      clearToken();
-      showGate();
-      showPanel("login");
-      setMsg("Signed out", false);
+      clearToken(); showGate(); showPanel("login"); setMsg("Signed out", false);
     }
   };
+
+  try {
+    window.addEventListener("veil-boot-ready", function () { killBoot(); showGate(); showPanel("login"); });
+  } catch (e) {}
+  var _bootWatch = 0;
+  var _bootTimer = setInterval(function () {
+    killBoot();
+    _bootWatch++;
+    if (_bootWatch > 40) clearInterval(_bootTimer);
+  }, 100);
 
   killBoot();
   fetchAuthConfig();
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
-      killBoot();
-      bindUI();
-      checkSession();
+      killBoot(); bindUI(); checkSession();
     });
   } else {
-    bindUI();
-    checkSession();
+    bindUI(); checkSession();
   }
 })();
