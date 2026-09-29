@@ -803,7 +803,7 @@ function homepageHTML(pageId) {
     '<div class="newtab-center">' +
     '<div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div>' +
     '<div class="newtab-title">Veil</div>' +
-    '<div class="newtab-sub">Browse quietly. Stay undetected.</div>' +
+    '<div class="newtab-sub">Feel Free. Feel Secure.</div>' +
     '<div class="search-row">' +
     '<div class="search-box" style="width:100%"><span class="home-search-icon"></span>' +
     '<input class="newtab-search" data-page="' + pageId + '" placeholder="Search or enter a site..." autocomplete="off" spellcheck="false">' +
@@ -904,7 +904,7 @@ const SETTINGS_INFO = {
   },
   admin: {
     title: "Admin",
-    body: "Opens the admin panel in a Veil tab so you can manage accounts, time grants, and bans. You will need the admin password from the worker setup."
+    body: "Opens the admin panel secured by a password."
   }
 };
 
