@@ -803,7 +803,7 @@ function homepageHTML(pageId) {
     '<div class="newtab-center">' +
     '<div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div>' +
     '<div class="newtab-title">Veil</div>' +
-    '<div class="newtab-sub">Feel Free. Feel Secure.</div>' +
+    '<div class="newtab-sub">Browse quietly. Stay undetected.</div>' +
     '<div class="search-row">' +
     '<div class="search-box" style="width:100%"><span class="home-search-icon"></span>' +
     '<input class="newtab-search" data-page="' + pageId + '" placeholder="Search or enter a site..." autocomplete="off" spellcheck="false">' +
@@ -904,7 +904,7 @@ const SETTINGS_INFO = {
   },
   admin: {
     title: "Admin",
-    body: "Opens the admin panel secured by a password."
+    body: "Opens the admin panel in a Veil tab so you can manage accounts, time grants, and bans. You will need the admin password from the worker setup."
   }
 };
 
@@ -3398,9 +3398,8 @@ function openGamePlayer(g) {
   document.querySelector(".game-player-overlay")?.remove();
   const overlay = document.createElement("div");
   overlay.className = "game-player-overlay";
-  // Prefer notepad.svg; fall back to misnamed notepad.svg.svg then pencil
-  const noteIcon = IMG + "notepad.svg";
-  const noteFallback = IMG + "notepad.svg.svg";
+  // Repo file is image/notepad.svg.svg (double extension)
+  const noteIcon = IMG + "notepad.svg.svg";
   overlay.innerHTML =
     '<div class="game-player" id="gamePlayer">' +
     '<div class="game-player-main">' +
@@ -3408,7 +3407,7 @@ function openGamePlayer(g) {
     '<button type="button" class="game-player-btn gp-close" data-gp="close" title="Close"><img src="' + IMG + 'exit.svg" alt=""></button>' +
     '<div class="game-player-title">' + titleHtml + "</div>" +
     '<button type="button" class="game-player-btn" data-gp="info" title="Info"><img src="' + IMG + 'info.svg" alt=""></button>' +
-    '<button type="button" class="game-player-btn" data-gp="notes" title="Notes"><img src="' + noteIcon + '" alt="" onerror="this.onerror=null;this.src=\'' + noteFallback + '\';this.onerror=function(){this.src=\'' + IMG + 'pencil.svg\'}"></button>' +
+    '<button type="button" class="game-player-btn" data-gp="notes" title="Notes"><img src="' + noteIcon + '" alt="" onerror="this.onerror=null;this.src=\'' + IMG + 'pencil.svg\'"></button>' +
     '<button type="button" class="game-player-btn" data-gp="star" title="Favorite"><img src="' + IMG + 'star.svg" alt=""></button>' +
     '<button type="button" class="game-player-btn" data-gp="fs" title="Fullscreen"><img src="' + IMG + 'zoom.svg" alt=""></button>' +
     '<button type="button" class="game-player-btn" data-gp="reload" title="Reload"><img src="' + IMG + 'refresh.svg" alt=""></button>' +
