@@ -80,11 +80,24 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
   radial-gradient(circle at 15% 80%, rgba(255,255,255,.03), transparent 40%),
   radial-gradient(circle at 85% 70%, rgba(255,255,255,.025), transparent 40%);
   pointer-events:none}
-.newtab-overlay{position:relative;z-index:1;width:100%;flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 20px 24px}
-.welcome-bar{width:min(640px,100%);margin-bottom:28px;padding:14px 18px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(12px);text-align:center}
+.newtab-overlay{position:relative;z-index:1;width:100%;flex:1;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:0;box-sizing:border-box}
+/* Fixed design stage — scaled as one unit so layout never squeezes or drops pieces */
+.newtab-stage{
+  width:700px;
+  max-width:none;
+  flex:0 0 auto;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  transform:scale(var(--home-scale, 1));
+  transform-origin:center center;
+  will-change:transform;
+}
+.dev-banner{width:640px;max-width:640px;margin:0 auto 14px;text-align:center;font-size:clamp(18px,2.8vw,28px);font-weight:800;letter-spacing:.02em;line-height:1.25;color:#ff2a2a;text-transform:uppercase;text-shadow:0 0 18px rgba(255,42,42,.35);box-sizing:border-box}
+.welcome-bar{width:640px;max-width:640px;margin:0 auto 28px;padding:14px 18px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(12px);text-align:center;box-sizing:border-box}
 .welcome-bar .welcome-line{font-size:14px;font-weight:600;letter-spacing:.01em;color:var(--text);margin-bottom:4px;text-align:center}
 .welcome-bar .welcome-time{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;text-align:center}
-.newtab-center{width:min(640px,100%);text-align:center;display:flex;flex-direction:column;align-items:center}
+.newtab-center{width:640px;max-width:640px;text-align:center;display:flex;flex-direction:column;align-items:center;box-sizing:border-box}
 .veil-mark{width:92px;height:92px;margin:0 auto 16px;border-radius:28px;background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.12);box-shadow:0 12px 40px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;overflow:hidden}
 .veil-mark img{width:56px;height:56px;object-fit:contain;display:block}
 .newtab-title{font-size:clamp(40px,6.5vw,58px);font-weight:700;letter-spacing:-2.2px;line-height:1;margin-bottom:8px}
@@ -152,7 +165,14 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .search-box{transition:box-shadow .2s ease,transform .15s ease}
 .search-box:focus-within{box-shadow:0 12px 40px rgba(0,0,0,.35);transform:translateY(-1px)}
 
-.setting-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.09em;margin-bottom:11px}
+.setting-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.09em;margin-bottom:11px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.info-btn{width:18px;height:18px;padding:0;border:0;background:transparent;cursor:pointer;opacity:.5;display:inline-flex;align-items:center;justify-content:center;flex:0 0 18px;border-radius:50%}
+.info-btn:hover{opacity:1;background:rgba(255,255,255,.06)}
+.info-btn img{width:14px;height:14px;display:block;filter:invert(1);opacity:.9;pointer-events:none}
+.modal-box.info-modal{width:min(400px,100%)}
+.modal-box.info-modal h2{font-size:15px;margin-bottom:10px;text-transform:none;letter-spacing:0}
+.modal-box.info-modal p{font-size:13px;line-height:1.55;color:var(--muted);margin:0 0 16px}
+.modal-box.info-modal .modal-actions{display:flex;justify-content:flex-end}
 .preset-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
 .preset{min-height:67px;border:1px solid var(--border);background:var(--bg2);border-radius:11px;cursor:pointer;text-align:left;padding:10px}
 .preset:hover{border-color:#555}
@@ -291,6 +311,17 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 }
 #accessGate h1{font-size:24px;font-weight:650;margin-bottom:8px;color:#f2f2f2}
 #accessGate .gate-sub{font-size:14px;color:#888;margin-bottom:16px;line-height:1.55}
+#accessGate .otp-row{
+  display:flex;justify-content:center;gap:8px;margin:4px 0 14px;
+}
+#accessGate .otp-digit{
+  width:42px;height:48px;border-radius:10px;border:1px solid #2b2b2b;background:#151515;
+  color:#f2f2f2;font-size:20px;font-weight:600;text-align:center;padding:0;
+  outline:none;box-sizing:border-box;margin:0;
+  caret-color:#f2f2f2;
+}
+#accessGate .otp-digit:focus{border-color:#555}
+#accessGate .gate-sub.hidden-sub{display:none!important}
 #accessGate input{
   width:100%;height:44px;border-radius:10px;border:1px solid #2b2b2b;background:#151515;
   color:#f2f2f2;padding:0 14px;margin-bottom:10px;text-align:left;letter-spacing:normal;
@@ -473,33 +504,101 @@ body.boot-reveal #browser{
   .toolbar .icon-btn{width:30px;height:30px}
   .url-wrap{height:30px}
   .url-input{font-size:12px}
-  .newtab-overlay{padding:12px 12px 16px;justify-content:flex-start;padding-top:18px}
-  .welcome-bar{margin-bottom:12px;padding:10px 12px}
-  .welcome-bar .welcome-line{font-size:12px}
-  .welcome-bar .welcome-time{font-size:11px}
-  .veil-mark{width:52px;height:52px;margin-bottom:8px}
-  .veil-mark img{width:28px;height:28px}
-  .newtab-title{font-size:clamp(28px,7vw,40px);margin-bottom:4px;letter-spacing:-1.5px}
-  .newtab-sub{font-size:11px;margin-bottom:12px}
-  .search-row{margin-bottom:12px}
-  .search-box{height:42px}
-  .quick-links{gap:8px;margin-bottom:8px}
-  .quick-link{width:44px;height:44px}
-  .launch-btn{height:36px;font-size:12px;margin-top:6px}
   .time-bar{height:30px;font-size:11px;padding:0 10px}
   .settings-panel,.history-panel{width:min(100vw - 16px, 400px)}
 }
-@media (max-height: 520px) {
-  .welcome-bar{display:none}
-  .newtab-sub{display:none}
-  .newtab-overlay{padding-top:10px}
-  .quick-links.row2{display:none}
-}
+/* Homepage scales via --home-scale; do not hide features on short viewports */
 @media (max-width: 420px) {
   .tab{min-width:56px;max-width:100px}
   .toolbar .icon-btn#menuBtn{margin-left:0}
   .omnibox-form{gap:2px}
 }
+
+/* ——— Games page ——— */
+.games-page{width:100%;height:100%;overflow:auto;background:var(--bg);color:var(--text);position:relative}
+.games-hero{position:relative;width:100%;height:min(52vh,420px);min-height:260px;overflow:hidden;background:var(--bg3)}
+.games-hero-slide{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .6s ease}
+.games-hero-slide.active{opacity:1;pointer-events:auto}
+.games-hero-bg{position:absolute;inset:0}
+.games-hero-bg img{width:100%;height:100%;object-fit:cover;display:block}
+.games-hero-shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.82) 0%,rgba(0,0,0,.45) 45%,rgba(0,0,0,.15) 100%),linear-gradient(transparent 40%,rgba(0,0,0,.75) 100%)}
+.games-hero-content{position:absolute;left:0;bottom:0;padding:28px 28px 36px;max-width:min(560px,92%);z-index:2}
+.games-hero-title{font-size:clamp(28px,4.5vw,44px);font-weight:800;letter-spacing:-.02em;line-height:1.05;margin:0 0 10px;text-transform:uppercase}
+.games-hero-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.games-tag{font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:rgba(0,0,0,.35);color:rgba(255,255,255,.9)}
+.games-hero-desc{font-size:13px;line-height:1.5;color:rgba(255,255,255,.78);margin:0 0 14px}
+.games-hero-actions{display:flex;gap:10px;align-items:center}
+.games-play-btn{height:36px;padding:0 18px;border-radius:999px;border:0;background:#fff;color:#111;font-weight:650;font-size:13px;cursor:pointer}
+.games-more-btn{height:36px;padding:0 16px;border-radius:999px;border:1px solid rgba(255,255,255,.35);background:rgba(0,0,0,.35);color:#fff;font-size:13px;cursor:pointer}
+.games-hero-dots{position:absolute;right:20px;bottom:16px;display:flex;gap:6px;z-index:3}
+.games-dot{width:8px;height:8px;border-radius:999px;border:0;background:rgba(255,255,255,.35);cursor:pointer;padding:0}
+.games-dot.active{background:#fff;width:22px}
+.games-inner{max-width:1200px;margin:0 auto;padding:18px 18px 48px;box-sizing:border-box}
+.games-header{display:flex;flex-direction:column;gap:12px;margin-bottom:18px}
+.games-search-wrap{position:relative;width:100%}
+.games-search{width:100%;height:42px;border-radius:12px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 14px 0 40px;font-size:14px;outline:none;box-sizing:border-box}
+.games-search-wrap .gs-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;background:var(--muted);-webkit-mask:url("image/search.svg") center/contain no-repeat;mask:url("image/search.svg") center/contain no-repeat;pointer-events:none}
+.games-cats{display:flex;flex-wrap:wrap;gap:8px}
+.games-cat{height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--border);background:var(--bg2);color:var(--muted);font-size:12px;cursor:pointer}
+.games-cat.active,.games-cat:hover{border-color:var(--accent);color:var(--text);background:var(--panel2)}
+.games-section{margin-bottom:22px}
+.games-section h3{font-size:14px;font-weight:650;margin:0 0 12px;color:var(--text)}
+.games-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:12px}
+.games-row.filtering{opacity:.35;transform:translateY(4px);pointer-events:none;transition:opacity .22s ease,transform .22s ease}
+.games-row.filtering-done{opacity:1;transform:none;transition:opacity .28s ease,transform .28s ease}
+.game-tile{border-radius:14px;border:1px solid var(--border);background:var(--panel);overflow:hidden;cursor:pointer;transition:transform .18s ease,border-color .18s ease,opacity .28s ease,box-shadow .18s ease;opacity:1;animation:gameTileIn .32s ease both}
+.game-tile:hover{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 8px 22px rgba(0,0,0,.28)}
+.game-tile .thumb{width:100%;aspect-ratio:1;background:var(--bg3);overflow:hidden}
+.game-tile .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.game-tile .meta{padding:8px 9px 10px}
+.game-tile .meta .name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.game-tile .meta .cat{font-size:10px;color:var(--muted);margin-top:2px}
+.game-tile.fav .meta .name{color:var(--text)}
+.games-empty{color:var(--muted);font-size:13px;padding:16px 4px}
+@keyframes gameTileIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+.game-player-overlay{position:fixed;inset:0;z-index:4000;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box}
+.game-player{width:min(1100px,100%);height:min(720px,100%);background:var(--panel);border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:row;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+.game-player-main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}
+.game-player-bar{height:48px;flex:0 0 48px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--border);background:var(--bg2)}
+.game-player-title{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:10px;overflow:hidden}
+.game-player-title .gpt-name{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42%}
+.game-player-title .gpt-sep{color:var(--muted);opacity:.5;font-weight:400;flex:0 0 auto}
+.game-player-title .gpt-mat{font-size:11px;font-weight:650;padding:3px 9px;border-radius:999px;border:1px solid var(--border);background:var(--panel);color:var(--text);letter-spacing:.04em;flex:0 0 auto}
+.game-player-title .gpt-diff{font-size:12px;font-weight:550;color:var(--muted);white-space:nowrap;flex:0 0 auto}
+.game-player-title .gpt-diff b{color:var(--text);font-weight:700}
+.game-player-btn{width:34px;height:34px;border-radius:8px;border:0;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;flex:0 0 auto}
+.game-player-btn:hover{background:var(--panel2)}
+.game-player-btn img{width:16px;height:16px;filter:invert(1);opacity:.9;display:block}
+.game-player-btn.gp-close{order:-1}
+.game-player-frame{flex:1;min-height:0;background:#111;position:relative}
+.game-player-frame iframe{width:100%;height:100%;border:0;display:block;background:#0a0a0a}
+.game-notes{width:0;overflow:hidden;border-left:0;background:var(--bg2);display:flex;flex-direction:column;min-height:0;transition:width .2s ease}
+.game-player.notes-open .game-notes{width:300px;border-left:1px solid var(--border)}
+.game-notes-header{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;border-bottom:1px solid var(--border);font-size:13px;font-weight:600}
+.game-notes-tabs{display:flex;gap:4px;padding:8px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.game-note-tab{height:26px;padding:0 8px;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--muted);font-size:11px;cursor:pointer;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.game-note-tab.active{border-color:var(--accent);color:var(--text)}
+.game-notes-editor{flex:1;display:flex;flex-direction:column;padding:8px;gap:8px;min-height:0}
+.game-note-title{width:100%;height:34px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);padding:0 10px;font-size:12px;box-sizing:border-box}
+.game-notes-editor textarea{flex:1;width:100%;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);padding:10px;resize:none;font-size:12px;box-sizing:border-box;min-height:120px}
+.game-notes-actions{display:flex;gap:8px}
+.game-note-action{height:30px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:12px;cursor:pointer}
+.modal-overlay.game-info-modal{z-index:5200;background:rgba(0,0,0,.78)}
+.game-info-box{width:min(420px,100%);max-height:min(70vh,520px);overflow:auto}
+.game-info-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px}
+.game-info-top h2{margin:0;font-size:17px;font-weight:700}
+.game-info-meta{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 14px}
+.game-info-meta span{font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid var(--border);background:var(--bg2);color:var(--muted)}
+.game-info-choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.game-info-choice{height:48px;border-radius:12px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px;font-weight:550;cursor:pointer;transition:border-color .15s ease,background .15s ease}
+.game-info-choice:hover{border-color:var(--accent);background:var(--panel2)}
+.game-info-detail{animation:veilFade .2s ease}
+.game-info-detail h3{margin:8px 0 10px;font-size:15px;font-weight:650}
+.game-info-detail p{margin:0;font-size:13px;line-height:1.6;color:var(--muted);white-space:pre-wrap}
+.game-info-back{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:var(--text);cursor:pointer;font-size:12px;padding:4px 0;margin-bottom:10px}
+.game-info-back:hover{color:var(--accent)}
+.game-info-back img{width:14px;height:14px;filter:invert(1);opacity:.85}
+
 </style>
 </head>
 <body class="gate-lock">
@@ -652,10 +751,17 @@ body.boot-reveal #browser{
       <button type="button" class="gate-btn" id="signupBtn">Create account</button>
     </div>
     <div class="gate-panel" id="panelVerify">
-      <p class="gate-sub">Enter the 6-digit code sent to your email</p>
-      <input id="verifyCode" type="text" inputmode="numeric" placeholder="123456" autocomplete="one-time-code" />
+      <p class="gate-sub" id="verifyHint">Enter the 6-digit code sent to your email</p>
+      <div class="otp-row" id="otpRow" role="group" aria-label="6-digit verification code">
+        <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" data-otp="0" aria-label="Digit 1" />
+        <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" data-otp="1" aria-label="Digit 2" />
+        <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" data-otp="2" aria-label="Digit 3" />
+        <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" data-otp="3" aria-label="Digit 4" />
+        <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" data-otp="4" aria-label="Digit 5" />
+        <input class="otp-digit" type="text" inputmode="numeric" maxlength="1" data-otp="5" aria-label="Digit 6" />
+      </div>
+      <input type="hidden" id="verifyCode" value="" />
       <button type="button" class="gate-btn" id="verifyBtn">Verify email</button>
-      <button type="button" class="gate-btn secondary" id="resendVerifyBtn">Resend code</button>
       <button type="button" class="gate-btn linkish" id="backToLoginBtn">Back to log in</button>
     </div>
     <div class="gate-panel" id="panelPending">
@@ -704,6 +810,7 @@ body.boot-reveal #browser{
   <button class="menu-item" id="menuBookmarks"><span class="menu-icon"><img src="image/bookmarks.svg" alt=""></span>Bookmarks</button>
   <button class="menu-item" id="menuRename"><span class="menu-icon"><img src="image/pencil.svg" alt=""></span>Rename tab</button>
   <button class="menu-item" id="menuDevtools"><span class="menu-icon"><img src="image/terminal.svg" alt=""></span>DevTools</button>
+  <button class="menu-item" id="menuFullscreen"><span class="menu-icon"><img src="image/zoom.svg" alt=""></span>Fullscreen</button>
   <div class="menu-separator"></div>
   <button class="menu-item" id="menuLock"><span class="menu-icon"><img src="image/lock.svg" alt=""></span>Lock Veil</button>
 </div>
@@ -716,7 +823,7 @@ body.boot-reveal #browser{
 
     <div class="settings-cat">Customization</div>
     <section class="setting-section">
-      <div class="setting-title">Site theme colors</div>
+      <div class="setting-title">Site theme colors <button type="button" class="info-btn" data-info="theme" title="About this option" aria-label="About Site theme colors"><img src="image/info.svg" alt=""></button></div>
       <div class="preset-grid" id="themeGrid">
         <button class="preset" type="button" data-theme="scarlet"><div class="preset-name">Scarlet</div><div class="preset-preview"><span class="preset-dot" style="background:#1a0606"></span><span class="preset-dot" style="background:#ff2a2a"></span><span class="preset-dot" style="background:#ffe0e0"></span></div></button>
         <button class="preset" type="button" data-theme="crimson"><div class="preset-name">Crimson</div><div class="preset-preview"><span class="preset-dot" style="background:#140808"></span><span class="preset-dot" style="background:#e63232"></span><span class="preset-dot" style="background:#ffd6d6"></span></div></button>
@@ -736,24 +843,27 @@ body.boot-reveal #browser{
         <button class="preset" type="button" id="customThemeCard"><div class="preset-name">Custom</div><div class="preset-preview"><span class="preset-dot" style="background:#333"></span><span class="preset-dot" style="background:#666"></span><span class="preset-dot" style="background:#999"></span></div></button>
       </div>
       <div class="custom-card" id="customColorCard">
-        <div class="input-row"><label class="input-label">Background</label><input class="color-input" type="color" id="colorBg"></div>
+        <div class="input-row"><label class="input-label">Background</label><input class="color-input" type="color" id="colorBg" value="#101010"></div>
+        <div class="input-row"><label class="input-label">Panel</label><input class="color-input" type="color" id="colorPanel" value="#181818"></div>
+        <div class="input-row"><label class="input-label">Accent</label><input class="color-input" type="color" id="colorAccent" value="#ffffff"></div>
+        <div class="input-row"><label class="input-label">Text</label><input class="color-input" type="color" id="colorText" value="#f2f2f2"></div>
+        <button class="primary-btn" id="applyColors" type="button">Apply colors</button>
+      </div>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Home page background</div>
+      <div class="setting-title">Home page background <button type="button" class="info-btn" data-info="background" title="About this option" aria-label="About Home page background"><img src="image/info.svg" alt=""></button></div>
       <div class="input-row"><input class="text-input" id="backgroundUrl" placeholder="Image, GIF, WebP, or video URL"></div>
       <button class="primary-btn" id="applyBackground" type="button">Apply background</button>
-      <p class="hint">Supports images, GIF, WebP, and video (mp4 / webm).</p>
     </section>
     <section class="setting-section">
-      <div class="setting-title">24-hour time</div>
+      <div class="setting-title">24-hour time <button type="button" class="info-btn" data-info="time24" title="About this option" aria-label="About 24-hour time"><img src="image/info.svg" alt=""></button></div>
       <div class="switch-row">
         <span class="switch-label">Use 24-hour clock</span>
         <button type="button" class="switch" id="time24Switch" role="switch" aria-checked="false"></button>
       </div>
-      <p class="hint">Off = 12-hour with AM/PM.</p>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Home page animations</div>
+      <div class="setting-title">Home page animations <button type="button" class="info-btn" data-info="animations" title="About this option" aria-label="About Home page animations"><img src="image/info.svg" alt=""></button></div>
       <div class="switch-row">
         <span class="switch-label">Enable animations</span>
         <button type="button" class="switch" id="animEnabledSwitch" role="switch" aria-checked="false"></button>
@@ -764,8 +874,7 @@ body.boot-reveal #browser{
             <option value="orbs">Floating orbs</option>
             <option value="stars">Twinkling stars</option>
             <option value="constellation">Constellation</option>
-            <option value="waves">Soft waves</option>
-            <option value="pulse">Pulse rings</option>
+            <option value="rain">Rain &amp; storms</option>
           </select>
         </div>
         <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Speed</span><input type="range" id="animSpeed" min="0.25" max="2.5" step="0.05" value="1"><span class="range-val" id="animSpeedVal">1.00x</span></div>
@@ -778,96 +887,102 @@ body.boot-reveal #browser{
 
     <div class="settings-cat">Privacy</div>
     <section class="setting-section">
-      <div class="setting-title">Tab cloak</div>
-      <div class="cloak-grid">
-        <button class="cloak-preset" type="button" data-cloak="docs">Google Docs</button>
-        <button class="cloak-preset" type="button" data-cloak="classroom">Classroom</button>
-        <button class="cloak-preset" type="button" data-cloak="drive">Drive</button>
-        <button class="cloak-preset" type="button" data-cloak="canvas">Canvas</button>
-        <button class="cloak-preset" type="button" data-cloak="veil">Veil</button>
-      </div>
+      <div class="setting-title">Tab cloak <button type="button" class="info-btn" data-info="cloak" title="About this option" aria-label="About Tab cloak"><img src="image/info.svg" alt=""></button></div>
+      <select class="text-input" id="cloakPresetSelect">
+        <option value="">Choose a preset…</option>
+        <option value="drive">Google Drive</option>
+        <option value="gmail">Gmail</option>
+        <option value="docs">Google Docs</option>
+        <optgroup label="Infinite Campus">
+          <option value="campus-student">Campus Student</option>
+          <option value="campus-grades">Grades | Infinite Campus</option>
+          <option value="campus-profile">Student Profile | Home | Infinite Campus</option>
+          <option value="campus-assignments">Assignments | Infinite Campus</option>
+        </optgroup>
+        <option value="veil">Veil</option>
+      </select>
       <div class="input-row" style="margin-top:10px"><input class="text-input" id="cloakTitle" placeholder="Custom title"></div>
       <div class="input-row"><input class="text-input" id="cloakIcon" placeholder="Favicon URL"></div>
       <button class="primary-btn" id="applyCloak" type="button">Apply cloak</button>
-      <p class="hint">Also applies to about:blank windows and tabs.</p>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Panic key</div>
+      <div class="setting-title">Panic key <button type="button" class="info-btn" data-info="panic" title="About this option" aria-label="About Panic key"><img src="image/info.svg" alt=""></button></div>
       <div class="input-row"><label class="input-label">Key</label><input class="text-input" id="panicKey" placeholder="Click Bind, then press a key" readonly></div>
       <div class="input-row"><label class="input-label">Redirect</label><input class="text-input" id="panicUrl" placeholder="https://classroom.google.com"></div>
       <button class="primary-btn" id="bindPanic" type="button">Bind key</button>
       <button class="secondary-btn" id="unbindPanic" type="button">Unbind</button>
-      <p class="hint">Ignored while typing in a text box.</p>
     </section>
     <section class="setting-section">
-      <div class="setting-title">About:blank launch</div>
+      <div class="setting-title">About:blank launch <button type="button" class="info-btn" data-info="aboutblank" title="About this option" aria-label="About About:blank launch"><img src="image/info.svg" alt=""></button></div>
       <select class="text-input" id="launchModeSelect">
         <option value="manual">Manual - only when I choose Launch</option>
         <option value="auto">Auto - open about:blank once on start</option>
       </select>
-      <p class="hint">Skips if already inside about:blank.</p>
       <button class="primary-btn" id="launchNowBtn" type="button" style="margin-top:8px">Launch options</button>
     </section>
-    <section class="setting-section">
-      <div class="setting-title">Page lock</div>
-      <div class="switch-row">
-        <span class="switch-label">Unload pages when locking</span>
+        <section class="setting-section">
+      <div class="setting-title">Page lock <button type="button" class="info-btn" data-info="pagelock" title="About this option" aria-label="About Page lock"><img src="image/info.svg" alt=""></button></div>
+      <div class="row-between">
+        <span>Unload pages when locking</span>
         <button type="button" class="switch" id="lockUnloadSwitch" role="switch" aria-checked="false"></button>
       </div>
-      <p class="hint">Off keeps pages running under the lock.</p>
+    </section>
+    <section class="setting-section">
+      <div class="setting-title">Leave warning <button type="button" class="info-btn" data-info="confirmleave" title="About this option" aria-label="About Leave warning"><img src="image/info.svg" alt=""></button></div>
+      <div class="row-between">
+        <span>Ask before closing the tab</span>
+        <button type="button" class="switch" id="confirmLeaveSwitch" role="switch" aria-checked="false"></button>
+      </div>
     </section>
 
     <div class="settings-cat">Browser</div>
     <section class="setting-section">
-      <div class="setting-title">Search engine</div>
+      <div class="setting-title">Search engine <button type="button" class="info-btn" data-info="search" title="About this option" aria-label="About Search engine"><img src="image/info.svg" alt=""></button></div>
       <select class="text-input" id="searchEngineSelect">
         <option value="duckduckgo">DuckDuckGo</option>
         <option value="google">Google</option>
         <option value="bing">Bing</option>
         <option value="brave">Brave</option>
       </select>
-      <p class="hint">Used when you type words instead of a full address.</p>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Ad blocker</div>
+      <div class="setting-title">Ad blocker <button type="button" class="info-btn" data-info="adblock" title="About this option" aria-label="About Ad blocker"><img src="image/info.svg" alt=""></button></div>
       <div class="switch-row">
         <span class="switch-label">Block ads and trackers</span>
         <button type="button" class="switch" id="adblockSwitch" role="switch" aria-checked="true"></button>
       </div>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Loaded tabs at once</div>
+      <div class="setting-title">Loaded tabs at once <button type="button" class="info-btn" data-info="maxtabs" title="About this option" aria-label="About Loaded tabs at once"><img src="image/info.svg" alt=""></button></div>
       <div class="range-row">
         <input type="range" id="maxLoadedTabs" min="1" max="20" step="1" value="8">
         <span class="range-val" id="maxLoadedTabsVal">8</span>
       </div>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Proxy servers</div>
+      <div class="setting-title">Proxy servers <button type="button" class="info-btn" data-info="proxy" title="About this option" aria-label="About Proxy servers"><img src="image/info.svg" alt=""></button></div>
       <div class="server-list" id="serverList"></div>
-      <p class="hint">Pings update live. Green = fast, orange = ok, red = slow or offline.</p>
       <div class="input-row" style="margin-top:10px"><input class="text-input" id="customServerName" placeholder="Custom name"></div>
       <div class="input-row"><input class="text-input" id="customServerUrl" placeholder="wss://your-server"></div>
       <button class="primary-btn" id="addCustomServer" type="button">Add custom server</button>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Browser engine</div>
+      <div class="setting-title">Browser engine <button type="button" class="info-btn" data-info="engine" title="About this option" aria-label="About Browser engine"><img src="image/info.svg" alt=""></button></div>
       <div class="transport-row">
         <button class="transport-btn" id="transportEpoxy" type="button">Epoxy</button>
         <button class="transport-btn" id="transportLibcurl" type="button">Libcurl</button>
       </div>
-      <p class="hint">Try Epoxy first. Switch to Libcurl if a site will not load.</p>
       <div class="status" id="engineStatus">Starting...</div>
     </section>
 
     <div class="settings-cat">Misc</div>
     <section class="setting-section">
-      <div class="setting-title">Change username</div>
+      <div class="setting-title">Change username <button type="button" class="info-btn" data-info="username" title="About this option" aria-label="About Change username"><img src="image/info.svg" alt=""></button></div>
       <div class="input-row"><input class="text-input" id="newUsername" placeholder="New display name"></div>
       <button class="primary-btn" id="saveUsername" type="button">Save username</button>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Change password</div>
+      <div class="setting-title">Change password <button type="button" class="info-btn" data-info="password" title="About this option" aria-label="About Change password"><img src="image/info.svg" alt=""></button></div>
       <div class="input-row"><input class="text-input" id="curPassword" type="password" placeholder="Current password"></div>
       <div class="input-row"><input class="text-input" id="newPassword" type="password" placeholder="New password"></div>
       <div class="input-row"><input class="text-input" id="newPassword2" type="password" placeholder="Confirm new password"></div>
@@ -875,19 +990,20 @@ body.boot-reveal #browser{
       <p class="hint" id="passwordMsg"></p>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Account</div>
+      <div class="setting-title">Account <button type="button" class="info-btn" data-info="account" title="About this option" aria-label="About Account"><img src="image/info.svg" alt=""></button></div>
       <button class="secondary-btn" id="signOutBtn" type="button">Sign out</button>
-      <p class="hint">Signs you out of Veil and Google on this device.</p>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Factory reset</div>
+      <div class="setting-title">Clear cookies &amp; cache <button type="button" class="info-btn" data-info="cleardata" title="About this option" aria-label="About Clear cookies &amp; cache"><img src="image/info.svg" alt=""></button></div>
+      <button class="secondary-btn" id="clearLocalData" type="button">Clear local data</button>
+    </section>
+    <section class="setting-section">
+      <div class="setting-title">Factory reset <button type="button" class="info-btn" data-info="reset" title="About this option" aria-label="About Factory reset"><img src="image/info.svg" alt=""></button></div>
       <button class="secondary-btn" id="resetSettings" type="button">Factory reset</button>
-      <p class="hint">Clears theme and browser settings. Profile password is kept unless you clear site data.</p>
     </section>
     <section class="setting-section">
-      <div class="setting-title">Admin</div>
+      <div class="setting-title">Admin <button type="button" class="info-btn" data-info="admin" title="About this option" aria-label="About Admin"><img src="image/info.svg" alt=""></button></div>
       <button class="secondary-btn" id="openAdminPanel" type="button">Open admin panel</button>
-      <p class="hint">Opens the admin panel in a Veil tab. Requires worker password.</p>
     </section>
   </div>
 </aside>

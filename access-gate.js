@@ -81,10 +81,11 @@
       stopLivePoll();
       return;
     }
+    /* Keep pending/unverified sessions for a long time so refresh stays signed in */
     var maxAge = 60 * 60 * 24 * 400;
-    if (user && !user.infinite && user.expires) {
+    if (user && user.hasAccess && !user.infinite && user.expires) {
       var left = Math.floor((Number(user.expires) - Date.now()) / 1000);
-      if (left > 0) maxAge = left;
+      if (left > 0) maxAge = Math.max(left, 60);
     }
     writeCookie(SESSION_KEY, token, maxAge);
     lastUser = user || null;
@@ -95,7 +96,8 @@
         infinite: user && user.infinite,
         status: user && user.status,
         remainingMs: user && user.remainingMs,
-        remainingLabel: user && user.remainingLabel
+        remainingLabel: user && user.remainingLabel,
+        hasAccess: user && user.hasAccess
       }));
     } catch (e) {}
     try {
@@ -282,11 +284,81 @@
     if (tabs) tabs.style.display = name === "login" || name === "signup" ? "flex" : "none";
     var sub = document.getElementById("gateSub");
     if (sub) {
-      if (name === "pending") sub.textContent = "";
-      else if (name === "verify") sub.textContent = "Check your inbox for a code";
-      else sub.textContent = "Sign in to continue";
+      if (name === "pending" || name === "verify") {
+        sub.textContent = "";
+        sub.classList.add("hidden-sub");
+      } else {
+        sub.classList.remove("hidden-sub");
+        sub.textContent = "Sign in to continue";
+      }
     }
   }
+
+  function getOtpCode() {
+    var digits = document.querySelectorAll(".otp-digit");
+    var out = "";
+    digits.forEach(function (d) {
+      out += String(d.value || "").replace(/\D/g, "").slice(0, 1);
+    });
+    var hidden = document.getElementById("verifyCode");
+    if (hidden) hidden.value = out;
+    return out;
+  }
+
+  function clearOtp() {
+    document.querySelectorAll(".otp-digit").forEach(function (d) {
+      d.value = "";
+    });
+    var hidden = document.getElementById("verifyCode");
+    if (hidden) hidden.value = "";
+  }
+
+  function wireOtpInputs() {
+    var digits = Array.prototype.slice.call(document.querySelectorAll(".otp-digit"));
+    if (!digits.length) return;
+    digits.forEach(function (el, idx) {
+      el.addEventListener("input", function () {
+        var v = String(el.value || "").replace(/\D/g, "");
+        // paste of full code into one box
+        if (v.length > 1) {
+          for (var i = 0; i < digits.length; i++) {
+            digits[i].value = v[i] || "";
+          }
+          getOtpCode();
+          if (v.length >= 6 && verifyBtn) verifyBtn.click();
+          return;
+        }
+        el.value = v.slice(0, 1);
+        getOtpCode();
+        if (el.value && idx < digits.length - 1) digits[idx + 1].focus();
+        if (getOtpCode().length === 6 && verifyBtn) {
+          // optional: don't auto-submit, user clicks Verify
+        }
+      });
+      el.addEventListener("keydown", function (e) {
+        if (e.key === "Backspace" && !el.value && idx > 0) {
+          digits[idx - 1].focus();
+          digits[idx - 1].value = "";
+          getOtpCode();
+        }
+        if (e.key === "Enter" && verifyBtn) verifyBtn.click();
+      });
+      el.addEventListener("paste", function (e) {
+        var t = (e.clipboardData || window.clipboardData).getData("text") || "";
+        t = t.replace(/\D/g, "").slice(0, 6);
+        if (!t) return;
+        e.preventDefault();
+        for (var i = 0; i < digits.length; i++) digits[i].value = t[i] || "";
+        getOtpCode();
+        if (t.length >= 6 && verifyBtn) verifyBtn.click();
+        else if (t.length < digits.length) digits[t.length].focus();
+      });
+      el.addEventListener("focus", function () {
+        el.select();
+      });
+    });
+  }
+
 
   function showGate(msg, isErr) {
     setBodyLocked(true);
@@ -344,6 +416,7 @@
     showGate("", false);
     if (keyMsg) keyMsg.textContent = "";
     showPanel("pending");
+    setGoogleVisible(false);
 
     var title = document.getElementById("pendingTitle");
     var emailEl = document.getElementById("pendingEmail");
@@ -584,42 +657,59 @@
   }
 
   function handleAuthResult(data, tokenFromLogin) {
-    var token = tokenFromLogin || data.token || getToken();
-    var user = data.user;
+    data = data || {};
+    var user = data.user || null;
+    var token = tokenFromLogin || data.token || "";
 
+    // Success with access → enter Veil
     if (data.ok && user && user.hasAccess) {
-      setToken(token, user);
+      if (token) setToken(token, user);
       unlockApp();
       return;
     }
 
-    if (data.reason === "banned" || (user && (user.status === "banned" || user.banned))) {
-      clearToken();
-      showBlocked(data.error || "You are banned from Veil");
+    // Banned
+    if (data.reason === "banned") {
+      if (token) setToken(token, user);
+      showBlocked((data.error || "You are banned from Veil") + "");
       return;
     }
 
-    if (data.reason === "unverified" || (user && user.emailVerified === false)) {
+    // FLOW: must verify email before pending
+    // (signup / login unverified / session check unverified)
+    var needsVerify =
+      data.reason === "unverified" ||
+      data.needsVerify ||
+      (user && user.emailVerified === false);
+    if (needsVerify) {
       if (user && user.email) {
         try { localStorage.setItem(PENDING_EMAIL, user.email); } catch (e) {}
       }
-      if (token) setToken(token, user);
-      showGate(data.error || "Verify your email", false);
+      // Do not keep a session while unverified — refresh should not trap here
+      // unless they explicitly stayed on verify with PENDING_EMAIL only
+      if (!user || user.emailVerified === false) {
+        // Clear any old session so refresh on login stays on login
+        // (PENDING_EMAIL kept for the code form)
+        try {
+          localStorage.removeItem(SESSION_KEY);
+          clearCookie(SESSION_KEY);
+        } catch (e) {}
+        lastUser = user || null;
+      }
+      showGate(data.error || "Enter the code sent to your email", false);
       showPanel("verify");
+      clearOtp();
       return;
     }
 
-    // No time / pending / session ended → waiting screen (not login)
+    // Verified → pending / expired / waiting
     if (
       data.reason === "pending" ||
       data.reason === "expired" ||
       data.reason === "signed_out" ||
-      (user && (user.status === "pending" || user.status === "expired" || user.hasAccess === false))
+      (user && user.emailVerified && !user.hasAccess)
     ) {
       if (token) setToken(token, user);
-      if (user && user.email) {
-        try { localStorage.setItem(PENDING_EMAIL, user.email); } catch (e) {}
-      }
       var mode = "pending";
       if (data.reason === "expired" || data.reason === "signed_out") mode = "expired";
       else if (user && user.status === "expired") mode = "expired";
@@ -633,7 +723,6 @@
     }
   }
 
-  
   function checkSession() {
     var token = getToken();
     if (!token) {
@@ -641,7 +730,6 @@
       showPanel("login");
       return Promise.resolve();
     }
-    // Quiet check — no boot animation on gate
     setBodyLocked(true);
     if (appRoot) appRoot.style.display = "none";
     return api("/api/session/check", { token: token }).then(function (r) {
@@ -651,6 +739,25 @@
         return;
       }
       if (r.data) {
+        // Unverified session → clear token, show login (not stuck on verify)
+        if (r.data.reason === "unverified" || r.data.needsVerify) {
+          clearToken();
+          if (r.data.user && r.data.user.email) {
+            try { localStorage.setItem(PENDING_EMAIL, r.data.user.email); } catch (e) {}
+          }
+          showGate("Verify your email, then log in", false);
+          showPanel("login");
+          return;
+        }
+        if (r.data.token) token = r.data.token;
+        if (
+          r.data.reason === "pending" ||
+          r.data.reason === "expired" ||
+          r.data.reason === "signed_out" ||
+          (r.data.user && r.data.user.email)
+        ) {
+          if (token) setToken(token, r.data.user || null);
+        }
         handleAuthResult(r.data, token);
         return;
       }
@@ -671,7 +778,6 @@
   var loginBtn = document.getElementById("loginBtn");
   var signupBtn = document.getElementById("signupBtn");
   var verifyBtn = document.getElementById("verifyBtn");
-  var resendBtn = document.getElementById("resendVerifyBtn");
   var backBtn = document.getElementById("backToLoginBtn");
   var pendingRefresh = document.getElementById("pendingRefreshBtn");
   var pendingLogout = document.getElementById("pendingLogoutBtn");
@@ -682,9 +788,20 @@
       var password = (document.getElementById("loginPass") || {}).value || "";
       setMsg("Signing in…", false);
       api("/api/auth/login", { email: email, password: password }).then(function (r) {
-        if (r.data.token) setToken(r.data.token, r.data.user);
-        handleAuthResult(r.data, r.data.token);
-        if (!r.data.ok && !r.data.reason) setMsg(r.data.error || "Login failed", true, true);
+        var data = r.data || {};
+        // FLOW: existing verified → pending/app; unverified → verify code; unknown → error
+        if (data.token && data.user && data.user.emailVerified) {
+          setToken(data.token, data.user);
+        }
+        if (data.needsVerify || data.reason === "unverified") {
+          try { localStorage.setItem(PENDING_EMAIL, (email || "").trim().toLowerCase()); } catch (e) {}
+          showGate(data.error || "Enter the verification code sent to your email", false);
+          showPanel("verify");
+          clearOtp();
+          return;
+        }
+        handleAuthResult(data, data.token);
+        if (!data.ok && !data.reason) setMsg(data.error || "Login failed", true, true);
       });
     };
   }
@@ -695,14 +812,19 @@
       var password = (document.getElementById("signupPass") || {}).value || "";
       setMsg("Creating account…", false);
       api("/api/auth/signup", { email: email, password: password }).then(function (r) {
-        if (!r.data.ok && !r.data.needsVerify) {
-          setMsg(r.data.error || "Signup failed", true, true);
+        var data = r.data || {};
+        if (!data.ok || !data.emailSent) {
+          setMsg(data.error || "Signup failed — verification email was not sent", true, true);
           return;
         }
+        // FLOW: Sign up → Brevo code → verify screen (no session yet)
         try { localStorage.setItem(PENDING_EMAIL, email.trim().toLowerCase()); } catch (e) {}
+        clearToken();
+        try { localStorage.setItem(PENDING_EMAIL, email.trim().toLowerCase()); } catch (e) {}
+        showGate("", false);
         showPanel("verify");
-        if (r.data.emailSent) setMsg("Code sent — check your inbox (and spam)", false);
-        else setMsg(r.data.error || "Account created, but email could not be sent", true, false);
+        clearOtp();
+        setMsg("We emailed you a 6-digit code. Enter it below.", false);
       });
     };
   }
@@ -714,38 +836,38 @@
         (document.getElementById("signupEmail") || {}).value ||
         (document.getElementById("loginEmail") || {}).value ||
         "";
-      var code = (document.getElementById("verifyCode") || {}).value || "";
+      var code = getOtpCode();
+      if (code.length !== 6) {
+        setMsg("Enter the 6-digit code", true, true);
+        return;
+      }
       setMsg("Verifying…", false);
       api("/api/auth/verify", { email: email, code: code }).then(function (r) {
-        if (!r.data.ok) {
+        if (!r.data.ok && !r.data.reason && !r.data.user) {
           setMsg(r.data.error || "Invalid code", true, true);
           return;
         }
-        setMsg("Email verified. Log in to continue.", false);
-        showPanel("login");
-        var le = document.getElementById("loginEmail");
-        if (le && email) le.value = email;
-      });
-    };
-  }
-
-  if (resendBtn) {
-    resendBtn.onclick = function () {
-      var email =
-        localStorage.getItem(PENDING_EMAIL) ||
-        (document.getElementById("signupEmail") || {}).value ||
-        (document.getElementById("loginEmail") || {}).value ||
-        "";
-      setMsg("Sending…", false);
-      api("/api/auth/resend-verify", { email: email }).then(function (r) {
-        if (!r.data.ok) setMsg(r.data.error || "Could not resend", true, true);
-        else setMsg("Code sent", false);
+        /* Correct code → marked verified → pending (or enter if already granted) */
+        if (r.data.token) setToken(r.data.token, r.data.user);
+        handleAuthResult(
+          {
+            ok: !!(r.data.ok && r.data.user && r.data.user.hasAccess),
+            reason: r.data.reason || (r.data.user && r.data.user.hasAccess ? undefined : "pending"),
+            error: r.data.error,
+            user: r.data.user || { email: email, emailVerified: true, status: "pending", hasAccess: false },
+            token: r.data.token,
+          },
+          r.data.token
+        );
       });
     };
   }
 
   if (backBtn) {
     backBtn.onclick = function () {
+      clearToken();
+      stopPendingPoll();
+      showGate(DEFAULT_MSG, false);
       showPanel("login");
       setMsg(DEFAULT_MSG, false);
     };
@@ -777,10 +899,6 @@
       if (e.key === "Enter" && signupBtn) signupBtn.click();
     });
   });
-  var vc = document.getElementById("verifyCode");
-  if (vc) vc.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && verifyBtn) verifyBtn.click();
-  });
 
   // ——— Google Sign-In ———
   var googleClientId = null;
@@ -809,6 +927,33 @@
     });
   }
 
+  function currentGatePanel() {
+    var map = ["panelLogin", "panelSignup", "panelVerify", "panelPending"];
+    for (var i = 0; i < map.length; i++) {
+      var el = document.getElementById(map[i]);
+      if (el && el.style.display !== "none" && el.offsetParent !== null) {
+        if (map[i] === "panelLogin") return "login";
+        if (map[i] === "panelSignup") return "signup";
+        if (map[i] === "panelVerify") return "verify";
+        if (map[i] === "panelPending") return "pending";
+      }
+    }
+    return "login";
+  }
+
+  function setGoogleVisible(show) {
+    var wrap = document.getElementById("googleSignInWrap");
+    if (wrap) wrap.style.display = show ? "block" : "none";
+    try {
+      if (window.google && google.accounts && google.accounts.id) {
+        if (!show) {
+          google.accounts.id.cancel();
+          google.accounts.id.disableAutoSelect();
+        }
+      }
+    } catch (e) {}
+  }
+
   function initGoogleButton() {
     if (!googleClientId || googleReady) return;
     if (!window.google || !google.accounts || !google.accounts.id) return;
@@ -818,6 +963,7 @@
         callback: onGoogleCredential,
         auto_select: false,
         cancel_on_tap_outside: true,
+        use_fedcm_for_prompt: false,
       });
       var host = document.getElementById("googleSignInBtn");
       var wrap = document.getElementById("googleSignInWrap");
@@ -834,8 +980,10 @@
           text: "continue_with",
           width: w,
         });
-        wrap.style.display = "block";
         googleReady = true;
+        /* Only show on login/signup — never on pending / verify / paused */
+        var panel = currentGatePanel();
+        setGoogleVisible(panel === "login" || panel === "signup");
       }
     } catch (e) {
       console.warn("Google button init", e);
@@ -874,11 +1022,7 @@
   var _origShowPanel = showPanel;
   showPanel = function (name) {
     _origShowPanel(name);
-    var wrap = document.getElementById("googleSignInWrap");
-    if (wrap) {
-      wrap.style.display =
-        googleReady && (name === "login" || name === "signup") ? "block" : "none";
-    }
+    setGoogleVisible(name === "login" || name === "signup");
   };
 
     window.VeilAccess.signOut = doSignOut;

@@ -98,7 +98,37 @@ $("userSearch").addEventListener("input", function () {
 });
 
 function badge(status) {
-  return '<span class="badge ' + (status || "pending") + '">' + (status || "pending") + "</span>";
+  var s = status || "pending";
+  var label = s;
+  if (s === "allowed") label = "allowed";
+  else if (s === "pending") label = "pending";
+  else if (s === "expired") label = "expired";
+  else if (s === "banned") label = "banned";
+  else if (s === "unverified") label = "unverified";
+  return '<span class="badge ' + s + '">' + label + "</span>";
+}
+
+function accessLine(u) {
+  if (u.banned || u.status === "banned") {
+    var bl = u.banRemainingHuman || "unlimited";
+    return "Banned · " + bl + (u.banReason ? " · " + u.banReason : "");
+  }
+  if (u.status === "unverified" || u.emailVerified === false) {
+    return "Unverified · no access until email is confirmed";
+  }
+  if (u.infinite || u.remainingLabel === "inf") {
+    return "Access: unlimited";
+  }
+  if (u.status === "allowed" && (u.remainingHuman || u.remainingLabel)) {
+    return "Access left: " + (u.remainingHuman || u.remainingLabel);
+  }
+  if (u.status === "expired") {
+    return "Access: expired";
+  }
+  if (u.status === "pending") {
+    return "Access: none (waiting for time)";
+  }
+  return "Access: " + (u.remainingHuman || u.remainingLabel || "none");
 }
 
 function fmtDate(ts) {
@@ -134,28 +164,30 @@ function loadUsers() {
       return;
     }
     users.forEach(function (u) {
-      var time =
-        u.infinite || u.remainingLabel === "inf"
-          ? "unlimited"
-          : u.remainingHuman || u.remainingLabel || "none";
+      var status = u.status || "pending";
+      // Prefer server status; don't double-badge unverified
+      var extraBadges = "";
+      if (u.googleLinked) extraBadges += '<span class="badge google">google</span>';
       var div = document.createElement("div");
       div.className = "user";
       div.innerHTML =
         '<div class="user-email">' +
         escapeHtml(u.email) +
-        badge(u.status) +
-        (u.googleLinked ? '<span class="badge">google</span>' : "") +
-        (!u.emailVerified ? '<span class="badge">unverified</span>' : "") +
+        badge(status) +
+        extraBadges +
         "</div>" +
         '<div class="user-meta">' +
-        "Access: " +
-        escapeHtml(time) +
-        (u.banned ? " · banned " + escapeHtml(u.banRemainingHuman || "") : "") +
-        " · login " +
+        escapeHtml(accessLine(u)) +
+        " · last login " +
         escapeHtml(fmtDate(u.lastLogin)) +
         "</div>" +
         '<div class="detail">' +
         '<div class="user-meta" style="margin-bottom:10px">' +
+        (u.expires && !u.infinite
+          ? "Expires: " + escapeHtml(fmtDate(u.expires)) + "<br>"
+          : u.infinite
+            ? "Expires: never<br>"
+            : "") +
         (u.banReason ? "Ban reason: " + escapeHtml(u.banReason) + "<br>" : "") +
         "Joined " +
         escapeHtml(fmtDate(u.created)) +
@@ -181,7 +213,10 @@ function loadUsers() {
         '<div class="row actions" style="margin-top:12px">' +
         '<button type="button" class="kick">End access</button>' +
         (u.status === "banned" ? '<button type="button" class="unban">Remove ban</button>' : "") +
-        (!u.emailVerified ? '<button type="button" class="verify">Mark verified</button>' : "") +
+        (!u.emailVerified
+          ? '<button type="button" class="verify">Mark verified</button><button type="button" class="sendverify">Send verify code</button>'
+          : '<button type="button" class="deverify">De-verify email</button>') +
+        '<button type="button" class="danger delacc">Delete account</button>' +
         "</div>" +
         '<div class="msg actmsg"></div>' +
         "</div>";
@@ -236,13 +271,42 @@ function loadUsers() {
           postUser("/api/admin/users/unban", u.email, {}, msg, "Ban removed");
         };
       }
-      var verify = div.querySelector(".verify");
+            var verify = div.querySelector(".verify");
       if (verify) {
         verify.onclick = function (e) {
           e.stopPropagation();
           postUser("/api/admin/users/verify", u.email, {}, msg, "Marked verified");
         };
       }
+
+      var deverify = div.querySelector(".deverify");
+      if (deverify) {
+        deverify.onclick = function (e) {
+          e.stopPropagation();
+          if (!confirm("De-verify " + u.email + "?\n\nThey must enter a new email code before pending/access.")) return;
+          postUser("/api/admin/users/deverify", u.email, {}, msg, "De-verified — new code emailed");
+        };
+      }
+
+      var sendverify = div.querySelector(".sendverify");
+      if (sendverify) {
+        sendverify.onclick = function (e) {
+          e.stopPropagation();
+          if (!confirm("Send a new verification code to " + u.email + "?")) return;
+          postUser("/api/admin/users/send-verify", u.email, {}, msg, "Verification email sent");
+        };
+      }
+
+      var delacc = div.querySelector(".delacc");
+      if (delacc) {
+        delacc.onclick = function (e) {
+          e.stopPropagation();
+          if (!confirm("Delete account " + u.email + "?\n\nRemoves the account completely. They must create an account and verify email again.")) return;
+          if (!confirm("Really delete " + u.email + "? This cannot be undone.")) return;
+          postUser("/api/admin/users/delete", u.email, {}, msg, "Account deleted");
+        };
+      }
+
 
       list.appendChild(div);
     });

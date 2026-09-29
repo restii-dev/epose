@@ -48,12 +48,39 @@ function allWispServers() {
 }
 
 const CLOAK_PRESETS = {
-  docs: { title: "Google Docs", icon: "https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico" },
-  classroom: { title: "Google Classroom", icon: "https://ssl.gstatic.com/classroom/favicon.png" },
-  drive: { title: "My Drive - Google Drive", icon: "https://ssl.gstatic.com/docs/doclist/images/drive_2022q3_32dp.png" },
-  canvas: { title: "Dashboard", icon: "https://du11hjcvx0uqb.cloudfront.net/dist/images/favicon-e10d657a73.ico" },
+  drive: { title: "Home - Google Drive", icon: IMG + "favi/drive.png" },
+  gmail: { title: null, icon: IMG + "favi/gmail.png", dynamic: "gmail" },
+  docs: { title: "Google Docs", icon: IMG + "favi/docs.png" },
+  "campus-student": { title: "Campus Student", icon: IMG + "favi/campus-student.png" },
+  "campus-grades": { title: "Grades | Infinite Campus", icon: IMG + "favi/campus-student.png" },
+  "campus-profile": { title: "Student Profile | Home | Infinite Campus", icon: IMG + "favi/campus-student.png" },
+  "campus-assignments": { title: "Assignments | Infinite Campus", icon: IMG + "favi/campus-student.png" },
   veil: { title: "Veil", icon: FAVI }
 };
+
+function resolveCloakPreset(id) {
+  const p = CLOAK_PRESETS[id];
+  if (!p) return null;
+  if (p.dynamic === "gmail") {
+    let email = "";
+    try {
+      const meta = JSON.parse(localStorage.getItem("veil_access_meta") || "null");
+      if (meta && meta.email) email = meta.email;
+    } catch (e) {}
+    if (!email && window.VeilAccess && typeof window.VeilAccess.getMeta === "function") {
+      try {
+        const m = window.VeilAccess.getMeta();
+        if (m && m.email) email = m.email;
+      } catch (e) {}
+    }
+    const n = 200 + Math.floor(Math.random() * 1801);
+    return {
+      title: "Inbox (" + n + ")" + (email ? " - " + email : ""),
+      icon: p.icon
+    };
+  }
+  return { title: p.title, icon: p.icon };
+}
 
 let engineReady = false;
 let engineController = null;
@@ -274,7 +301,7 @@ const THEMES = {
 
 const DEFAULT_SETTINGS = {
   theme: "matte", transport: "epoxy", wispId: "default", wispCustom: "",
-  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "duckduckgo", wispId: "va1", customServers: [], lockUnload: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", ...THEMES.matte
+  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "duckduckgo", wispId: "va1", customServers: [], lockUnload: false, confirmLeave: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", ...THEMES.matte
 };
 const DEFAULT_PANIC = { key: "", code: "", url: "https://classroom.google.com" };
 
@@ -712,6 +739,7 @@ function welcomeHTML() {
   const name = (profile && profile.name) ? profile.name : "guest";
   const { time, date } = formatWelcomeClock(new Date());
   return (
+    '<div class="dev-banner">Site under development. Bugs may occur.</div>' +
     '<div class="welcome-bar">' +
     '<div class="welcome-line">Welcome to Veil, ' + escapeHTML(name) + '.</div>' +
     '<div class="welcome-time">It is currently <span data-welcome-time>' + time + '</span> on <span data-welcome-date>' + date + '</span>.</div>' +
@@ -737,9 +765,41 @@ function engineOptionsHTML() {
   ).join("");
 }
 
+
+const HOME_DESIGN_W = 720;
+const HOME_DESIGN_H = 700;
+const homeScaleObservers = new WeakMap();
+
+function fitHomeScale(wrapper) {
+  if (!wrapper) return;
+  const page = wrapper.classList.contains("newtab-page") ? wrapper : wrapper.querySelector(".newtab-page");
+  const stage = wrapper.querySelector(".newtab-stage");
+  if (!page || !stage) return;
+  const pw = page.clientWidth || 1;
+  const ph = page.clientHeight || 1;
+  // Fit entire stage inside page; keep aspect, never crop features
+  const s = Math.min(pw / HOME_DESIGN_W, ph / HOME_DESIGN_H);
+  const clamped = Math.max(0.35, Math.min(s, 1));
+  stage.style.setProperty("--home-scale", String(clamped));
+}
+
+function observeHomeScale(wrapper) {
+  fitHomeScale(wrapper);
+  if (homeScaleObservers.has(wrapper)) return;
+  const page = wrapper.classList.contains("newtab-page") ? wrapper : wrapper.querySelector(".newtab-page");
+  if (!page || typeof ResizeObserver === "undefined") {
+    window.addEventListener("resize", () => fitHomeScale(wrapper));
+    return;
+  }
+  const ro = new ResizeObserver(() => fitHomeScale(wrapper));
+  ro.observe(page);
+  homeScaleObservers.set(wrapper, ro);
+}
+
 function homepageHTML(pageId) {
   return (
     '<div class="newtab-page"><canvas class="home-fx" data-home-fx></canvas><div class="newtab-overlay">' +
+    '<div class="newtab-stage">' +
     welcomeHTML() +
     '<div class="newtab-center">' +
     '<div class="veil-mark"><img src="' + FAVI + '" alt="Veil"></div>' +
@@ -756,18 +816,131 @@ function homepageHTML(pageId) {
     '<button class="quick-link" title="GeForce NOW" data-url="https://play.geforcenow.com/mall">' + imgIcon("nvidia.svg") + '</button>' +
     '</div>' +
     '<div class="quick-links row2">' +
-    '<button class="quick-link soon" title="Games (soon)" data-soon="1">' + imgIcon("games.svg") + '</button>' +
+    '<button class="quick-link" title="Games" data-games="1">' + imgIcon("games.svg") + '</button>' +
     '<button class="quick-link soon" title="Utilities (soon)" data-soon="1">' + imgIcon("util.svg") + '</button>' +
     '</div>' +
     '<button class="launch-btn" id="launchOptionsBtn" type="button">Launch Options...</button>' +
-    '</div></div>' +
+    '</div></div></div>' +
     '<div class="time-bar" id="timeBar">Time Remaining: …</div></div>'
   );
 }
 
+
+const SETTINGS_INFO = {
+  theme: {
+    title: "Site theme colors",
+    body: "Changes the colors of Veil’s toolbars, menus, and panels. Pick a preset that feels comfortable — it only affects the Veil browser chrome, not the websites you visit."
+  },
+  background: {
+    title: "Home page background",
+    body: "Sets a custom background on the New Tab page. You can paste a link to an image, GIF, or video (mp4/webm). Leave it empty to use the solid theme background."
+  },
+  time24: {
+    title: "24-hour time",
+    body: "Switches the welcome clock between 12-hour time (with AM/PM) and 24-hour time. This only changes how the time is shown on the home page."
+  },
+  animations: {
+    title: "Home page animations",
+    body: "Turns on a soft animated background on the New Tab page (orbs, stars, rain, and more). You can change the style, speed, amount, size, and colors. Animations only run when cookies are allowed."
+  },
+  cloak: {
+    title: "Tab cloak",
+    body: "Changes what the browser tab shows — the title and the little icon. Use a preset (like Google Drive or Gmail) or type your own. Helpful if you want the tab to look like schoolwork at a glance."
+  },
+  panic: {
+    title: "Panic key",
+    body: "Choose a keyboard key and a website. When you press that key (while not typing in a text box), Veil jumps to the website you set. Useful for a quick switch if someone walks by."
+  },
+  aboutblank: {
+    title: "About:blank launch",
+    body: "Controls whether Veil opens inside a special about:blank window. Manual means you choose when; automatic tries to open that way for you. It is skipped if you are already in that mode."
+  },
+  pagelock: {
+    title: "Page lock",
+    body: "When you lock Veil from the menu, this chooses whether open pages are unloaded to hide what you were viewing. If this is off, pages stay loaded in the background until you unlock."
+  },
+  confirmleave: {
+    title: "Leave warning",
+    body: "When this is on, closing the browser tab or refreshing the page shows the browser’s “are you sure you want to leave?” message. It can stop someone from closing Veil with one click. Off by default."
+  },
+  search: {
+    title: "Search engine",
+    body: "When you type words in the address bar or home search box instead of a full website address, Veil searches with this engine (for example DuckDuckGo or Google)."
+  },
+  adblock: {
+    title: "Ad blocker",
+    body: "Blocks many common ads and trackers on sites you open through Veil. Turning it off can help if a site breaks or looks incomplete."
+  },
+  maxtabs: {
+    title: "Loaded tabs at once",
+    body: "Limits how many tabs keep a live page running at the same time. Extra tabs are unloaded until you switch back to them. A lower number uses less memory on school devices."
+  },
+  proxy: {
+    title: "Proxy servers",
+    body: "These are the connection servers Veil uses to open websites. Pick one that shows a fast ping (green). If a site will not load, try another server from the list."
+  },
+  engine: {
+    title: "Browser engine",
+    body: "The technical method Veil uses to talk to the proxy. Epoxy works for most people. If pages fail to load or get stuck, switch to Libcurl and try again."
+  },
+  username: {
+    title: "Change username",
+    body: "Updates the display name shown in the welcome message on the home page. This stays on this device and is not your account email."
+  },
+  password: {
+    title: "Change password",
+    body: "Changes the local password used to lock and unlock Veil on this device. It is separate from your email login password for the access system."
+  },
+  account: {
+    title: "Account",
+    body: "Signs you out of Veil on this device and clears the Google sign-in session used for access. You will need to log in again next time."
+  },
+  cleardata: {
+    title: "Clear cookies & cache",
+    body: "Wipes Veil’s saved data on this device (settings storage, cookies, and cache) and signs you out. Use this if something is stuck or you want a clean slate."
+  },
+  reset: {
+    title: "Factory reset",
+    body: "Restores theme, cloak, and browser options to the defaults. Your profile password is kept unless you also clear site data."
+  },
+  admin: {
+    title: "Admin",
+    body: "Opens the admin panel in a Veil tab so you can manage accounts, time grants, and bans. You will need the admin password from the worker setup."
+  }
+};
+
+function showSettingsInfo(key) {
+  const info = SETTINGS_INFO[key];
+  if (!info) return;
+  const existing = document.querySelector(".modal-overlay.veil-info");
+  if (existing) existing.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay veil-info";
+  overlay.innerHTML =
+    '<div class="modal-box info-modal" role="dialog" aria-modal="true">' +
+    "<h2>" + escapeHTML(info.title) + "</h2>" +
+    "<p>" + escapeHTML(info.body) + "</p>" +
+    '<div class="modal-actions"><button type="button" class="primary-btn" data-info-ok>Got it</button></div>' +
+    "</div>";
+  document.body.appendChild(overlay);
+  const close = () => { try { overlay.remove(); } catch (e) {} };
+  overlay.querySelector("[data-info-ok]").onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+}
+
+document.addEventListener("click", (e) => {
+  const btn = e.target && e.target.closest && e.target.closest(".info-btn[data-info]");
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  showSettingsInfo(btn.getAttribute("data-info"));
+});
+
+
 function wireHome(wrapper, page) {
   applyNewTabBackground();
   startWelcomeClock();
+  observeHomeScale(wrapper);
   setupHomeFx(wrapper);
   wrapper.querySelectorAll(".newtab-search").forEach(input => {
     input.addEventListener("keydown", e => {
@@ -784,6 +957,12 @@ function wireHome(wrapper, page) {
       e.preventDefault();
       activeTabId = page.id;
       navigate(btn.getAttribute("data-url") || btn.dataset.url);
+    });
+  });
+  wrapper.querySelectorAll(".quick-link[data-games]").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      openGamesPage();
     });
   });
   const lob = wrapper.querySelector("#launchOptionsBtn");
@@ -832,6 +1011,8 @@ function maxLoaded() {
 }
 
 function showActiveOnly() {
+  try { updateGamesChromeLocks(); } catch (e) {}
+
   const viewport = document.getElementById("viewport");
   if (!viewport) return;
   const limit = maxLoaded();
@@ -866,8 +1047,19 @@ function switchTab(id) {
   activeTabId = id;
   const tab = getTab(id);
   if (tab) tab.lastActive = Date.now();
+  try {
+    if (tab && tab.isGames) sessionStorage.setItem("veil_active_special", "games");
+    else if (tab && tab.isAdmin) sessionStorage.setItem("veil_active_special", "admin");
+    else sessionStorage.removeItem("veil_active_special");
+  } catch (e) {}
   showActiveOnly();
-  if (tab && !tab.newTab && tab.url && !tab.engineFrame) {
+  if (tab && tab.isGames) {
+    const pageEl = document.querySelector('.page[data-page-id="' + tab.id + '"]');
+    if (pageEl && !pageEl.querySelector("#gamesRoot")) {
+      pageEl.innerHTML = '<div class="games-page" id="gamesRoot"><div class="games-inner">Loading games…</div></div>';
+      renderGamesPage(pageEl.querySelector("#gamesRoot"));
+    }
+  } else if (tab && !tab.newTab && tab.url && tab.url !== "veil://games" && !tab.engineFrame && !tab.isAdmin) {
     const pageEl = document.querySelector('.page[data-page-id="' + tab.id + '"]');
     if (pageEl) {
       pageEl.innerHTML = "";
@@ -881,13 +1073,21 @@ function switchTab(id) {
   }
   renderTabs();
   renderToolbar();
+  updateGamesChromeLocks();
 }
 
 function renderToolbar() {
   const page = getActiveTab();
-  document.getElementById("address").value = page && page.url ? page.url : "";
-  document.getElementById("backBtn").disabled = !page || !page.url;
-  document.getElementById("forwardBtn").disabled = !page || !page.url;
+  let addr = "";
+  if (page) {
+    if (page.isGames) addr = "veil://games";
+    else if (page.isAdmin) addr = "veil://admin";
+    else addr = page.url || "";
+  }
+  const addrEl = document.getElementById("address");
+  if (addrEl) addrEl.value = addr;
+  document.getElementById("backBtn").disabled = !page || !page.url || page.isGames || page.isAdmin;
+  document.getElementById("forwardBtn").disabled = !page || !page.url || page.isGames || page.isAdmin;
   const b = document.getElementById("bookmarkBtn");
   if (page && page.url && isBookmarked(page.url)) b.classList.add("saved");
   else b.classList.remove("saved");
@@ -1417,14 +1617,13 @@ function setupHomeFx(wrapper) {
   stopHomeFx(wrapper);
   const canvas = wrapper.querySelector("[data-home-fx]");
   if (!canvas) return;
-  // Animations off by default; only run when enabled AND cookies allowed
   if (!settings.animEnabled || !COOKIE.consent) {
     canvas.style.display = "none";
     return;
   }
   canvas.style.display = "block";
   const ctx = canvas.getContext("2d");
-  const state = { raf: 0, t: 0, particles: [] };
+  const state = { raf: 0, t: 0, particles: [], bolts: [], flash: 0 };
   const resize = () => {
     const r = wrapper.getBoundingClientRect();
     canvas.width = Math.max(1, Math.floor(r.width * (window.devicePixelRatio || 1)));
@@ -1433,112 +1632,171 @@ function setupHomeFx(wrapper) {
     canvas.style.height = r.height + "px";
   };
   resize();
-  const style = settings.animStyle || "orbs";
+  let style = settings.animStyle || "orbs";
+  if (style === "waves" || style === "pulse") style = "rain";
   const sizeMul = Math.max(0.4, Math.min(2.5, Number(settings.animSize) || 1));
   let n = Number(settings.animCount);
   if (!Number.isFinite(n)) n = 18;
   n = Math.max(4, Math.min(80, Math.round(n)));
-  if (style === "pulse") n = Math.min(n, 12);
   if (style === "stars") n = Math.max(n, 12);
-  if (style === "waves") n = Math.min(n, 8);
+  if (style === "rain") n = Math.max(20, Math.min(120, Math.round(n * 1.4)));
   state.shooters = [];
-  for (let i = 0; i < n; i++) {
-    const isStars = style === "stars";
-    state.particles.push({
-      x: Math.random(), y: Math.random(),
-      r: isStars ? (0.4 + Math.random() * 1.6) : ((0.015 + Math.random() * 0.07) * sizeMul),
-      vx: isStars ? 0 : (Math.random() - 0.5) * 0.0004,
-      vy: isStars ? 0 : (Math.random() - 0.5) * 0.00035,
-      phase: Math.random() * Math.PI * 2,
-      tw: Math.random() * Math.PI * 2
-    });
+  state.clouds = [];
+
+  if (style === "rain") {
+    // Spawn fully above/left of frame so drops enter from off-screen
+    for (let i = 0; i < n; i++) {
+      const ang = 0.45 + Math.random() * 0.25;
+      state.particles.push({
+        x: Math.random() * 1.4 - 0.35,
+        y: -0.15 - Math.random() * 0.9,
+        len: (0.035 + Math.random() * 0.07) * sizeMul,
+        spd: 0.006 + Math.random() * 0.012,
+        thick: 0.9 + Math.random() * 1.6,
+        alpha: 0.25 + Math.random() * 0.55,
+        ang
+      });
+    }
+  } else {
+    for (let i = 0; i < n; i++) {
+      const isStars = style === "stars";
+      state.particles.push({
+        x: Math.random(), y: Math.random(),
+        r: isStars ? (0.4 + Math.random() * 1.6) : ((0.015 + Math.random() * 0.07) * sizeMul),
+        vx: isStars ? 0 : (Math.random() - 0.5) * 0.0004,
+        vy: isStars ? 0 : (Math.random() - 0.5) * 0.00035,
+        phase: Math.random() * Math.PI * 2,
+        tw: Math.random() * Math.PI * 2
+      });
+    }
   }
+
+  const spawnBolt = (w, h) => {
+    const segs = [];
+    let x = (0.15 + Math.random() * 0.7) * w;
+    let y = 0;
+    const targetY = h * (0.35 + Math.random() * 0.4);
+    while (y < targetY) {
+      const nx = x + (Math.random() - 0.5) * 28 * sizeMul;
+      const ny = y + 12 + Math.random() * 22;
+      segs.push({ x, y, nx, ny });
+      x = nx;
+      y = ny;
+    }
+    state.bolts.push({ segs, life: 1, branch: Math.random() > 0.55 });
+    state.flash = 0.55 + Math.random() * 0.35;
+  };
+
   const draw = () => {
     if (!settings.animEnabled) return;
-    const speed = Number(settings.animSpeed) || 1;
+    // Base speed scale so 1x is calm (was too fast before)
+    const speed = (Number(settings.animSpeed) || 1) * 0.42;
     state.t += 0.016 * speed;
     const w = canvas.width, h = canvas.height;
+    const dpr = window.devicePixelRatio || 1;
     ctx.clearRect(0, 0, w, h);
     const a = hexToRgb(settings.animColorA);
     const b = hexToRgb(settings.animColorB);
-    if (style === "waves") {
-      const waveN = Math.max(3, Math.min(12, Math.round(n / 4) + 2));
-      for (let i = 0; i < waveN; i++) {
-        const y = (0.2 + i * (0.55 / waveN)) * h;
-        const amp = (10 + i * 5 + sizeMul * 8) * sizeMul;
+
+    if (style === "rain") {
+      // Soft storm sky
+      const sky = ctx.createLinearGradient(0, 0, 0, h * 0.55);
+      sky.addColorStop(0, "rgba(" + a.r + "," + a.g + "," + a.b + ",0.1)");
+      sky.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, w, h * 0.55);
+
+      // Thunder / lightning (kept)
+      if (Math.random() < 0.0022 * speed) spawnBolt(w, h);
+      if (state.flash > 0) {
+        ctx.fillStyle = "rgba(200,215,255," + (state.flash * 0.2) + ")";
+        ctx.fillRect(0, 0, w, h);
+        state.flash *= 0.88;
+        if (state.flash < 0.02) state.flash = 0;
+      }
+      state.bolts = state.bolts.filter((bolt) => {
+        bolt.life -= 0.06 * (speed / 0.42);
+        if (bolt.life <= 0) return false;
+        ctx.strokeStyle = "rgba(210,225,255," + (0.55 * bolt.life) + ")";
+        ctx.lineWidth = Math.max(1, 1.6 * sizeMul * dpr);
+        ctx.lineCap = "round";
         ctx.beginPath();
-        for (let x = 0; x <= w; x += 8) {
-          const yy = y + Math.sin(state.t * (0.8 + i * 0.15) + x * 0.008 + i) * amp;
-          if (x === 0) ctx.moveTo(x, yy); else ctx.lineTo(x, yy);
+        bolt.segs.forEach((s, i) => {
+          if (i === 0) ctx.moveTo(s.x, s.y);
+          ctx.lineTo(s.nx, s.ny);
+        });
+        ctx.stroke();
+        if (bolt.branch && bolt.segs.length > 3) {
+          const mid = bolt.segs[Math.floor(bolt.segs.length / 2)];
+          ctx.beginPath();
+          ctx.moveTo(mid.x, mid.y);
+          ctx.lineTo(mid.x + 20 * sizeMul, mid.y + 28 * sizeMul);
+          ctx.stroke();
         }
-        ctx.strokeStyle = "rgba(" + (i % 2 ? a.r : b.r) + "," + (i % 2 ? a.g : b.g) + "," + (i % 2 ? a.b : b.b) + "," + (0.2 - i * 0.02) + ")";
-        ctx.lineWidth = (2 + sizeMul) * (window.devicePixelRatio || 1);
-        ctx.stroke();
-      }
-    } else if (style === "pulse") {
-      const cx = w * 0.5, cy = h * 0.45;
-      const maxR = Math.min(w, h) * 0.42 * sizeMul;
-      const rings = Math.max(3, Math.min(n, 14));
-      for (let i = 0; i < rings; i++) {
-        const p = (state.t * 0.28 * speed + i / rings) % 1;
-        const rad = Math.max(4, p * maxR);
-        const alpha = Math.pow(1 - p, 1.4) * 0.55;
-        const col = i % 2 ? a : b;
+        return true;
+      });
+
+      // Diagonal rain streaks — slanted down-right like the reference
+      ctx.lineCap = "round";
+      state.particles.forEach((p) => {
+        // angle from vertical (~25–40°), positive = to the right while falling
+        const tilt = p.ang; // ~0.55 rad
+        const step = (0.01 + p.spd) * speed * 1.1;
+        p.x += Math.sin(tilt) * step;
+        p.y += Math.cos(tilt * 0.15) * step * 1.35;
+        if (p.y > 1.12 || p.x > 1.25) {
+          // Re-enter from above / upper-left (never pop in mid-frame)
+          p.x = Math.random() * 1.2 - 0.35;
+          p.y = -0.12 - Math.random() * 0.35;
+        }
+        const x0 = p.x * w;
+        const y0 = p.y * h;
+        const streak = p.len * Math.min(w, h) * 1.15;
+        // draw along same diagonal (down + right)
+        const x1 = x0 + Math.sin(tilt) * streak;
+        const y1 = y0 + Math.cos(tilt * 0.2) * streak * 0.95;
+        ctx.strokeStyle = "rgba(" + a.r + "," + a.g + "," + a.b + "," + p.alpha + ")";
+        ctx.lineWidth = Math.max(0.85, p.thick * sizeMul * dpr * 0.5);
         ctx.beginPath();
-        ctx.arc(cx, cy, rad, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(" + col.r + "," + col.g + "," + col.b + "," + alpha + ")";
-        ctx.lineWidth = Math.max(1.2, (2.2 + sizeMul * 1.2) * (1 - p * 0.5) * (window.devicePixelRatio || 1));
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
         ctx.stroke();
-      }
-      // soft center glow
-      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.35);
-      g.addColorStop(0, "rgba(" + b.r + "," + b.g + "," + b.b + ",0.18)");
-      g.addColorStop(1, "rgba(" + a.r + "," + a.g + "," + a.b + ",0)");
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(cx, cy, maxR * 0.35, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (style === "stars") {
-      // Fixed night-sky stars (stay in place) + rare shooting stars
-      const pts = state.particles;
-      if (!state.shooters) state.shooters = [];
-      pts.forEach((p) => {
-        p.tw += (0.018 + (p.phase % 1) * 0.025) * speed;
-        const alpha = 0.1 + Math.pow(Math.abs(Math.sin(p.tw)), 2.2) * 0.9;
-        const rad = Math.max(0.7, p.r * (0.8 + sizeMul * 0.5) * (window.devicePixelRatio || 1));
-        const col = ((p.phase * 7) % 2 > 1) ? a : b;
-        ctx.fillStyle = "rgba(" + col.r + "," + col.g + "," + col.b + "," + alpha + ")";
+      });
+        } else if (style === "stars") {
+      // Fixed night-sky stars + rare shooting stars
+      state.particles.forEach((p) => {
+        const tw = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(state.t * 1.4 + p.tw));
+        ctx.fillStyle = "rgba(" + a.r + "," + a.g + "," + a.b + "," + tw + ")";
         ctx.beginPath();
-        ctx.arc(p.x * w, p.y * h, rad, 0, Math.PI * 2);
+        ctx.arc(p.x * w, p.y * h, p.r * sizeMul * dpr * 0.5, 0, Math.PI * 2);
         ctx.fill();
       });
-      if (Math.random() < 0.01 * speed && state.shooters.length < 2) {
+      if (Math.random() < 0.008 * speed) {
+        // Start fully off-screen (top / top-left), then travel into view
         state.shooters.push({
-          x: Math.random() * 0.85,
-          y: Math.random() * 0.25,
-          vx: 0.012 + Math.random() * 0.016,
-          vy: 0.007 + Math.random() * 0.012,
-          life: 1,
-          len: 12 + Math.random() * 18
+          x: -0.08 - Math.random() * 0.2,
+          y: -0.08 - Math.random() * 0.15,
+          vx: 0.01 + Math.random() * 0.012,
+          vy: 0.006 + Math.random() * 0.008,
+          life: 1
         });
       }
-      state.shooters = state.shooters.filter((s) => s.life > 0 && s.x < 1.15 && s.y < 1.15);
-      state.shooters.forEach((s) => {
-        s.x += s.vx * speed;
-        s.y += s.vy * speed;
-        s.life -= 0.015 * speed;
-        const x1 = s.x * w, y1 = s.y * h;
-        const x0 = (s.x - s.vx * s.len) * w, y0 = (s.y - s.vy * s.len) * h;
-        const grd = ctx.createLinearGradient(x1, y1, x0, y0);
-        grd.addColorStop(0, "rgba(" + b.r + "," + b.g + "," + b.b + "," + (0.95 * s.life) + ")");
+      state.shooters = state.shooters.filter((s) => {
+        s.x += s.vx * speed; s.y += s.vy * speed; s.life -= 0.018 * speed;
+        if (s.life <= 0 || s.x > 1.2 || s.y > 1.2) return false;
+        const x0 = s.x * w, y0 = s.y * h;
+        const x1 = (s.x - s.vx * 4) * w, y1 = (s.y - s.vy * 4) * h;
+        const grd = ctx.createLinearGradient(x0, y0, x1, y1);
+        grd.addColorStop(0, "rgba(" + a.r + "," + a.g + "," + a.b + "," + (0.7 * s.life) + ")");
         grd.addColorStop(1, "rgba(" + a.r + "," + a.g + "," + a.b + ",0)");
         ctx.strokeStyle = grd;
-        ctx.lineWidth = Math.max(1, 1.4 * sizeMul * (window.devicePixelRatio || 1));
+        ctx.lineWidth = Math.max(1, 1.4 * sizeMul * dpr);
         ctx.lineCap = "round";
         ctx.beginPath();
         ctx.moveTo(x1, y1);
         ctx.lineTo(x0, y0);
         ctx.stroke();
+        return true;
       });
     } else if (style === "constellation") {
       const pts = state.particles;
@@ -1563,10 +1821,11 @@ function setupHomeFx(wrapper) {
       pts.forEach((p) => {
         ctx.fillStyle = "rgba(" + b.r + "," + b.g + "," + b.b + ",0.85)";
         ctx.beginPath();
-        ctx.arc(p.x * w, p.y * h, 2.2 * (window.devicePixelRatio || 1), 0, Math.PI * 2);
+        ctx.arc(p.x * w, p.y * h, 2.2 * dpr, 0, Math.PI * 2);
         ctx.fill();
       });
     } else {
+      // orbs (default)
       state.particles.forEach((p, i) => {
         p.x += p.vx * speed;
         p.y += p.vy * speed;
@@ -1688,6 +1947,7 @@ function highlightTheme() {
     setSwitch(document.getElementById("adblockSwitch"), settings.adBlocker !== false);
     setSwitch(document.getElementById("animEnabledSwitch"), !!settings.animEnabled);
     setSwitch(document.getElementById("lockUnloadSwitch"), !!settings.lockUnload);
+    setSwitch(document.getElementById("confirmLeaveSwitch"), !!settings.confirmLeave);
     setSwitch(document.getElementById("time24Switch"), settings.timeFormat === "24");
     const animOpts = document.getElementById("animOpts");
     if (animOpts) animOpts.classList.toggle("enabled", !!settings.animEnabled);
@@ -1742,7 +2002,7 @@ function pushAdblockToSW() {
 
 function applyTheme(name) {
   if (!THEMES[name]) return;
-  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, wispId: settings.wispId, timeFormat: settings.timeFormat };
+  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, confirmLeave: settings.confirmLeave, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, wispId: settings.wispId, timeFormat: settings.timeFormat };
   settings = Object.assign({}, settings, THEMES[name], keep, { theme: name });
   const editor = document.getElementById("customColorCard");
   if (editor) editor.classList.remove("open", "force-open");
@@ -1750,25 +2010,29 @@ function applyTheme(name) {
 }
 function applyCustomColors() {
   const bgEl = document.getElementById("colorBg");
-  if (bgEl && bgEl.value) settings.bg = bgEl.value;
   const panelEl = document.getElementById("colorPanel");
-  if (panelEl && panelEl.value) settings.panel = panelEl.value;
   const accentEl = document.getElementById("colorAccent");
-  if (accentEl && accentEl.value) settings.accent = accentEl.value;
   const textEl = document.getElementById("colorText");
-  if (textEl && textEl.value) settings.text = textEl.value;
-  // Single-color custom editor: derive the rest from background
-  if (!panelEl) {
-    settings.panel = settings.bg;
-    settings.panel2 = settings.bg;
-    settings.bg2 = settings.bg;
-    settings.bg3 = settings.bg;
-  }
-  if (!settings.accent) settings.accent = "#ffffff";
-  if (!settings.text) settings.text = "#f0f0f0";
+  const bg = (bgEl && bgEl.value) || settings.bg || "#101010";
+  const panel = (panelEl && panelEl.value) || bg;
+  const accent = (accentEl && accentEl.value) || "#ffffff";
+  const text = (textEl && textEl.value) || "#f2f2f2";
+  settings.bg = bg;
+  settings.bg2 = panel;
+  settings.bg3 = panel;
+  settings.panel = panel;
+  settings.panel2 = panel;
+  settings.border = panel;
+  settings.accent = accent;
+  settings.accentText = bg;
+  settings.text = text;
+  settings.muted = text;
+  settings.newtab = bg;
   settings.theme = "custom";
-  settings.newtab = settings.bg;
-  applyCSSVariables(); save(); highlightTheme();
+  applyCSSVariables();
+  save();
+  highlightTheme();
+  loadColorInputs();
 }
 function applyBackground() {
   const el = document.getElementById("backgroundUrl");
@@ -1776,11 +2040,12 @@ function applyBackground() {
   save(); applyNewTabBackground();
 }
 function applyCloakPreset(id) {
-  const p = CLOAK_PRESETS[id];
+  const p = resolveCloakPreset(id);
   if (!p) return;
   cloak = { title: p.title, icon: p.icon };
   document.title = cloak.title;
-  document.getElementById("favicon").href = cloak.icon;
+  const fav = document.getElementById("favicon");
+  if (fav) fav.href = cloak.icon;
   syncAboutBlankChrome();
   loadCloakInputs();
   save();
@@ -1800,6 +2065,48 @@ function resetSettings() {
   document.title = "Veil";
   document.getElementById("favicon").href = FAVI;
   applyCSSVariables(); save(); renderChrome(); applyNewTabBackground();
+}
+
+async function clearLocalData() {
+  const ok = confirm("Clear all Veil cookies, local storage, and cache for this site?\n\nYou will be signed out.");
+  if (!ok) return;
+  try {
+    if (window.VeilAccess && typeof window.VeilAccess.signOut === "function") {
+      window.VeilAccess.signOut();
+    }
+  } catch (e) {}
+  try {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.indexOf("veil") === 0 || k.indexOf("veil_") === 0)) keys.push(k);
+    }
+    keys.forEach((k) => localStorage.removeItem(k));
+  } catch (e) {}
+  try {
+    const cookies = document.cookie.split(";");
+    cookies.forEach((c) => {
+      const name = c.split("=")[0].trim();
+      if (!name) return;
+      if (name.indexOf("veil") !== -1 || name.indexOf("veil_") === 0) {
+        document.cookie = name + "=; path=/; max-age=0; SameSite=Lax";
+        document.cookie = name + "=; path=" + (typeof BASE !== "undefined" && BASE ? BASE + "/" : "/") + "; max-age=0; SameSite=Lax";
+      }
+    });
+  } catch (e) {}
+  try {
+    if (caches && caches.keys) {
+      const names = await caches.keys();
+      await Promise.all(names.map((n) => caches.delete(n)));
+    }
+  } catch (e) {}
+  try {
+    if (navigator.serviceWorker) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+  } catch (e) {}
+  location.reload();
 }
 
 async function setTransport(kind) {
@@ -2085,6 +2392,32 @@ on("menuLock", () => lockVeil());
 on("menuHistory", () => { openHistory(); });
 on("menuBookmarks", () => { closeMenu(); openPanel("bookmarksPanel"); });
 on("menuDevtools", () => toggleEruda());
+on("menuFullscreen", () => { closeMenu(); togglePageFullscreen(); });
+
+function togglePageFullscreen() {
+  try {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) exit.call(document);
+      return;
+    }
+    // Fullscreen the active tab's page iframe when available
+    let el = null;
+    try {
+      const tab = getActiveTab();
+      if (tab && tab.engineFrame) {
+        el = tab.engineFrame.element || tab.engineFrame.frame || tab.engineFrame;
+      }
+    } catch (e) {}
+    if (!el || !el.requestFullscreen && !el.webkitRequestFullscreen) {
+      el = document.querySelector("#pages .page-wrap.active iframe, .page-wrap.active iframe, #pages iframe") || document.documentElement;
+    }
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) req.call(el);
+  } catch (e) {
+    console.warn("Fullscreen failed", e);
+  }
+}
 const launchNowBtn = document.getElementById("launchNowBtn");
 if (launchNowBtn) launchNowBtn.onclick = () => openLaunchModal();
 const searchEngineSelect = document.getElementById("searchEngineSelect");
@@ -2118,6 +2451,10 @@ on("animEnabledSwitch", () => {
 });
 on("lockUnloadSwitch", () => {
   settings.lockUnload = !settings.lockUnload;
+  save(); highlightTheme();
+});
+on("confirmLeaveSwitch", () => {
+  settings.confirmLeave = !settings.confirmLeave;
   save(); highlightTheme();
 });
 on("time24Switch", () => {
@@ -2266,6 +2603,7 @@ on("transportLibcurl", () => setTransport("libcurl"));
 on("applyBackground", applyBackground);
 on("applyCloak", applyCloak);
 on("resetSettings", resetSettings);
+on("clearLocalData", () => { clearLocalData(); });
 document.getElementById("clearHistory")?.addEventListener("click", async () => {
   const ok = await veilConfirm("Clear history", "Are you sure you want to clear all history?");
   if (!ok) return;
@@ -2277,6 +2615,14 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("#historyPanel") || e.target.closest("#menuHistory")) return;
   if (document.getElementById("historyPanel")?.classList.contains("open")) closeHistory();
 });
+const cloakPresetSelect = document.getElementById("cloakPresetSelect");
+if (cloakPresetSelect) {
+  cloakPresetSelect.addEventListener("change", () => {
+    const id = cloakPresetSelect.value;
+    if (!id) return;
+    applyCloakPreset(id);
+  });
+}
 document.querySelectorAll("[data-cloak]").forEach(b => { b.onclick = () => applyCloakPreset(b.dataset.cloak); });
 document.addEventListener("click", e => {
   if (!e.target.closest("#mainMenu") && !e.target.closest("#menuBtn")) closeMenu();
@@ -2291,7 +2637,14 @@ document.addEventListener("keydown", e => {
   if (e.altKey && e.key === "ArrowRight") { e.preventDefault(); goForward(); }
   if (mod && e.key.toLowerCase() === "r") { e.preventDefault(); reload(); }
 });
-window.addEventListener("beforeunload", () => { if (COOKIE.consent) save(); });
+window.addEventListener("beforeunload", (e) => {
+  try { if (COOKIE.consent) save(); } catch (err) {}
+  if (settings && settings.confirmLeave) {
+    e.preventDefault();
+    e.returnValue = "";
+    return "";
+  }
+});
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") reconnectTransport();
 });
@@ -2410,15 +2763,16 @@ function showSignup() {
 function forceHomeTab() {
   tabs = (tabs || []).filter(Boolean);
 
-  // Keep admin tabs; collapse extra empty "New Tab" homes into one
+  // Keep admin + games tabs; collapse extra empty "New Tab" homes into one
   const adminTabs = tabs.filter((t) => t.isAdmin);
-  const withUrl = tabs.filter((t) => !t.isAdmin && t.url && !t.newTab);
-  let home = tabs.find((t) => !t.isAdmin && t.newTab && !t.url) || tabs.find((t) => !t.isAdmin) || null;
+  const gamesTabs = tabs.filter((t) => t.isGames);
+  const withUrl = tabs.filter((t) => !t.isAdmin && !t.isGames && t.url && !t.newTab && t.url !== "veil://games");
+  let home = tabs.find((t) => !t.isAdmin && !t.isGames && t.newTab && !t.url) || tabs.find((t) => !t.isAdmin && !t.isGames) || null;
 
   if (!home) {
     const tab = {
       id: uid(), title: "New Tab", url: "", history: [], historyIndex: -1,
-      newTab: true, engineFrame: null, favicon: FAVI, animOpen: true, lastActive: Date.now(), isAdmin: false
+      newTab: true, engineFrame: null, favicon: FAVI, animOpen: true, lastActive: Date.now(), isAdmin: false, isGames: false
     };
     home = tab;
   } else {
@@ -2428,11 +2782,22 @@ function forceHomeTab() {
     home.favicon = FAVI;
     home.engineFrame = null;
     home.isAdmin = false;
+    home.isGames = false;
   }
 
-  // Exactly one home + any real pages + admin tabs (no duplicate empty homes)
-  tabs = [home].concat(withUrl.filter((t) => t.id !== home.id)).concat(adminTabs.filter((t) => t.id !== home.id));
-  activeTabId = home.id;
+  // Exactly one home + real pages + admin + games
+  tabs = [home]
+    .concat(withUrl.filter((t) => t.id !== home.id))
+    .concat(adminTabs.filter((t) => t.id !== home.id))
+    .concat(gamesTabs.filter((t) => t.id !== home.id));
+  // Prefer restoring games tab after refresh
+  let restoreGames = false;
+  try { restoreGames = sessionStorage.getItem("veil_active_special") === "games"; } catch (e) {}
+  if (restoreGames && gamesTabs.length) {
+    activeTabId = gamesTabs[0].id;
+  } else {
+    activeTabId = home.id;
+  }
   home.lastActive = Date.now();
 
   const viewport = document.getElementById("viewport");
@@ -2470,6 +2835,11 @@ function forceHomeTab() {
       p.style.display = "none";
     }
   });
+  try {
+    if (sessionStorage.getItem("veil_active_special") === "games") {
+      setTimeout(function () { try { openGamesPage(); } catch (e) {} }, 0);
+    }
+  } catch (e) {}
   return home;
 }
 
@@ -2652,6 +3022,581 @@ on("signOutBtn", () => {
   }
 });
 
+
+/* ===================== Games ===================== */
+const GAMES_CATS = ["Sports", "Adventure", "Sandbox", "Casual", "Idle", "Racing", "Arcade", "FNF", "Emulators"];
+let gamesCatalog = [];
+let gamesUserData = { favorites: [], recent: [], notes: {} };
+let gamesPopularTimer = null;
+let gamesPageActive = false;
+let gamesRenderRoot = null;
+
+function gameSlug(name) {
+  return String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 40);
+}
+function gameId(g) { return g.id || gameSlug(g.name) || g.url || g.name; }
+function resolveGameAsset(path) {
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+  return REPO_PATH + String(path).replace(/^\//, "");
+}
+function smallThumb(g) {
+  const slug = gameSlug(g.name);
+  if (g.image && /games\/small/i.test(g.image)) return resolveGameAsset(g.image);
+  return resolveGameAsset("image/games/small/" + slug + ".png");
+}
+function largeThumb(g) {
+  const slug = gameSlug(g.name);
+  if (g.imageLarge) return resolveGameAsset(g.imageLarge);
+  if (g.image && /games\/large/i.test(g.image)) return resolveGameAsset(g.image);
+  return resolveGameAsset("image/games/large/" + slug + ".png");
+}
+function gamePlayUrl(g) { return resolveGameAsset(g.url || g.path || ""); }
+function maturityLabel(g) {
+  return g.maturity || g.rating || g.maturityRating || "NR";
+}
+
+async function loadGameCatalog() {
+  try {
+    const res = await fetch(REPO_PATH + "game-data.html", { cache: "no-store" });
+    const html = await res.text();
+    // Prefer veil-game-data; fall back to any *game-data script id.
+    const m = html.match(/<script[^>]*id=["']veil-game-data["'][^>]*>([\s\S]*?)<\/script>/i)
+      || html.match(/<script[^>]*id=["'][^"']*game-data["'][^>]*>([\s\S]*?)<\/script>/i);
+    if (m) {
+      const data = JSON.parse(m[1].trim());
+      gamesCatalog = Array.isArray(data.games) ? data.games : [];
+    }
+  } catch (e) { console.warn("game-data load", e); }
+  if (!gamesCatalog.length) {
+    gamesCatalog = [{
+      name: "Retrobowl",
+      image: "image/games/small/retrobowl.png",
+      imageLarge: "image/games/large/retrobowl.png",
+      url: "HTML/RB.html",
+      category: "Sports",
+      description: "A retro-style football game.",
+      controls: "Mouse or touch to manage your team.",
+      howToPlay: "Build your roster and win the season.",
+      sideNotes: "Placeholder until full game-data is deployed.",
+      maturity: "E",
+      difficulty: "3",
+    }];
+  }
+  return gamesCatalog;
+}
+
+async function loadGamesUserData() {
+  const token = window.VeilAccess && window.VeilAccess.getToken ? window.VeilAccess.getToken() : "";
+  if (token) {
+    try {
+      const base = (localStorage.getItem("veil_worker_url") || "https://veil-access.retropixel404.workers.dev").replace(/\/$/, "");
+      const r = await fetch(base + "/api/user/data", { method: "GET", headers: { authorization: "Bearer " + token } });
+      const j = await r.json();
+      if (j && j.ok && j.data) {
+        gamesUserData = { favorites: j.data.favorites || [], recent: j.data.recent || [], notes: j.data.notes || {} };
+        return gamesUserData;
+      }
+    } catch (e) { console.warn("prefs load", e); }
+  }
+  try {
+    const raw = localStorage.getItem("veil_games_data");
+    if (raw) gamesUserData = { ...gamesUserData, ...JSON.parse(raw) };
+  } catch (e) {}
+  return gamesUserData;
+}
+
+async function saveGamesUserData() {
+  try { localStorage.setItem("veil_games_data", JSON.stringify(gamesUserData)); } catch (e) {}
+  const token = window.VeilAccess && window.VeilAccess.getToken ? window.VeilAccess.getToken() : "";
+  if (!token) return;
+  try {
+    const base = (localStorage.getItem("veil_worker_url") || "https://veil-access.retropixel404.workers.dev").replace(/\/$/, "");
+    await fetch(base + "/api/user/data", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token, data: gamesUserData }),
+    });
+  } catch (e) { console.warn("prefs save", e); }
+}
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+function isFavorite(id) { return (gamesUserData.favorites || []).indexOf(id) !== -1; }
+function toggleFavorite(id) {
+  const set = new Set(gamesUserData.favorites || []);
+  if (set.has(id)) set.delete(id); else set.add(id);
+  gamesUserData.favorites = Array.from(set);
+  saveGamesUserData();
+  // live refresh open games page lists
+  if (gamesRenderRoot && gamesRenderRoot.isConnected) {
+    try { paintGamesLists(gamesRenderRoot); } catch (e) {}
+  }
+}
+function pushRecent(id) {
+  let r = (gamesUserData.recent || []).filter((x) => x !== id);
+  r.unshift(id);
+  gamesUserData.recent = r.slice(0, 10);
+  saveGamesUserData();
+  if (gamesRenderRoot && gamesRenderRoot.isConnected) {
+    try { paintGamesLists(gamesRenderRoot); } catch (e) {}
+  }
+}
+
+function openGamesPage() {
+  closePanels();
+  closeMenu();
+  try { closeHistory(); } catch (e) {}
+  let page = tabs.find((t) => t.isGames);
+  if (!page) {
+    if (tabs.length >= MAX_TABS) { alert("Too many tabs"); return; }
+    page = {
+      id: uid(),
+      title: "Games",
+      url: "veil://games",
+      history: ["veil://games"],
+      historyIndex: 0,
+      newTab: false,
+      isGames: true,
+      isAdmin: false,
+      engineFrame: null,
+      favicon: IMG + "games.svg",
+      animOpen: true,
+      lastActive: Date.now(),
+    };
+    tabs.push(page);
+  } else {
+    page.title = "Games";
+    page.url = "veil://games";
+    page.favicon = IMG + "games.svg";
+    page.isGames = true;
+    page.lastActive = Date.now();
+  }
+  activeTabId = page.id;
+  gamesPageActive = true;
+  try { sessionStorage.setItem("veil_active_special", "games"); } catch (e) {}
+  const viewport = document.getElementById("viewport");
+  if (!viewport) return;
+  let wrap = viewport.querySelector('.page[data-page-id="' + page.id + '"]');
+  if (!wrap) {
+    wrap = document.createElement("section");
+    wrap.className = "page";
+    wrap.dataset.pageId = page.id;
+    viewport.appendChild(wrap);
+  }
+  wrap.innerHTML = '<div class="games-page" id="gamesRoot"></div>';
+  showActiveOnly();
+  renderChrome();
+  updateGamesChromeLocks();
+  renderGamesPage(wrap.querySelector("#gamesRoot"));
+}
+
+function updateGamesChromeLocks() {
+  const tab = getActiveTab();
+  const onGames = !!(tab && tab.isGames);
+  gamesPageActive = onGames;
+  const fs = document.getElementById("menuFullscreen");
+  const dt = document.getElementById("menuDevtools");
+  if (fs) { fs.classList.toggle("disabled", onGames); fs.disabled = onGames; }
+  if (dt) { dt.classList.toggle("disabled", onGames); dt.disabled = onGames; }
+}
+
+function tileHTML(g) {
+  const id = gameId(g);
+  const fav = isFavorite(id);
+  return (
+    '<div class="game-tile' + (fav ? " fav" : "") + '" data-play="' + escapeHTML(id) + '">' +
+    '<div class="thumb"><img src="' + escapeHTML(smallThumb(g)) + '" alt="" onerror="this.style.opacity=.25"></div>' +
+    '<div class="meta"><div class="name">' + escapeHTML(g.name) + '</div>' +
+    '<div class="cat">' + escapeHTML(g.category || "") + "</div></div></div>"
+  );
+}
+
+function byIds(ids) {
+  const map = {};
+  gamesCatalog.forEach((g) => { map[gameId(g)] = g; });
+  return (ids || []).map((id) => map[id]).filter(Boolean);
+}
+
+function paintGamesLists(root, state, animate) {
+  if (!root) return;
+  state = state || root._gamesState || { activeCat: "all", query: "" };
+  root._gamesState = state;
+  let list = gamesCatalog.slice();
+  if (state.activeCat !== "all") {
+    list = list.filter((g) => String(g.category || "").toLowerCase() === state.activeCat.toLowerCase());
+  }
+  if (state.query) {
+    const q = state.query.toLowerCase();
+    list = list.filter((g) => String(g.name || "").toLowerCase().indexOf(q) !== -1 || String(g.category || "").toLowerCase().indexOf(q) !== -1);
+  }
+  list = shuffle(list);
+
+  const allRow = root.querySelector("#gamesAllRow");
+  const favs = byIds(gamesUserData.favorites || []);
+  const favSec = root.querySelector("#gamesFavSection");
+  const favRow = root.querySelector("#gamesFavRow");
+  const rec = byIds(gamesUserData.recent || []);
+  const recSec = root.querySelector("#gamesRecentSection");
+  const recRow = root.querySelector("#gamesRecentRow");
+
+  function fillRows() {
+    if (allRow) {
+      allRow.innerHTML = list.length ? list.map(tileHTML).join("") : '<div class="games-empty">No games match.</div>';
+    }
+    if (favSec && favRow) {
+      if (favs.length) { favSec.style.display = ""; favRow.innerHTML = favs.map(tileHTML).join(""); }
+      else favSec.style.display = "none";
+    }
+    if (recSec && recRow) {
+      if (rec.length) { recSec.style.display = ""; recRow.innerHTML = rec.map(tileHTML).join(""); }
+      else recSec.style.display = "none";
+    }
+  }
+
+  if (animate && allRow) {
+    const rows = [allRow, favRow, recRow].filter(Boolean);
+    rows.forEach((r) => {
+      r.classList.remove("filtering-done");
+      r.classList.add("filtering");
+    });
+    window.setTimeout(() => {
+      fillRows();
+      rows.forEach((r) => {
+        r.classList.remove("filtering");
+        // reflow then play enter
+        void r.offsetWidth;
+        r.classList.add("filtering-done");
+      });
+    }, 160);
+  } else {
+    fillRows();
+  }
+}
+
+async function renderGamesPage(root) {
+  if (!root) return;
+  gamesRenderRoot = root;
+  await loadGameCatalog();
+  await loadGamesUserData();
+  // Popular hero: every game that has a wide (large) thumbnail
+  const popList = shuffle(gamesCatalog.slice());
+
+  root.innerHTML =
+    '<div class="games-hero" id="gamesHero">' +
+    popList.map((g, i) => {
+      const id = gameId(g);
+      const desc = String(g.description || "").slice(0, 180);
+      return (
+        // No data-play on the slide — only the Play button starts the game
+        '<div class="games-hero-slide' + (i === 0 ? " active" : "") + '">' +
+        '<div class="games-hero-bg"><img src="' + escapeHTML(largeThumb(g)) + '" alt="" onerror="this.style.opacity=.15"></div>' +
+        '<div class="games-hero-shade"></div>' +
+        '<div class="games-hero-content">' +
+        '<h1 class="games-hero-title">' + escapeHTML(g.name) + "</h1>" +
+        '<div class="games-hero-tags">' +
+        '<span class="games-tag">' + escapeHTML(maturityLabel(g)) + "</span>" +
+        (g.category ? '<span class="games-tag">' + escapeHTML(g.category) + "</span>" : "") +
+        (g.difficulty ? '<span class="games-tag">Difficulty ' + escapeHTML(String(g.difficulty)) + "/10</span>" : "") +
+        "</div>" +
+        '<p class="games-hero-desc">' + escapeHTML(desc) + (desc.length >= 180 ? "…" : "") + "</p>" +
+        '<div class="games-hero-actions">' +
+        '<button type="button" class="games-play-btn" data-play="' + escapeHTML(id) + '">Play</button>' +
+        '<button type="button" class="games-more-btn" data-info="' + escapeHTML(id) + '">See more</button>' +
+        "</div></div></div>"
+      );
+    }).join("") +
+    '<div class="games-hero-dots" id="gamesHeroDots">' +
+    popList.map((_, i) => '<button type="button" class="games-dot' + (i === 0 ? " active" : "") + '" data-dot="' + i + '"></button>').join("") +
+    "</div></div>" +
+    '<div class="games-inner">' +
+    '<div class="games-header">' +
+    '<div class="games-search-wrap"><span class="gs-icon"></span>' +
+    '<input class="games-search" id="gamesSearch" type="search" placeholder="Search games..." autocomplete="off"></div>' +
+    '<div class="games-cats" id="gamesCats">' +
+    '<button type="button" class="games-cat active" data-cat="all">All</button>' +
+    GAMES_CATS.map((c) => '<button type="button" class="games-cat" data-cat="' + escapeHTML(c) + '">' + escapeHTML(c) + "</button>").join("") +
+    "</div></div>" +
+    '<div class="games-section" id="gamesFavSection" style="display:none"><h3>Favorites</h3><div class="games-row" id="gamesFavRow"></div></div>' +
+    '<div class="games-section" id="gamesRecentSection" style="display:none"><h3>Recently played</h3><div class="games-row" id="gamesRecentRow"></div></div>' +
+    '<div class="games-section"><h3>All games</h3><div class="games-row" id="gamesAllRow"></div></div>' +
+    "</div>";
+
+  const state = { activeCat: "all", query: "" };
+  root._gamesState = state;
+  paintGamesLists(root, state);
+
+  // Hero carousel — one full image, advance every 5s
+  let popIdx = 0;
+  const slides = () => root.querySelectorAll(".games-hero-slide");
+  const dots = () => root.querySelectorAll(".games-dot");
+  function showSlide(i) {
+    const s = slides();
+    const d = dots();
+    if (!s.length) return;
+    popIdx = ((i % s.length) + s.length) % s.length;
+    s.forEach((el, n) => el.classList.toggle("active", n === popIdx));
+    d.forEach((el, n) => el.classList.toggle("active", n === popIdx));
+  }
+  if (gamesPopularTimer) clearInterval(gamesPopularTimer);
+  gamesPopularTimer = setInterval(() => {
+    if (!root.isConnected) { clearInterval(gamesPopularTimer); return; }
+    showSlide(popIdx + 1);
+  }, 5000);
+  root.querySelector("#gamesHeroDots")?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-dot]");
+    if (!b) return;
+    showSlide(parseInt(b.getAttribute("data-dot"), 10) || 0);
+  });
+
+  root.querySelector("#gamesSearch")?.addEventListener("input", (e) => {
+    state.query = e.target.value.trim();
+    paintGamesLists(root, state, true);
+  });
+  root.querySelectorAll(".games-cat").forEach((btn) => {
+    btn.onclick = () => {
+      root.querySelectorAll(".games-cat").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.activeCat = btn.getAttribute("data-cat") || "all";
+      paintGamesLists(root, state, true);
+    };
+  });
+  root.addEventListener("click", (e) => {
+    const info = e.target.closest("[data-info]");
+    if (info) {
+      const id = info.getAttribute("data-info");
+      const g = gamesCatalog.find((x) => gameId(x) === id);
+      if (g) { e.preventDefault(); e.stopPropagation(); showGameInfo(g); return; }
+    }
+    // Only explicit Play buttons (or grid tiles) — not the hero background
+    const playBtn = e.target.closest(".games-play-btn[data-play], .game-tile[data-play]");
+    if (playBtn) {
+      const id = playBtn.getAttribute("data-play");
+      const g = gamesCatalog.find((x) => gameId(x) === id);
+      if (g) openGamePlayer(g);
+    }
+  });
+}
+
+function openGamePlayer(g) {
+  const id = gameId(g);
+  pushRecent(id);
+  const mat = maturityLabel(g);
+  const diff = g.difficulty || "—";
+  const titleHtml =
+    '<span class="gpt-name" title="' + escapeHTML(g.name) + '">' + escapeHTML(g.name) + "</span>" +
+    '<span class="gpt-sep">·</span>' +
+    '<span class="gpt-mat" title="Content rating">' + escapeHTML(String(mat)) + "</span>" +
+    '<span class="gpt-sep">·</span>' +
+    '<span class="gpt-diff">Difficulty <b>' + escapeHTML(String(diff)) + "</b>/10</span>";
+
+  document.querySelector(".game-player-overlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "game-player-overlay";
+  // Repo file is image/notepad.svg.svg (double extension)
+  const noteIcon = IMG + "notepad.svg.svg";
+  overlay.innerHTML =
+    '<div class="game-player" id="gamePlayer">' +
+    '<div class="game-player-main">' +
+    '<div class="game-player-bar">' +
+    '<button type="button" class="game-player-btn gp-close" data-gp="close" title="Close"><img src="' + IMG + 'exit.svg" alt=""></button>' +
+    '<div class="game-player-title">' + titleHtml + "</div>" +
+    '<button type="button" class="game-player-btn" data-gp="info" title="Info"><img src="' + IMG + 'info.svg" alt=""></button>' +
+    '<button type="button" class="game-player-btn" data-gp="notes" title="Notes"><img src="' + noteIcon + '" alt="" onerror="this.onerror=null;this.src=\'' + IMG + 'pencil.svg\'"></button>' +
+    '<button type="button" class="game-player-btn" data-gp="star" title="Favorite"><img src="' + IMG + 'star.svg" alt=""></button>' +
+    '<button type="button" class="game-player-btn" data-gp="fs" title="Fullscreen"><img src="' + IMG + 'zoom.svg" alt=""></button>' +
+    '<button type="button" class="game-player-btn" data-gp="reload" title="Reload"><img src="' + IMG + 'refresh.svg" alt=""></button>' +
+    "</div>" +
+    '<div class="game-player-frame"><iframe id="gameFrame" src="' + escapeHTML(gamePlayUrl(g)) + '" allow="gamepad *; autoplay *; fullscreen *"></iframe></div>' +
+    "</div>" +
+    '<div class="game-notes" id="gameNotesPanel">' +
+    '<div class="game-notes-header">' +
+    '<span>Notes</span>' +
+    '<button type="button" class="game-player-btn" data-gp="notes-close" title="Close notes"><img src="' + IMG + 'exit.svg" alt=""></button>' +
+    "</div>" +
+    '<div class="game-notes-tabs" id="gameNoteTabs"></div>' +
+    '<div class="game-notes-editor">' +
+    '<input type="text" class="game-note-title" id="gameNoteTitle" maxlength="60" placeholder="Note title">' +
+    '<textarea id="gameNoteBody" placeholder="Write a note…"></textarea>' +
+    '<div class="game-notes-actions">' +
+    '<button type="button" class="game-note-action" data-note-new>New</button>' +
+    '<button type="button" class="game-note-action" data-note-del>Delete</button>' +
+    "</div></div></div></div>";
+
+  document.body.appendChild(overlay);
+  const player = overlay.querySelector("#gamePlayer");
+  const frame = overlay.querySelector("#gameFrame");
+
+  function syncStar(btn) {
+    if (!btn) return;
+    const on = isFavorite(id);
+    btn.classList.toggle("star-on", on);
+    const img = btn.querySelector("img");
+    if (img) {
+      if (on) img.style.filter = "invert(79%) sepia(61%) saturate(600%) hue-rotate(5deg)";
+      else img.style.filter = "invert(1)";
+      img.style.opacity = "1";
+    }
+  }
+  syncStar(overlay.querySelector('[data-gp="star"]'));
+
+  if (!gamesUserData.notes[id]) gamesUserData.notes[id] = [];
+  let notes = gamesUserData.notes[id];
+  if (!notes.length) notes.push({ id: uid(), title: "Note 1", body: "" });
+  let activeNote = 0;
+
+  function saveCurrentNote() {
+    const titleEl = overlay.querySelector("#gameNoteTitle");
+    const bodyEl = overlay.querySelector("#gameNoteBody");
+    if (notes[activeNote]) {
+      notes[activeNote].title = (titleEl.value || "Note").slice(0, 60);
+      notes[activeNote].body = bodyEl.value || "";
+    }
+    gamesUserData.notes[id] = notes;
+    saveGamesUserData();
+  }
+
+  function paintNotes() {
+    const tabs = overlay.querySelector("#gameNoteTabs");
+    tabs.innerHTML = notes.map((n, i) =>
+      '<button type="button" class="game-note-tab' + (i === activeNote ? " active" : "") + '" data-note="' + i + '">' +
+      escapeHTML(n.title || "Note") + "</button>"
+    ).join("");
+    const n = notes[activeNote] || { title: "", body: "" };
+    overlay.querySelector("#gameNoteTitle").value = n.title || "";
+    overlay.querySelector("#gameNoteBody").value = n.body || "";
+  }
+  paintNotes();
+
+  overlay.querySelector("#gameNoteTabs").onclick = (e) => {
+    const t = e.target.closest("[data-note]");
+    if (!t) return;
+    saveCurrentNote();
+    activeNote = parseInt(t.getAttribute("data-note"), 10) || 0;
+    paintNotes();
+  };
+  overlay.querySelector("[data-note-new]").onclick = () => {
+    if (notes.length >= 20) { alert("Max 20 notes"); return; }
+    saveCurrentNote();
+    notes.push({ id: uid(), title: "Note " + (notes.length + 1), body: "" });
+    activeNote = notes.length - 1;
+    gamesUserData.notes[id] = notes;
+    saveGamesUserData();
+    paintNotes();
+  };
+  overlay.querySelector("[data-note-del]").onclick = () => {
+    if (notes.length <= 1) {
+      notes[0] = { id: uid(), title: "Note 1", body: "" };
+    } else {
+      notes.splice(activeNote, 1);
+      if (activeNote >= notes.length) activeNote = notes.length - 1;
+    }
+    gamesUserData.notes[id] = notes;
+    saveGamesUserData();
+    paintNotes();
+  };
+  overlay.querySelector("#gameNoteTitle").addEventListener("change", saveCurrentNote);
+  overlay.querySelector("#gameNoteBody").addEventListener("change", saveCurrentNote);
+
+  overlay.querySelector(".game-player-bar").onclick = (e) => {
+    const btn = e.target.closest("[data-gp]");
+    if (!btn) return;
+    const act = btn.getAttribute("data-gp");
+    if (act === "close") {
+      saveCurrentNote();
+      overlay.remove();
+      return;
+    }
+    if (act === "reload") { frame.src = frame.src; return; }
+    if (act === "fs") {
+      const req = frame.requestFullscreen || frame.webkitRequestFullscreen;
+      if (req) req.call(frame);
+      return;
+    }
+    if (act === "star") {
+      toggleFavorite(id);
+      syncStar(btn);
+      return;
+    }
+    if (act === "notes") {
+      player.classList.add("notes-open");
+      return;
+    }
+    if (act === "info") showGameInfo(g);
+  };
+  overlay.querySelector("[data-gp=\"notes-close\"]").onclick = () => {
+    saveCurrentNote();
+    player.classList.remove("notes-open");
+  };
+}
+
+function showGameInfo(g) {
+  document.querySelector(".modal-overlay.game-info-modal")?.remove();
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay game-info-modal";
+  const sections = [
+    { key: "description", label: "Description", body: g.description || "—" },
+    { key: "controls", label: "Controls", body: g.controls || "—" },
+    { key: "howToPlay", label: "How to play", body: g.howToPlay || "—" },
+    { key: "sideNotes", label: "Side notes", body: g.sideNotes || "—" },
+  ];
+  const mat = maturityLabel(g);
+  const diff = g.difficulty || "—";
+  overlay.innerHTML =
+    '<div class="modal-box info-modal game-info-box" role="dialog" aria-modal="true">' +
+    '<div class="game-info-top">' +
+    "<h2>" + escapeHTML(g.name) + "</h2>" +
+    '<button type="button" class="game-player-btn" data-info-x title="Close"><img src="' + IMG + 'exit.svg" alt=""></button>' +
+    "</div>" +
+    '<div class="game-info-meta">' +
+    '<span>' + escapeHTML(String(mat)) + "</span>" +
+    (g.category ? "<span>" + escapeHTML(g.category) + "</span>" : "") +
+    "<span>Difficulty " + escapeHTML(String(diff)) + "/10</span>" +
+    "</div>" +
+    '<div class="game-info-choices" id="gameInfoChoices">' +
+    sections.map((s) => '<button type="button" class="game-info-choice" data-sec="' + s.key + '">' + escapeHTML(s.label) + "</button>").join("") +
+    "</div>" +
+    '<div class="game-info-detail" id="gameInfoDetail" hidden>' +
+    '<button type="button" class="game-info-back" data-info-back>' +
+    '<img src="' + IMG + 'backward.svg" alt=""> Back</button>' +
+    '<h3 id="gameInfoDetailTitle"></h3>' +
+    '<p id="gameInfoDetailBody"></p>' +
+    "</div></div>";
+  document.body.appendChild(overlay);
+  const choices = overlay.querySelector("#gameInfoChoices");
+  const detail = overlay.querySelector("#gameInfoDetail");
+  const close = () => overlay.remove();
+  overlay.querySelector("[data-info-x]").onclick = close;
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+  choices.onclick = (e) => {
+    const b = e.target.closest("[data-sec]");
+    if (!b) return;
+    const key = b.getAttribute("data-sec");
+    const sec = sections.find((s) => s.key === key);
+    if (!sec) return;
+    // Buttons disappear → detail view (Veil info window)
+    choices.hidden = true;
+    choices.style.display = "none";
+    detail.hidden = false;
+    detail.style.display = "";
+    overlay.querySelector("#gameInfoDetailTitle").textContent = sec.label;
+    overlay.querySelector("#gameInfoDetailBody").textContent = sec.body;
+  };
+  overlay.querySelector("[data-info-back]").onclick = () => {
+    detail.hidden = true;
+    detail.style.display = "none";
+    choices.hidden = false;
+    choices.style.display = "";
+  };
+}
+
+
 on("openAdminPanel", () => {
   closePanels();
   closeMenu();
@@ -2674,7 +3619,7 @@ on("openAdminPanel", () => {
       newTab: false,
       isAdmin: true,
       engineFrame: null,
-      favicon: (typeof IMG !== "undefined" ? IMG : "image/") + "home.svg",
+      favicon: FAVI,
       animOpen: true,
       lastActive: Date.now()
     };
@@ -2682,7 +3627,7 @@ on("openAdminPanel", () => {
   } else {
     page.url = adminUrl;
     page.title = "Admin Panel";
-    page.favicon = (typeof IMG !== "undefined" ? IMG : "image/") + "home.svg";
+    page.favicon = FAVI;
     page.lastActive = Date.now();
   }
   activeTabId = page.id;
