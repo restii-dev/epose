@@ -739,6 +739,7 @@ function welcomeHTML() {
   const name = (profile && profile.name) ? profile.name : "guest";
   const { time, date } = formatWelcomeClock(new Date());
   return (
+    '<div class="dev-banner">Site under development. Bugs may occur.</div>' +
     '<div class="welcome-bar">' +
     '<div class="welcome-line">Welcome to Veil, ' + escapeHTML(name) + '.</div>' +
     '<div class="welcome-time">It is currently <span data-welcome-time>' + time + '</span> on <span data-welcome-date>' + date + '</span>.</div>' +
