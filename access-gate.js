@@ -1,5 +1,5 @@
 /**
- * Epose access gate — admin email + local keys (no boot screen)
+ * Epose access gate — Google Sign-In + admin emails + keys (no boot screen)
  */
 (function () {
   try {
@@ -23,6 +23,11 @@
     "pitnernicholas30@walkerschools.org",
     "nicholaspitner30@walkerschools.org"
   ];
+
+  var googleClientId = null;
+  var googleReady = false;
+  var googleInitialized = false;
+  var googleScriptLoading = false;
 
   function isAdminEmail(email) {
     if (!email) return false;
@@ -72,6 +77,12 @@
       localStorage.removeItem(SESSION_KEY);
       localStorage.removeItem(SESSION_META);
     } catch (e) {}
+    try {
+      if (window.google && google.accounts && google.accounts.id) {
+        google.accounts.id.disableAutoSelect();
+        try { google.accounts.id.cancel(); } catch (e2) {}
+      }
+    } catch (e) {}
   }
 
   function injectSkipBootCss() {
@@ -82,7 +93,8 @@
       "#veilBoot,#eposeBoot{display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important;z-index:-1!important}",
       "body.gate-lock #accessGate{display:flex!important}",
       "body.booting #accessGate{visibility:visible!important;display:flex!important}",
-      "body.booting #browser,body.booting #app{visibility:visible}"
+      "#googleSignInWrap{display:block}",
+      ".google-btn-host{display:flex;justify-content:center;min-height:40px}"
     ].join("");
     (document.head || document.documentElement).appendChild(s);
   }
@@ -100,10 +112,13 @@
     } catch (e) {}
   }
 
-  function hideGoogle() {
+  function setGateMsg(msg, isErr) {
     try {
-      var gw = document.getElementById("googleSignInWrap");
-      if (gw) { gw.style.display = "none"; gw.innerHTML = ""; }
+      var m = document.getElementById("gateMsg") || document.querySelector("#accessGate .msg");
+      if (m) {
+        m.textContent = msg || "";
+        m.className = "msg" + (isErr ? " err" : "");
+      }
     } catch (e) {}
   }
 
@@ -115,8 +130,6 @@
       document.body.classList.remove("gate-lock", "booting");
       var gate = document.getElementById("accessGate");
       if (gate) gate.style.display = "none";
-      var boot = document.getElementById("veilBoot") || document.getElementById("eposeBoot");
-      if (boot) { boot.classList.add("done"); boot.style.display = "none"; }
       var app = document.getElementById("appRoot") || document.getElementById("veilApp") || document.body;
       if (app) app.style.display = "";
     } catch (e) {}
@@ -133,16 +146,190 @@
       document.body.classList.remove("booting");
       var gate = document.getElementById("accessGate");
       if (gate) gate.style.display = "flex";
-      var m = document.getElementById("gateMsg") || document.querySelector("#accessGate .msg");
-      if (m && msg) m.textContent = msg;
+      if (msg) setGateMsg(msg, false);
       var login = document.getElementById("panelLogin");
-      var signup = document.getElementById("panelSignup");
       if (login) {
         login.classList.add("active");
         login.style.display = "";
       }
-      if (signup) signup.classList.remove("active");
+      var wrap = document.getElementById("googleSignInWrap");
+      if (wrap) wrap.style.display = "block";
+      initGoogleButton();
     } catch (e) {}
+  }
+
+  function onGoogleCredential(response) {
+    if (!response || !response.credential) {
+      setGateMsg("Google sign-in was cancelled or failed", true);
+      return;
+    }
+    setGateMsg("Signing in with Google…", false);
+    var url = WORKER_URL ? WORKER_URL + "/api/auth/google" : "";
+    if (!url) {
+      try {
+        var parts = response.credential.split(".");
+        var payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
+        var email = payload.email || "";
+        var name = payload.name || payload.given_name || "User";
+        if (isAdminEmail(email)) {
+          setSession("google-local-" + email, {
+            email: email,
+            name: name,
+            hasAccess: true,
+            infinite: true,
+            role: "admin"
+          });
+          unlockApp();
+          return;
+        }
+        setSession("google-local-" + email, {
+          email: email,
+          name: name,
+          hasAccess: true,
+          infinite: false,
+          role: "user"
+        });
+        unlockApp();
+        return;
+      } catch (e) {
+        setGateMsg("Google sign-in needs the access server configured", true);
+        return;
+      }
+    }
+    fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ credential: response.credential, origin: location.origin })
+    })
+      .then(function (res) { return res.json().catch(function () { return {}; }); })
+      .then(function (data) {
+        data = data || {};
+        if (data.user) data.user = elevateIfAdmin(data.user);
+        if (data.token) setSession(data.token, data.user || { hasAccess: true });
+        if (data.ok && data.user && data.user.hasAccess) {
+          unlockApp();
+          return;
+        }
+        if (data.user && isAdminEmail(data.user.email)) {
+          setSession(data.token || "admin-google", elevateIfAdmin(data.user));
+          unlockApp();
+          return;
+        }
+        if (data.user || data.reason) {
+          if (data.reason === "banned") {
+            setGateMsg(data.error || "You are banned from Epose", true);
+            return;
+          }
+          if (data.user && data.user.hasAccess) {
+            unlockApp();
+            return;
+          }
+          setGateMsg(data.error || "Waiting for admin approval", false);
+          return;
+        }
+        setGateMsg(data.error || "Google sign-in failed", true);
+      })
+      .catch(function () {
+        setGateMsg("Could not reach sign-in server", true);
+      });
+  }
+
+  function initGoogleButton() {
+    if (!googleClientId) return;
+    if (!window.google || !google.accounts || !google.accounts.id) return;
+    try {
+      if (!googleInitialized) {
+        google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: onGoogleCredential,
+          auto_select: false,
+          cancel_on_tap_outside: true,
+          use_fedcm_for_prompt: true,
+          itp_support: true,
+          context: "signin",
+          ux_mode: "popup"
+        });
+        googleInitialized = true;
+      }
+      var host = document.getElementById("googleSignInBtn");
+      var wrap = document.getElementById("googleSignInWrap");
+      if (!host || !wrap) return;
+      host.innerHTML = "";
+      var w = 320;
+      try {
+        var box = document.getElementById("gateAuthBox") || document.querySelector("#accessGate .box");
+        if (box && box.clientWidth) w = Math.min(400, Math.max(250, Math.floor(box.clientWidth - 56)));
+      } catch (e) {}
+      google.accounts.id.renderButton(host, {
+        type: "standard",
+        theme: "outline",
+        size: "large",
+        shape: "rectangular",
+        text: "continue_with",
+        logo_alignment: "left",
+        width: w
+      });
+      wrap.style.display = "block";
+      googleReady = true;
+    } catch (e) {
+      console.warn("[epose] Google button init", e);
+    }
+  }
+
+  function loadGoogleScript(clientId) {
+    if (!clientId || typeof clientId !== "string") return;
+    if (clientId.indexOf("apps.googleusercontent.com") === -1) {
+      console.warn("[epose] Invalid Google client ID");
+      return;
+    }
+    googleClientId = clientId.trim();
+    if (window.google && google.accounts && google.accounts.id) {
+      initGoogleButton();
+      return;
+    }
+    if (googleScriptLoading) return;
+    googleScriptLoading = true;
+    if (document.querySelector('script[src*="accounts.google.com/gsi/client"]')) {
+      var tries = 0;
+      var wait = setInterval(function () {
+        tries++;
+        if (window.google && google.accounts && google.accounts.id) {
+          clearInterval(wait);
+          initGoogleButton();
+        } else if (tries > 50) {
+          clearInterval(wait);
+          googleScriptLoading = false;
+        }
+      }, 100);
+      return;
+    }
+    var s = document.createElement("script");
+    s.src = "https://accounts.google.com/gsi/client";
+    s.async = true;
+    s.defer = true;
+    s.onload = function () {
+      googleScriptLoading = false;
+      initGoogleButton();
+    };
+    s.onerror = function () {
+      googleScriptLoading = false;
+      console.warn("[epose] Failed to load Google Identity Services");
+    };
+    document.head.appendChild(s);
+  }
+
+  function fetchAuthConfig() {
+    if (!WORKER_URL) return;
+    fetch(WORKER_URL + "/api/auth/config", {
+      method: "GET",
+      credentials: "omit",
+      headers: { Accept: "application/json" }
+    })
+      .then(function (res) { return res.json().catch(function () { return {}; }); })
+      .then(function (data) {
+        if (data && data.googleClientId) loadGoogleScript(data.googleClientId);
+      })
+      .catch(function () {});
   }
 
   function redeemKey(code) {
@@ -191,17 +378,16 @@
           setSession(data.token, user);
           unlockApp();
         } else {
-          showGate((data && data.error) || "Invalid key");
+          setGateMsg((data && data.error) || "Invalid key", true);
         }
-      }).catch(function () { showGate("Could not reach server"); });
+      }).catch(function () { setGateMsg("Could not reach server", true); });
       return;
     }
-    showGate("Invalid key");
+    setGateMsg("Invalid key", true);
   }
 
   function checkSession() {
     killBoot();
-    hideGoogle();
     var meta = getMeta();
     if (meta && meta.email && isAdminEmail(meta.email)) {
       meta = elevateIfAdmin(meta);
@@ -222,14 +408,14 @@
           setSession(getToken(), data.user);
           unlockApp();
         } else {
-          showGate("Sign in or enter a key to use Epose");
+          showGate("Sign in with Google or enter a key");
         }
       }).catch(function () {
-        showGate("Sign in or enter a key to use Epose");
+        showGate("Sign in with Google or enter a key");
       });
       return;
     }
-    showGate("Sign in or enter a key to use Epose");
+    showGate("Sign in with Google or enter a key");
   }
 
   window.EposeAccess = window.VeilAccess = {
@@ -254,8 +440,8 @@
     });
   }
 
-  // Instant: hide boot + show login (no loading screen)
   killBoot();
+  fetchAuthConfig();
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
       killBoot();
