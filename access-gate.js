@@ -85,12 +85,30 @@
     } catch (e) {}
   }
 
+  function rebrandToEpose() {
+    try {
+      if (document.title === "Veil" || /veil/i.test(document.title)) document.title = "Epose";
+      document.querySelectorAll(".boot-title, #gateAuthBox h1, #accessGate h1").forEach(function (el) {
+        if (el && el.textContent && el.textContent.trim() === "Veil") el.textContent = "Epose";
+      });
+      document.querySelectorAll("[data-cloak=veil]").forEach(function (el) {
+        el.setAttribute("data-cloak", "epose");
+        if (el.textContent && el.textContent.trim() === "Veil") el.textContent = "Epose";
+      });
+      var opts = document.querySelectorAll('option[value="veil"]');
+      opts.forEach(function (o) {
+        o.value = "epose";
+        if (o.textContent.trim() === "Veil") o.textContent = "Epose";
+      });
+    } catch (e) {}
+  }
+
   function injectSkipBootCss() {
     if (document.getElementById("skip-boot-css")) return;
     var s = document.createElement("style");
     s.id = "skip-boot-css";
     s.textContent = [
-      "#veilBoot,#eposeBoot{display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important;z-index:-1!important}",
+      "#veilBoot,#eposeBoot,.boot-card,.boot-bar,.boot-steps{display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important;height:0!important;overflow:hidden!important;z-index:-1!important}",
       "body.gate-lock #accessGate{display:flex!important}",
       "body.booting #accessGate{visibility:visible!important;display:flex!important}",
       "#googleSignInWrap{display:block}",
@@ -101,6 +119,7 @@
 
   function killBoot() {
     injectSkipBootCss();
+    rebrandToEpose();
     try {
       var boot = document.getElementById("veilBoot") || document.getElementById("eposeBoot");
       if (boot) {
@@ -173,21 +192,13 @@
         var name = payload.name || payload.given_name || "User";
         if (isAdminEmail(email)) {
           setSession("google-local-" + email, {
-            email: email,
-            name: name,
-            hasAccess: true,
-            infinite: true,
-            role: "admin"
+            email: email, name: name, hasAccess: true, infinite: true, role: "admin"
           });
           unlockApp();
           return;
         }
         setSession("google-local-" + email, {
-          email: email,
-          name: name,
-          hasAccess: true,
-          infinite: false,
-          role: "user"
+          email: email, name: name, hasAccess: true, infinite: false, role: "user"
         });
         unlockApp();
         return;
@@ -206,10 +217,7 @@
         data = data || {};
         if (data.user) data.user = elevateIfAdmin(data.user);
         if (data.token) setSession(data.token, data.user || { hasAccess: true });
-        if (data.ok && data.user && data.user.hasAccess) {
-          unlockApp();
-          return;
-        }
+        if (data.ok && data.user && data.user.hasAccess) { unlockApp(); return; }
         if (data.user && isAdminEmail(data.user.email)) {
           setSession(data.token || "admin-google", elevateIfAdmin(data.user));
           unlockApp();
@@ -220,18 +228,13 @@
             setGateMsg(data.error || "You are banned from Epose", true);
             return;
           }
-          if (data.user && data.user.hasAccess) {
-            unlockApp();
-            return;
-          }
+          if (data.user && data.user.hasAccess) { unlockApp(); return; }
           setGateMsg(data.error || "Waiting for admin approval", false);
           return;
         }
         setGateMsg(data.error || "Google sign-in failed", true);
       })
-      .catch(function () {
-        setGateMsg("Could not reach sign-in server", true);
-      });
+      .catch(function () { setGateMsg("Could not reach sign-in server", true); });
   }
 
   function initGoogleButton() {
@@ -261,13 +264,8 @@
         if (box && box.clientWidth) w = Math.min(400, Math.max(250, Math.floor(box.clientWidth - 56)));
       } catch (e) {}
       google.accounts.id.renderButton(host, {
-        type: "standard",
-        theme: "outline",
-        size: "large",
-        shape: "rectangular",
-        text: "continue_with",
-        logo_alignment: "left",
-        width: w
+        type: "standard", theme: "outline", size: "large", shape: "rectangular",
+        text: "continue_with", logo_alignment: "left", width: w
       });
       wrap.style.display = "block";
       googleReady = true;
@@ -278,10 +276,7 @@
 
   function loadGoogleScript(clientId) {
     if (!clientId || typeof clientId !== "string") return;
-    if (clientId.indexOf("apps.googleusercontent.com") === -1) {
-      console.warn("[epose] Invalid Google client ID");
-      return;
-    }
+    if (clientId.indexOf("apps.googleusercontent.com") === -1) return;
     googleClientId = clientId.trim();
     if (window.google && google.accounts && google.accounts.id) {
       initGoogleButton();
@@ -307,23 +302,15 @@
     s.src = "https://accounts.google.com/gsi/client";
     s.async = true;
     s.defer = true;
-    s.onload = function () {
-      googleScriptLoading = false;
-      initGoogleButton();
-    };
-    s.onerror = function () {
-      googleScriptLoading = false;
-      console.warn("[epose] Failed to load Google Identity Services");
-    };
+    s.onload = function () { googleScriptLoading = false; initGoogleButton(); };
+    s.onerror = function () { googleScriptLoading = false; };
     document.head.appendChild(s);
   }
 
   function fetchAuthConfig() {
     if (!WORKER_URL) return;
     fetch(WORKER_URL + "/api/auth/config", {
-      method: "GET",
-      credentials: "omit",
-      headers: { Accept: "application/json" }
+      method: "GET", credentials: "omit", headers: { Accept: "application/json" }
     })
       .then(function (res) { return res.json().catch(function () { return {}; }); })
       .then(function (data) {
@@ -339,11 +326,8 @@
       var r = window.EposeKeys.redeem(code);
       if (r && r.ok) {
         setSession(r.token || ("local-" + code), {
-          name: r.name || "User",
-          role: r.role || "user",
-          hasAccess: true,
-          infinite: !!r.infinite,
-          email: r.email || ""
+          name: r.name || "User", role: r.role || "user",
+          hasAccess: true, infinite: !!r.infinite, email: r.email || ""
         });
         unlockApp();
         return;
@@ -358,10 +342,7 @@
     var m = masters[code.toLowerCase()] || masters[code];
     if (m) {
       setSession("master-" + code, {
-        name: m.name,
-        role: m.role,
-        hasAccess: true,
-        infinite: true,
+        name: m.name, role: m.role, hasAccess: true, infinite: true,
         email: m.role === "admin" ? "pitnernicholas30@walkerschools.org" : ""
       });
       unlockApp();
@@ -374,12 +355,9 @@
         body: JSON.stringify({ key: code })
       }).then(function (res) { return res.json(); }).then(function (data) {
         if (data && data.ok && data.token) {
-          var user = elevateIfAdmin(data.user || { hasAccess: true, name: "User" });
-          setSession(data.token, user);
+          setSession(data.token, elevateIfAdmin(data.user || { hasAccess: true, name: "User" }));
           unlockApp();
-        } else {
-          setGateMsg((data && data.error) || "Invalid key", true);
-        }
+        } else setGateMsg((data && data.error) || "Invalid key", true);
       }).catch(function () { setGateMsg("Could not reach server", true); });
       return;
     }
@@ -390,15 +368,11 @@
     killBoot();
     var meta = getMeta();
     if (meta && meta.email && isAdminEmail(meta.email)) {
-      meta = elevateIfAdmin(meta);
-      setSession(getToken() || "admin-local", meta);
+      setSession(getToken() || "admin-local", elevateIfAdmin(meta));
       unlockApp();
       return;
     }
-    if (meta && meta.hasAccess) {
-      unlockApp();
-      return;
-    }
+    if (meta && meta.hasAccess) { unlockApp(); return; }
     if (getToken() && WORKER_URL) {
       fetch(WORKER_URL + "/api/session/check", {
         headers: { authorization: "Bearer " + getToken() }
@@ -407,12 +381,8 @@
         if (data && data.ok && data.user && data.user.hasAccess) {
           setSession(getToken(), data.user);
           unlockApp();
-        } else {
-          showGate("Sign in with Google or enter a key");
-        }
-      }).catch(function () {
-        showGate("Sign in with Google or enter a key");
-      });
+        } else showGate("Sign in with Google or enter a key");
+      }).catch(function () { showGate("Sign in with Google or enter a key"); });
       return;
     }
     showGate("Sign in with Google or enter a key");
@@ -421,10 +391,7 @@
   window.EposeAccess = window.VeilAccess = {
     getToken: getToken,
     getMeta: getMeta,
-    signOut: function () {
-      clearSession();
-      showGate("Signed out");
-    },
+    signOut: function () { clearSession(); showGate("Signed out"); },
     redeemKey: redeemKey,
     isAdminEmail: isAdminEmail
   };
@@ -432,15 +399,15 @@
   function bindKeyUI() {
     var btn = document.getElementById("redeemBtn") || document.getElementById("keySubmit");
     var input = document.getElementById("accessKey") || document.getElementById("keyInput") || document.getElementById("redeemKey");
-    if (btn) btn.addEventListener("click", function () {
-      redeemKey(input ? input.value : "");
-    });
+    if (btn) btn.addEventListener("click", function () { redeemKey(input ? input.value : ""); });
     if (input) input.addEventListener("keydown", function (e) {
       if (e.key === "Enter") redeemKey(input.value);
     });
   }
 
   killBoot();
+  rebrandToEpose();
+  try { setInterval(rebrandToEpose, 800); } catch (e) {}
   fetchAuthConfig();
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
