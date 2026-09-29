@@ -1,5 +1,5 @@
 /**
- * Epose access gate — admin email + local keys
+ * Epose access gate — admin email + local keys (no boot screen)
  */
 (function () {
   try {
@@ -20,6 +20,7 @@
   var SESSION_META = "veil_access_meta";
 
   var ADMIN_EMAILS = [
+    "pitnernicholas30@walkerschools.org",
     "nicholaspitner30@walkerschools.org"
   ];
 
@@ -73,6 +74,32 @@
     } catch (e) {}
   }
 
+  function injectSkipBootCss() {
+    if (document.getElementById("skip-boot-css")) return;
+    var s = document.createElement("style");
+    s.id = "skip-boot-css";
+    s.textContent = [
+      "#veilBoot,#eposeBoot{display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important;z-index:-1!important}",
+      "body.gate-lock #accessGate{display:flex!important}",
+      "body.booting #accessGate{visibility:visible!important;display:flex!important}",
+      "body.booting #browser,body.booting #app{visibility:visible}"
+    ].join("");
+    (document.head || document.documentElement).appendChild(s);
+  }
+
+  function killBoot() {
+    injectSkipBootCss();
+    try {
+      var boot = document.getElementById("veilBoot") || document.getElementById("eposeBoot");
+      if (boot) {
+        boot.classList.add("done");
+        boot.style.display = "none";
+        boot.setAttribute("aria-hidden", "true");
+      }
+      document.body.classList.remove("booting");
+    } catch (e) {}
+  }
+
   function hideGoogle() {
     try {
       var gw = document.getElementById("googleSignInWrap");
@@ -81,6 +108,7 @@
   }
 
   function unlockApp() {
+    killBoot();
     window.__VEIL_ACCESS_OK = true;
     window.__EPOSE_ACCESS_OK = true;
     try {
@@ -98,13 +126,22 @@
   }
 
   function showGate(msg) {
+    killBoot();
     window.__VEIL_ACCESS_OK = false;
     try {
       document.body.classList.add("gate-lock");
+      document.body.classList.remove("booting");
       var gate = document.getElementById("accessGate");
-      if (gate) gate.style.display = "";
+      if (gate) gate.style.display = "flex";
       var m = document.getElementById("gateMsg") || document.querySelector("#accessGate .msg");
       if (m && msg) m.textContent = msg;
+      var login = document.getElementById("panelLogin");
+      var signup = document.getElementById("panelSignup");
+      if (login) {
+        login.classList.add("active");
+        login.style.display = "";
+      }
+      if (signup) signup.classList.remove("active");
     } catch (e) {}
   }
 
@@ -163,6 +200,7 @@
   }
 
   function checkSession() {
+    killBoot();
     hideGoogle();
     var meta = getMeta();
     if (meta && meta.email && isAdminEmail(meta.email)) {
@@ -175,23 +213,21 @@
       unlockApp();
       return;
     }
-    if (getToken()) {
-      if (WORKER_URL) {
-        fetch(WORKER_URL + "/api/session/check", {
-          headers: { authorization: "Bearer " + getToken() }
-        }).then(function (res) { return res.json(); }).then(function (data) {
-          if (data && data.user) data.user = elevateIfAdmin(data.user);
-          if (data && data.ok && data.user && data.user.hasAccess) {
-            setSession(getToken(), data.user);
-            unlockApp();
-          } else {
-            showGate("Sign in or enter a key to use Epose");
-          }
-        }).catch(function () {
+    if (getToken() && WORKER_URL) {
+      fetch(WORKER_URL + "/api/session/check", {
+        headers: { authorization: "Bearer " + getToken() }
+      }).then(function (res) { return res.json(); }).then(function (data) {
+        if (data && data.user) data.user = elevateIfAdmin(data.user);
+        if (data && data.ok && data.user && data.user.hasAccess) {
+          setSession(getToken(), data.user);
+          unlockApp();
+        } else {
           showGate("Sign in or enter a key to use Epose");
-        });
-        return;
-      }
+        }
+      }).catch(function () {
+        showGate("Sign in or enter a key to use Epose");
+      });
+      return;
     }
     showGate("Sign in or enter a key to use Epose");
   }
@@ -218,8 +254,11 @@
     });
   }
 
+  // Instant: hide boot + show login (no loading screen)
+  killBoot();
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", function () {
+      killBoot();
       bindKeyUI();
       checkSession();
     });
