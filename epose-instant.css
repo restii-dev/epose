@@ -1,0 +1,7 @@
+/* Epose instant — no boot, login first */
+#veilBoot,#eposeBoot,.boot-card,.boot-bar,.boot-steps{
+  display:none!important;opacity:0!important;visibility:hidden!important;
+  pointer-events:none!important;height:0!important;overflow:hidden!important;z-index:-1!important
+}
+body.gate-lock #accessGate,body.booting #accessGate,#accessGate{display:flex!important}
+body.booting #accessGate{visibility:visible!important}
