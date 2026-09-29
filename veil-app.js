@@ -3059,7 +3059,9 @@ async function loadGameCatalog() {
   try {
     const res = await fetch(REPO_PATH + "game-data.html", { cache: "no-store" });
     const html = await res.text();
-    const m = html.match(/<script[^>]*id=["']sgs-game-data["'][^>]*>([\s\S]*?)<\/script>/i);
+    // Prefer veil-game-data; fall back to any *game-data script id.
+    const m = html.match(/<script[^>]*id=["']veil-game-data["'][^>]*>([\s\S]*?)<\/script>/i)
+      || html.match(/<script[^>]*id=["'][^"']*game-data["'][^>]*>([\s\S]*?)<\/script>/i);
     if (m) {
       const data = JSON.parse(m[1].trim());
       gamesCatalog = Array.isArray(data.games) ? data.games : [];
@@ -3221,7 +3223,7 @@ function byIds(ids) {
   return (ids || []).map((id) => map[id]).filter(Boolean);
 }
 
-function paintGamesLists(root, state) {
+function paintGamesLists(root, state, animate) {
   if (!root) return;
   state = state || root._gamesState || { activeCat: "all", query: "" };
   root._gamesState = state;
@@ -3234,22 +3236,46 @@ function paintGamesLists(root, state) {
     list = list.filter((g) => String(g.name || "").toLowerCase().indexOf(q) !== -1 || String(g.category || "").toLowerCase().indexOf(q) !== -1);
   }
   list = shuffle(list);
-  const allRow = root.querySelector("#gamesAllRow");
-  if (allRow) allRow.innerHTML = list.length ? list.map(tileHTML).join("") : '<div class="games-empty">No games match.</div>';
 
+  const allRow = root.querySelector("#gamesAllRow");
   const favs = byIds(gamesUserData.favorites || []);
   const favSec = root.querySelector("#gamesFavSection");
   const favRow = root.querySelector("#gamesFavRow");
-  if (favSec && favRow) {
-    if (favs.length) { favSec.style.display = ""; favRow.innerHTML = favs.map(tileHTML).join(""); }
-    else favSec.style.display = "none";
-  }
   const rec = byIds(gamesUserData.recent || []);
   const recSec = root.querySelector("#gamesRecentSection");
   const recRow = root.querySelector("#gamesRecentRow");
-  if (recSec && recRow) {
-    if (rec.length) { recSec.style.display = ""; recRow.innerHTML = rec.map(tileHTML).join(""); }
-    else recSec.style.display = "none";
+
+  function fillRows() {
+    if (allRow) {
+      allRow.innerHTML = list.length ? list.map(tileHTML).join("") : '<div class="games-empty">No games match.</div>';
+    }
+    if (favSec && favRow) {
+      if (favs.length) { favSec.style.display = ""; favRow.innerHTML = favs.map(tileHTML).join(""); }
+      else favSec.style.display = "none";
+    }
+    if (recSec && recRow) {
+      if (rec.length) { recSec.style.display = ""; recRow.innerHTML = rec.map(tileHTML).join(""); }
+      else recSec.style.display = "none";
+    }
+  }
+
+  if (animate && allRow) {
+    const rows = [allRow, favRow, recRow].filter(Boolean);
+    rows.forEach((r) => {
+      r.classList.remove("filtering-done");
+      r.classList.add("filtering");
+    });
+    window.setTimeout(() => {
+      fillRows();
+      rows.forEach((r) => {
+        r.classList.remove("filtering");
+        // reflow then play enter
+        void r.offsetWidth;
+        r.classList.add("filtering-done");
+      });
+    }, 160);
+  } else {
+    fillRows();
   }
 }
 
@@ -3258,7 +3284,8 @@ async function renderGamesPage(root) {
   gamesRenderRoot = root;
   await loadGameCatalog();
   await loadGamesUserData();
-  const popList = shuffle(gamesCatalog).slice(0, Math.min(8, Math.max(1, gamesCatalog.length)));
+  // Popular hero: every game that has a wide (large) thumbnail
+  const popList = shuffle(gamesCatalog.slice());
 
   root.innerHTML =
     '<div class="games-hero" id="gamesHero">' +
@@ -3266,7 +3293,8 @@ async function renderGamesPage(root) {
       const id = gameId(g);
       const desc = String(g.description || "").slice(0, 180);
       return (
-        '<div class="games-hero-slide' + (i === 0 ? " active" : "") + '" data-play="' + escapeHTML(id) + '">' +
+        // No data-play on the slide — only the Play button starts the game
+        '<div class="games-hero-slide' + (i === 0 ? " active" : "") + '">' +
         '<div class="games-hero-bg"><img src="' + escapeHTML(largeThumb(g)) + '" alt="" onerror="this.style.opacity=.15"></div>' +
         '<div class="games-hero-shade"></div>' +
         '<div class="games-hero-content">' +
@@ -3328,26 +3356,27 @@ async function renderGamesPage(root) {
 
   root.querySelector("#gamesSearch")?.addEventListener("input", (e) => {
     state.query = e.target.value.trim();
-    paintGamesLists(root, state);
+    paintGamesLists(root, state, true);
   });
   root.querySelectorAll(".games-cat").forEach((btn) => {
     btn.onclick = () => {
       root.querySelectorAll(".games-cat").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       state.activeCat = btn.getAttribute("data-cat") || "all";
-      paintGamesLists(root, state);
+      paintGamesLists(root, state, true);
     };
   });
   root.addEventListener("click", (e) => {
     const info = e.target.closest("[data-info]");
-    if (info && !info.classList.contains("info-btn")) {
+    if (info) {
       const id = info.getAttribute("data-info");
       const g = gamesCatalog.find((x) => gameId(x) === id);
-      if (g) { e.preventDefault(); showGameInfo(g); return; }
+      if (g) { e.preventDefault(); e.stopPropagation(); showGameInfo(g); return; }
     }
-    const play = e.target.closest("[data-play]");
-    if (play) {
-      const id = play.getAttribute("data-play");
+    // Only explicit Play buttons (or grid tiles) — not the hero background
+    const playBtn = e.target.closest(".games-play-btn[data-play], .game-tile[data-play]");
+    if (playBtn) {
+      const id = playBtn.getAttribute("data-play");
       const g = gamesCatalog.find((x) => gameId(x) === id);
       if (g) openGamePlayer(g);
     }
@@ -3359,20 +3388,27 @@ function openGamePlayer(g) {
   pushRecent(id);
   const mat = maturityLabel(g);
   const diff = g.difficulty || "—";
-  const titleText = escapeHTML(g.name) + " | " + escapeHTML(String(mat)) + " | difficulty " + escapeHTML(String(diff)) + "/10";
+  const titleHtml =
+    '<span class="gpt-name" title="' + escapeHTML(g.name) + '">' + escapeHTML(g.name) + "</span>" +
+    '<span class="gpt-sep">·</span>' +
+    '<span class="gpt-mat" title="Content rating">' + escapeHTML(String(mat)) + "</span>" +
+    '<span class="gpt-sep">·</span>' +
+    '<span class="gpt-diff">Difficulty <b>' + escapeHTML(String(diff)) + "</b>/10</span>";
 
   document.querySelector(".game-player-overlay")?.remove();
   const overlay = document.createElement("div");
   overlay.className = "game-player-overlay";
+  // Prefer notepad.svg; fall back to misnamed notepad.svg.svg then pencil
   const noteIcon = IMG + "notepad.svg";
+  const noteFallback = IMG + "notepad.svg.svg";
   overlay.innerHTML =
     '<div class="game-player" id="gamePlayer">' +
     '<div class="game-player-main">' +
     '<div class="game-player-bar">' +
     '<button type="button" class="game-player-btn gp-close" data-gp="close" title="Close"><img src="' + IMG + 'exit.svg" alt=""></button>' +
-    '<div class="game-player-title">' + titleText + "</div>" +
+    '<div class="game-player-title">' + titleHtml + "</div>" +
     '<button type="button" class="game-player-btn" data-gp="info" title="Info"><img src="' + IMG + 'info.svg" alt=""></button>' +
-    '<button type="button" class="game-player-btn" data-gp="notes" title="Notes"><img src="' + noteIcon + '" alt="" onerror="this.src=\'' + IMG + 'pencil.svg\'"></button>' +
+    '<button type="button" class="game-player-btn" data-gp="notes" title="Notes"><img src="' + noteIcon + '" alt="" onerror="this.onerror=null;this.src=\'' + noteFallback + '\';this.onerror=function(){this.src=\'' + IMG + 'pencil.svg\'}"></button>' +
     '<button type="button" class="game-player-btn" data-gp="star" title="Favorite"><img src="' + IMG + 'star.svg" alt=""></button>' +
     '<button type="button" class="game-player-btn" data-gp="fs" title="Fullscreen"><img src="' + IMG + 'zoom.svg" alt=""></button>' +
     '<button type="button" class="game-player-btn" data-gp="reload" title="Reload"><img src="' + IMG + 'refresh.svg" alt=""></button>' +
@@ -3510,17 +3546,24 @@ function showGameInfo(g) {
     { key: "howToPlay", label: "How to play", body: g.howToPlay || "—" },
     { key: "sideNotes", label: "Side notes", body: g.sideNotes || "—" },
   ];
+  const mat = maturityLabel(g);
+  const diff = g.difficulty || "—";
   overlay.innerHTML =
-    '<div class="modal-box info-modal game-info-box" role="dialog">' +
+    '<div class="modal-box info-modal game-info-box" role="dialog" aria-modal="true">' +
     '<div class="game-info-top">' +
     "<h2>" + escapeHTML(g.name) + "</h2>" +
     '<button type="button" class="game-player-btn" data-info-x title="Close"><img src="' + IMG + 'exit.svg" alt=""></button>' +
+    "</div>" +
+    '<div class="game-info-meta">' +
+    '<span>' + escapeHTML(String(mat)) + "</span>" +
+    (g.category ? "<span>" + escapeHTML(g.category) + "</span>" : "") +
+    "<span>Difficulty " + escapeHTML(String(diff)) + "/10</span>" +
     "</div>" +
     '<div class="game-info-choices" id="gameInfoChoices">' +
     sections.map((s) => '<button type="button" class="game-info-choice" data-sec="' + s.key + '">' + escapeHTML(s.label) + "</button>").join("") +
     "</div>" +
     '<div class="game-info-detail" id="gameInfoDetail" hidden>' +
-    '<button type="button" class="game-info-back" data-info-back type="button">' +
+    '<button type="button" class="game-info-back" data-info-back>' +
     '<img src="' + IMG + 'backward.svg" alt=""> Back</button>' +
     '<h3 id="gameInfoDetailTitle"></h3>' +
     '<p id="gameInfoDetailBody"></p>' +
@@ -3537,14 +3580,19 @@ function showGameInfo(g) {
     const key = b.getAttribute("data-sec");
     const sec = sections.find((s) => s.key === key);
     if (!sec) return;
+    // Buttons disappear → detail view (Veil info window)
     choices.hidden = true;
+    choices.style.display = "none";
     detail.hidden = false;
+    detail.style.display = "";
     overlay.querySelector("#gameInfoDetailTitle").textContent = sec.label;
     overlay.querySelector("#gameInfoDetailBody").textContent = sec.body;
   };
   overlay.querySelector("[data-info-back]").onclick = () => {
     detail.hidden = true;
+    detail.style.display = "none";
     choices.hidden = false;
+    choices.style.display = "";
   };
 }
 

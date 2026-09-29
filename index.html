@@ -543,8 +543,10 @@ body.boot-reveal #browser{
 .games-section{margin-bottom:22px}
 .games-section h3{font-size:14px;font-weight:650;margin:0 0 12px;color:var(--text)}
 .games-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:12px}
-.game-tile{border-radius:14px;border:1px solid var(--border);background:var(--panel);overflow:hidden;cursor:pointer;transition:transform .15s ease,border-color .15s ease}
-.game-tile:hover{transform:translateY(-2px);border-color:var(--accent)}
+.games-row.filtering{opacity:.35;transform:translateY(4px);pointer-events:none;transition:opacity .22s ease,transform .22s ease}
+.games-row.filtering-done{opacity:1;transform:none;transition:opacity .28s ease,transform .28s ease}
+.game-tile{border-radius:14px;border:1px solid var(--border);background:var(--panel);overflow:hidden;cursor:pointer;transition:transform .18s ease,border-color .18s ease,opacity .28s ease,box-shadow .18s ease;opacity:1;animation:gameTileIn .32s ease both}
+.game-tile:hover{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 8px 22px rgba(0,0,0,.28)}
 .game-tile .thumb{width:100%;aspect-ratio:1;background:var(--bg3);overflow:hidden}
 .game-tile .thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .game-tile .meta{padding:8px 9px 10px}
@@ -552,12 +554,18 @@ body.boot-reveal #browser{
 .game-tile .meta .cat{font-size:10px;color:var(--muted);margin-top:2px}
 .game-tile.fav .meta .name{color:var(--text)}
 .games-empty{color:var(--muted);font-size:13px;padding:16px 4px}
+@keyframes gameTileIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
 .game-player-overlay{position:fixed;inset:0;z-index:4000;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:18px;box-sizing:border-box}
 .game-player{width:min(1100px,100%);height:min(720px,100%);background:var(--panel);border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:row;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.45)}
 .game-player-main{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0}
-.game-player-bar{height:44px;flex:0 0 44px;display:flex;align-items:center;gap:6px;padding:0 10px;border-bottom:1px solid var(--border);background:var(--bg2)}
-.game-player-title{flex:1;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
-.game-player-btn{width:32px;height:32px;border-radius:8px;border:0;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.game-player-bar{height:48px;flex:0 0 48px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--border);background:var(--bg2)}
+.game-player-title{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:10px;overflow:hidden}
+.game-player-title .gpt-name{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42%}
+.game-player-title .gpt-sep{color:var(--muted);opacity:.5;font-weight:400;flex:0 0 auto}
+.game-player-title .gpt-mat{font-size:11px;font-weight:650;padding:3px 9px;border-radius:999px;border:1px solid var(--border);background:var(--panel);color:var(--text);letter-spacing:.04em;flex:0 0 auto}
+.game-player-title .gpt-diff{font-size:12px;font-weight:550;color:var(--muted);white-space:nowrap;flex:0 0 auto}
+.game-player-title .gpt-diff b{color:var(--text);font-weight:700}
+.game-player-btn{width:34px;height:34px;border-radius:8px;border:0;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;flex:0 0 auto}
 .game-player-btn:hover{background:var(--panel2)}
 .game-player-btn img{width:16px;height:16px;filter:invert(1);opacity:.9;display:block}
 .game-player-btn.gp-close{order:-1}
@@ -574,14 +582,20 @@ body.boot-reveal #browser{
 .game-notes-editor textarea{flex:1;width:100%;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--text);padding:10px;resize:none;font-size:12px;box-sizing:border-box;min-height:120px}
 .game-notes-actions{display:flex;gap:8px}
 .game-note-action{height:30px;padding:0 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:12px;cursor:pointer}
-.game-info-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
-.game-info-top h2{margin:0;font-size:16px}
+.modal-overlay.game-info-modal{z-index:5200;background:rgba(0,0,0,.78)}
+.game-info-box{width:min(420px,100%);max-height:min(70vh,520px);overflow:auto}
+.game-info-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px}
+.game-info-top h2{margin:0;font-size:17px;font-weight:700}
+.game-info-meta{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 14px}
+.game-info-meta span{font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid var(--border);background:var(--bg2);color:var(--muted)}
 .game-info-choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.game-info-choice{height:44px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px;cursor:pointer}
+.game-info-choice{height:48px;border-radius:12px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:13px;font-weight:550;cursor:pointer;transition:border-color .15s ease,background .15s ease}
 .game-info-choice:hover{border-color:var(--accent);background:var(--panel2)}
-.game-info-detail h3{margin:8px 0;font-size:14px}
-.game-info-detail p{margin:0;font-size:13px;line-height:1.55;color:var(--muted)}
-.game-info-back{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:var(--text);cursor:pointer;font-size:12px;padding:0;margin-bottom:8px}
+.game-info-detail{animation:veilFade .2s ease}
+.game-info-detail h3{margin:8px 0 10px;font-size:15px;font-weight:650}
+.game-info-detail p{margin:0;font-size:13px;line-height:1.6;color:var(--muted);white-space:pre-wrap}
+.game-info-back{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:var(--text);cursor:pointer;font-size:12px;padding:4px 0;margin-bottom:10px}
+.game-info-back:hover{color:var(--accent)}
 .game-info-back img{width:14px;height:14px;filter:invert(1);opacity:.85}
 
 </style>
