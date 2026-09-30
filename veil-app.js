@@ -3727,4 +3727,3 @@ on("openAdminPanel", () => {
   const addr = document.getElementById("address");
   if (addr) addr.value = "Admin Panel";
 });
-
