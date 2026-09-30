@@ -829,83 +829,83 @@ function homepageHTML(pageId) {
 const SETTINGS_INFO = {
   theme: {
     title: "Site theme colors",
-    body: "Changes the colors of Veil’s toolbars, menus, and panels. Pick a preset that feels comfortable — it only affects the Veil browser chrome, not the websites you visit."
+    body: "Changes Veil’s colors (toolbars and menus only — not the sites you visit)."
   },
   background: {
     title: "Home page background",
-    body: "Sets a custom background on the New Tab page. You can paste a link to an image, GIF, or video (mp4/webm). Leave it empty to use the solid theme background."
+    body: "Puts your own image, GIF, or video on the home page. Leave blank for a plain background."
   },
   time24: {
     title: "24-hour time",
-    body: "Switches the welcome clock between 12-hour time (with AM/PM) and 24-hour time. This only changes how the time is shown on the home page."
+    body: "Shows the home-page clock as 24-hour time instead of AM/PM."
   },
   animations: {
     title: "Home page animations",
-    body: "Turns on a soft animated background on the New Tab page (orbs, stars, rain, and more). You can change the style, speed, amount, size, and colors. Animations only run when cookies are allowed."
+    body: "Adds a moving background on the home page (orbs, stars, rain, and more)."
   },
   cloak: {
     title: "Tab cloak",
-    body: "Changes what the browser tab shows — the title and the little icon. Use a preset (like Google Drive or Gmail) or type your own. Helpful if you want the tab to look like schoolwork at a glance."
+    body: "Changes the tab title and icon so Veil can look like another site (for example Google Drive)."
   },
   panic: {
     title: "Panic key",
-    body: "Choose a keyboard key and a website. When you press that key (while not typing in a text box), Veil jumps to the website you set. Useful for a quick switch if someone walks by."
+    body: "Pick a key and a website. Press the key to jump there quickly (does not work while typing)."
   },
   aboutblank: {
     title: "About:blank launch",
-    body: "Controls whether Veil opens inside a special about:blank window. Manual means you choose when; automatic tries to open that way for you. It is skipped if you are already in that mode."
+    body: "Opens Veil in a blank browser page so the address bar stays empty. Manual or automatic."
   },
   pagelock: {
     title: "Page lock",
-    body: "When you lock Veil from the menu, this chooses whether open pages are unloaded to hide what you were viewing. If this is off, pages stay loaded in the background until you unlock."
+    body: "When you lock Veil, also close open pages so others cannot see what you were viewing."
   },
   confirmleave: {
     title: "Leave warning",
-    body: "When this is on, closing the browser tab or refreshing the page shows the browser’s “are you sure you want to leave?” message. It can stop someone from closing Veil with one click. Off by default."
+    body: "Asks “are you sure?” before the browser tab is closed or refreshed."
   },
   search: {
     title: "Search engine",
-    body: "When you type words in the address bar or home search box instead of a full website address, Veil searches with this engine (for example DuckDuckGo or Google)."
+    body: "Used when you type words instead of a full website address."
   },
   adblock: {
     title: "Ad blocker",
-    body: "Blocks many common ads and trackers on sites you open through Veil. Turning it off can help if a site breaks or looks incomplete."
+    body: "Hides many ads and trackers. Turn off if a site looks broken."
   },
   maxtabs: {
     title: "Loaded tabs at once",
-    body: "Limits how many tabs keep a live page running at the same time. Extra tabs are unloaded until you switch back to them. A lower number uses less memory on school devices."
+    body: "How many tabs stay active at once. Lower numbers use less memory."
   },
   proxy: {
     title: "Proxy servers",
-    body: "These are the connection servers Veil uses to open websites. Pick one that shows a fast ping (green). If a site will not load, try another server from the list."
+    body: "Servers Veil uses to load sites. Prefer green (fast). Try another if a page will not open."
   },
   engine: {
     title: "Browser engine",
-    body: "The technical method Veil uses to talk to the proxy. Epoxy works for most people. If pages fail to load or get stuck, switch to Libcurl and try again."
+    body: "How Veil connects. Epoxy is the usual choice; try Libcurl if pages get stuck."
   },
   username: {
     title: "Change username",
-    body: "Updates the display name shown in the welcome message on the home page. This stays on this device and is not your account email."
+    body: "Name shown in the home-page welcome message on this device."
   },
   password: {
     title: "Change password",
-    body: "Changes the local password used to lock and unlock Veil on this device. It is separate from your email login password for the access system."
+    body: "Password used to lock Veil on this device (not your email login)."
   },
   account: {
     title: "Account",
-    body: "Signs you out of Veil on this device and clears the Google sign-in session used for access. You will need to log in again next time."
+    body: "Signs you out on this device. You will need to log in again next time."
   },
   cleardata: {
     title: "Clear cookies & cache",
-    body: "Wipes Veil’s saved data on this device (settings storage, cookies, and cache) and signs you out. Use this if something is stuck or you want a clean slate."
+    body: "Clears saved data on this device and signs you out. Use if something is stuck."
   },
   reset: {
     title: "Factory reset",
-    body: "Restores theme, cloak, and browser options to the defaults. Your profile password is kept unless you also clear site data."
+    body: "Resets theme and browser options to the defaults."
   },
   admin: {
     title: "Admin",
-    body: "Opens the admin panel in a Veil tab so you can manage accounts, time grants, and bans. You will need the admin password from the worker setup."
+    body: "Opens the admin panel to manage accounts. Requires the admin password."
   }
 };
 
@@ -1644,17 +1644,20 @@ function setupHomeFx(wrapper) {
   state.clouds = [];
 
   if (style === "rain") {
-    // Spawn fully above/left of frame so drops enter from off-screen
+    // Three depth layers — far (soft/thin), mid, near (brighter)
     for (let i = 0; i < n; i++) {
-      const ang = 0.45 + Math.random() * 0.25;
+      const layer = i % 3; // 0 far, 1 mid, 2 near
+      const depth = layer === 0 ? 0.45 : layer === 1 ? 0.75 : 1;
+      const ang = 0.38 + Math.random() * 0.22; // ~22–34° wind slant
       state.particles.push({
-        x: Math.random() * 1.4 - 0.35,
-        y: -0.15 - Math.random() * 0.9,
-        len: (0.035 + Math.random() * 0.07) * sizeMul,
-        spd: 0.006 + Math.random() * 0.012,
-        thick: 0.9 + Math.random() * 1.6,
-        alpha: 0.25 + Math.random() * 0.55,
-        ang
+        x: Math.random() * 1.5 - 0.4,
+        y: -0.2 - Math.random() * 1.1,
+        len: (0.02 + Math.random() * 0.05) * sizeMul * (0.7 + depth * 0.5),
+        spd: (0.004 + Math.random() * 0.01) * (0.55 + depth * 0.55),
+        thick: (0.55 + Math.random() * 1.1) * depth,
+        alpha: (0.12 + Math.random() * 0.28) * (0.5 + depth * 0.6),
+        ang,
+        layer
       });
     }
   } else {
@@ -1699,26 +1702,27 @@ function setupHomeFx(wrapper) {
     const b = hexToRgb(settings.animColorB);
 
     if (style === "rain") {
-      // Soft storm sky
-      const sky = ctx.createLinearGradient(0, 0, 0, h * 0.55);
-      sky.addColorStop(0, "rgba(" + a.r + "," + a.g + "," + a.b + ",0.1)");
+      // Soft overcast wash
+      const sky = ctx.createLinearGradient(0, 0, 0, h);
+      sky.addColorStop(0, "rgba(" + a.r + "," + a.g + "," + a.b + ",0.08)");
+      sky.addColorStop(0.45, "rgba(" + a.r + "," + a.g + "," + a.b + ",0.03)");
       sky.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = sky;
-      ctx.fillRect(0, 0, w, h * 0.55);
+      ctx.fillRect(0, 0, w, h);
 
-      // Thunder / lightning (kept)
-      if (Math.random() < 0.0022 * speed) spawnBolt(w, h);
+      // Occasional soft lightning
+      if (Math.random() < 0.0014 * speed) spawnBolt(w, h);
       if (state.flash > 0) {
-        ctx.fillStyle = "rgba(200,215,255," + (state.flash * 0.2) + ")";
+        ctx.fillStyle = "rgba(190,210,255," + (state.flash * 0.14) + ")";
         ctx.fillRect(0, 0, w, h);
-        state.flash *= 0.88;
-        if (state.flash < 0.02) state.flash = 0;
+        state.flash *= 0.9;
+        if (state.flash < 0.015) state.flash = 0;
       }
       state.bolts = state.bolts.filter((bolt) => {
-        bolt.life -= 0.06 * (speed / 0.42);
+        bolt.life -= 0.05 * (speed / 0.42);
         if (bolt.life <= 0) return false;
-        ctx.strokeStyle = "rgba(210,225,255," + (0.55 * bolt.life) + ")";
-        ctx.lineWidth = Math.max(1, 1.6 * sizeMul * dpr);
+        ctx.strokeStyle = "rgba(200,220,255," + (0.4 * bolt.life) + ")";
+        ctx.lineWidth = Math.max(0.8, 1.25 * sizeMul * dpr);
         ctx.lineCap = "round";
         ctx.beginPath();
         bolt.segs.forEach((s, i) => {
@@ -1730,39 +1734,53 @@ function setupHomeFx(wrapper) {
           const mid = bolt.segs[Math.floor(bolt.segs.length / 2)];
           ctx.beginPath();
           ctx.moveTo(mid.x, mid.y);
-          ctx.lineTo(mid.x + 20 * sizeMul, mid.y + 28 * sizeMul);
+          ctx.lineTo(mid.x + 16 * sizeMul, mid.y + 24 * sizeMul);
           ctx.stroke();
         }
         return true;
       });
 
-      // Diagonal rain streaks — slanted down-right like the reference
+      // Diagonal rain — draw far → near for depth
       ctx.lineCap = "round";
-      state.particles.forEach((p) => {
-        // angle from vertical (~25–40°), positive = to the right while falling
-        const tilt = p.ang; // ~0.55 rad
-        const step = (0.01 + p.spd) * speed * 1.1;
+      const ordered = state.particles.slice().sort((p, q) => (p.layer || 0) - (q.layer || 0));
+      ordered.forEach((p) => {
+        const tilt = p.ang;
+        const step = (0.009 + p.spd) * speed * 1.05;
         p.x += Math.sin(tilt) * step;
-        p.y += Math.cos(tilt * 0.15) * step * 1.35;
-        if (p.y > 1.12 || p.x > 1.25) {
-          // Re-enter from above / upper-left (never pop in mid-frame)
-          p.x = Math.random() * 1.2 - 0.35;
-          p.y = -0.12 - Math.random() * 0.35;
+        p.y += Math.cos(tilt * 0.12) * step * 1.4;
+        if (p.y > 1.15 || p.x > 1.3) {
+          p.x = Math.random() * 1.25 - 0.4;
+          p.y = -0.15 - Math.random() * 0.4;
         }
         const x0 = p.x * w;
         const y0 = p.y * h;
-        const streak = p.len * Math.min(w, h) * 1.15;
-        // draw along same diagonal (down + right)
+        const streak = p.len * Math.min(w, h) * 1.2;
         const x1 = x0 + Math.sin(tilt) * streak;
-        const y1 = y0 + Math.cos(tilt * 0.2) * streak * 0.95;
-        ctx.strokeStyle = "rgba(" + a.r + "," + a.g + "," + a.b + "," + p.alpha + ")";
-        ctx.lineWidth = Math.max(0.85, p.thick * sizeMul * dpr * 0.5);
+        const y1 = y0 + Math.cos(tilt * 0.18) * streak * 0.95;
+        // Soft tip gradient feel via two-pass stroke
+        ctx.strokeStyle = "rgba(" + a.r + "," + a.g + "," + a.b + "," + (p.alpha * 0.55) + ")";
+        ctx.lineWidth = Math.max(0.6, p.thick * sizeMul * dpr * 0.55);
         ctx.beginPath();
         ctx.moveTo(x0, y0);
         ctx.lineTo(x1, y1);
         ctx.stroke();
+        if ((p.layer || 0) >= 2) {
+          ctx.strokeStyle = "rgba(" + b.r + "," + b.g + "," + b.b + "," + (p.alpha * 0.35) + ")";
+          ctx.lineWidth = Math.max(0.5, p.thick * sizeMul * dpr * 0.35);
+          ctx.beginPath();
+          ctx.moveTo(x0 + (x1 - x0) * 0.35, y0 + (y1 - y0) * 0.35);
+          ctx.lineTo(x1, y1);
+          ctx.stroke();
+        }
       });
-        } else if (style === "stars") {
+
+      // Soft ground mist
+      const mist = ctx.createLinearGradient(0, h * 0.72, 0, h);
+      mist.addColorStop(0, "rgba(" + a.r + "," + a.g + "," + a.b + ",0)");
+      mist.addColorStop(1, "rgba(" + a.r + "," + a.g + "," + a.b + ",0.06)");
+      ctx.fillStyle = mist;
+      ctx.fillRect(0, h * 0.72, w, h * 0.28);
+    } else if (style === "stars") {
       // Fixed night-sky stars + rare shooting stars
       state.particles.forEach((p) => {
         const tw = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(state.t * 1.4 + p.tw));
@@ -2188,7 +2206,7 @@ function markAboutBlankSession() {
 function toggleEruda() {
   closeMenu();
   const p = getActiveTab();
-  if (!p || p.newTab) return;
+  if (!p || p.newTab || p.isGames || p.isAdmin) return;
   const frameObj = p.engineFrame;
   if (!frameObj) {
     alert("Open a site first.");
@@ -2223,8 +2241,10 @@ function updateDevtoolsMenuState() {
   const btn = document.getElementById("menuDevtools");
   if (!btn) return;
   const p = getActiveTab();
-  const disabled = !p || !!p.newTab;
+  // Grey out on home, Games, and Admin — same idea as Fullscreen on Games
+  const disabled = !p || !!p.newTab || !!p.isGames || !!p.isAdmin;
   btn.classList.toggle("disabled", disabled);
+  btn.disabled = disabled;
   btn.setAttribute("aria-disabled", disabled ? "true" : "false");
 }
 
@@ -2396,6 +2416,8 @@ on("menuFullscreen", () => { closeMenu(); togglePageFullscreen(); });
 
 function togglePageFullscreen() {
   try {
+    const tab = getActiveTab();
+    if (tab && tab.isGames) return;
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       const exit = document.exitFullscreen || document.webkitExitFullscreen;
       if (exit) exit.call(document);
@@ -2404,7 +2426,6 @@ function togglePageFullscreen() {
     // Fullscreen the active tab's page iframe when available
     let el = null;
     try {
-      const tab = getActiveTab();
       if (tab && tab.engineFrame) {
         el = tab.engineFrame.element || tab.engineFrame.frame || tab.engineFrame;
       }
@@ -3203,8 +3224,18 @@ function updateGamesChromeLocks() {
   gamesPageActive = onGames;
   const fs = document.getElementById("menuFullscreen");
   const dt = document.getElementById("menuDevtools");
-  if (fs) { fs.classList.toggle("disabled", onGames); fs.disabled = onGames; }
-  if (dt) { dt.classList.toggle("disabled", onGames); dt.disabled = onGames; }
+  if (fs) {
+    fs.classList.toggle("disabled", onGames);
+    fs.disabled = onGames;
+    fs.setAttribute("aria-disabled", onGames ? "true" : "false");
+  }
+  // Keep DevTools greyed out on Games (also enforced in updateDevtoolsMenuState)
+  if (dt) {
+    const lock = onGames || !!(tab && (tab.newTab || tab.isAdmin));
+    dt.classList.toggle("disabled", lock);
+    dt.disabled = lock;
+    dt.setAttribute("aria-disabled", lock ? "true" : "false");
+  }
 }
 
 function tileHTML(g) {
@@ -3399,8 +3430,7 @@ function openGamePlayer(g) {
   document.querySelector(".game-player-overlay")?.remove();
   const overlay = document.createElement("div");
   overlay.className = "game-player-overlay";
-  // Repo file is image/notepad.svg.svg (double extension)
-  const noteIcon = IMG + "notepad.svg.svg";
+  const noteIcon = IMG + "notepad.svg";
   overlay.innerHTML =
     '<div class="game-player" id="gamePlayer">' +
     '<div class="game-player-main">' +
