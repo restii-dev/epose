@@ -301,8 +301,8 @@ const THEMES = {
 };
 
 const DEFAULT_SETTINGS = {
-  theme: "matte", transport: "epoxy", wispId: "default", wispCustom: "",
-  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "duckduckgo", wispId: "va1", customServers: [], lockUnload: false, confirmLeave: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", ...THEMES.matte
+  theme: "matte", transport: "libcurl", wispId: "default", wispCustom: "",
+  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "google", wispId: "va1", customServers: [], lockUnload: false, confirmLeave: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", transportMigratedV2: true, ...THEMES.matte
 };
 const DEFAULT_PANIC = { key: "", code: "", url: "https://classroom.google.com" };
 
@@ -415,9 +415,14 @@ function migrateSettings() {
   if (settings.launchMode !== "auto" && settings.launchMode !== "manual") {
     settings.launchMode = "manual";
   }
-  // Transport: default epoxy, only allow epoxy | libcurl
+  // Transport: only epoxy | libcurl. Prefer libcurl — Epoxy often hits TLS EOF on some sites (e.g. DuckDuckGo)
   if (settings.transport !== "libcurl" && settings.transport !== "epoxy") {
-    settings.transport = "epoxy";
+    settings.transport = "libcurl";
+  }
+  // One-time migration off Epoxy default (TLS handshake eof on many sites through current Wisp servers)
+  if (!settings.transportMigratedV2) {
+    settings.transport = "libcurl";
+    settings.transportMigratedV2 = true;
   }
   // Theme defaults to matte
   if (!settings.theme || !THEMES[settings.theme]) {
@@ -672,11 +677,33 @@ async function createEngineFrame(page, wrapper) {
   }
 }
 
+function isDuckDuckGoUrl(url) {
+  try {
+    return /duckduckgo\.com$/i.test(new URL(url).hostname.replace(/^www\./, ""));
+  } catch {
+    return false;
+  }
+}
+
+async function ensureLibcurlTransport() {
+  if (settings.transport === "libcurl") return false;
+  settings.transport = "libcurl";
+  try { save(); } catch (_) {}
+  await reconnectTransport();
+  return true;
+}
+
 async function goFrame(page, url) {
   const frameObj = page.engineFrame;
   if (!frameObj || !url) return;
   url = rewriteSearchUrl(url);
   page.url = url;
+
+  // DuckDuckGo + Epoxy frequently hits "tls handshake eof" through current Wisp servers
+  if (isDuckDuckGoUrl(url)) {
+    try { await ensureLibcurlTransport(); } catch (e) { console.warn("[veil] libcurl switch failed", e); }
+  }
+
   const attempt = async (target) => {
     const u = target || url;
     if (typeof frameObj.go === "function") await frameObj.go(u);
@@ -699,19 +726,13 @@ async function goFrame(page, url) {
     }
     console.warn("[veil] navigation transport error, reconnecting...", msg);
     try {
-      // Epoxy TLS handshake failures — switch to Libcurl
-      if (settings.transport !== "libcurl") {
-        settings.transport = "libcurl";
-        try { save(); } catch (_) {}
-      }
-      await reconnectTransport();
+      await ensureLibcurlTransport();
       await attempt(url);
     } catch (e2) {
       console.warn("[veil] retry failed", e2);
-      // Last resort: try lite DDG if this was a DuckDuckGo URL
       try {
-        const u = new URL(url);
-        if (/duckduckgo\.com$/i.test(u.hostname.replace(/^www\./, ""))) {
+        if (isDuckDuckGoUrl(url)) {
+          const u = new URL(url);
           const q = u.searchParams.get("q") || "";
           const lite = "https://lite.duckduckgo.com/lite/" + (q ? "?q=" + encodeURIComponent(q) : "");
           await attempt(lite);
@@ -721,7 +742,7 @@ async function goFrame(page, url) {
         }
       } catch (_) {}
       const status = document.getElementById("engineStatus");
-      if (status) status.textContent = "Connection lost - try Libcurl or another proxy server";
+      if (status) status.textContent = "Connection lost - try another proxy server";
     }
   }
 }
