@@ -489,14 +489,28 @@ function searchPrefix() {
   return eng.prefix;
 }
 
+/** Full DuckDuckGo SPA often fails TLS / blanks through the proxy — use HTML results */
+function rewriteSearchUrl(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, "");
+    if (host === "duckduckgo.com" || host === "html.duckduckgo.com" || host === "lite.duckduckgo.com") {
+      const q = u.searchParams.get("q") || u.searchParams.get("query") || "";
+      if (q) return "https://html.duckduckgo.com/html/?q=" + encodeURIComponent(q);
+      if (host !== "html.duckduckgo.com") return "https://html.duckduckgo.com/html/";
+    }
+  } catch {}
+  return url;
+}
+
 function normalizeUrl(input) {
   let value = String(input || "").trim();
   if (!value) return null;
   // If user pasted a proxy URL, show/use the real site URL
   value = unwrapProxyUrl(value) || value;
-  if (/^https?:\/\//i.test(value)) return value;
+  if (/^https?:\/\//i.test(value)) return rewriteSearchUrl(value);
   if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return value;
-  if (/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(value)) return "https://" + value;
+  if (/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(value)) return rewriteSearchUrl("https://" + value);
   return searchPrefix() + encodeURIComponent(value);
 }
 
@@ -661,34 +675,53 @@ async function createEngineFrame(page, wrapper) {
 async function goFrame(page, url) {
   const frameObj = page.engineFrame;
   if (!frameObj || !url) return;
-  const attempt = async () => {
-    if (typeof frameObj.go === "function") await frameObj.go(url);
-    else if (typeof frameObj.navigate === "function") await frameObj.navigate(url);
+  url = rewriteSearchUrl(url);
+  page.url = url;
+  const attempt = async (target) => {
+    const u = target || url;
+    if (typeof frameObj.go === "function") await frameObj.go(u);
+    else if (typeof frameObj.navigate === "function") await frameObj.navigate(u);
     else {
       const el = frameObj.element || frameObj.frame || frameObj;
-      if (el instanceof HTMLIFrameElement) el.src = SCRAMJET_PREFIX + encodeURIComponent(url);
+      if (el instanceof HTMLIFrameElement) el.src = SCRAMJET_PREFIX + encodeURIComponent(u);
     }
   };
+  const isTransportErr = (msg) =>
+    /MuxTaskEnded|headers is not iterable|Invalid URL|Failed to fetch|network|Wisp|WebSocket|tls handshake|UnexpectedEof|Hyper client|client error \(IO/i.test(msg);
+
   try {
-    await attempt();
+    await attempt(url);
   } catch (e) {
     const msg = String(e && e.message || e);
-    if (/MuxTaskEnded|headers is not iterable|Invalid URL|Failed to fetch|network|Wisp|WebSocket/i.test(msg)) {
-      console.warn("[veil] navigation transport error, reconnecting...", msg);
-      try {
-        // flip transport once if epoxy is flaky
-        if (/headers is not iterable|MuxTaskEnded/i.test(msg) && settings.transport !== "libcurl") {
-          settings.transport = "libcurl";
-        }
-        await reconnectTransport();
-        await attempt();
-      } catch (e2) {
-        console.warn("[veil] retry failed", e2);
-        const status = document.getElementById("engineStatus");
-        if (status) status.textContent = "Connection lost - pick another server";
-      }
-    } else {
+    if (!isTransportErr(msg)) {
       console.warn(e);
+      return;
+    }
+    console.warn("[veil] navigation transport error, reconnecting...", msg);
+    try {
+      // Epoxy TLS handshake failures — switch to Libcurl
+      if (settings.transport !== "libcurl") {
+        settings.transport = "libcurl";
+        try { save(); } catch (_) {}
+      }
+      await reconnectTransport();
+      await attempt(url);
+    } catch (e2) {
+      console.warn("[veil] retry failed", e2);
+      // Last resort: try lite DDG if this was a DuckDuckGo URL
+      try {
+        const u = new URL(url);
+        if (/duckduckgo\.com$/i.test(u.hostname.replace(/^www\./, ""))) {
+          const q = u.searchParams.get("q") || "";
+          const lite = "https://lite.duckduckgo.com/lite/" + (q ? "?q=" + encodeURIComponent(q) : "");
+          await attempt(lite);
+          page.url = lite;
+          try { renderToolbar(); } catch (_) {}
+          return;
+        }
+      } catch (_) {}
+      const status = document.getElementById("engineStatus");
+      if (status) status.textContent = "Connection lost - try Libcurl or another proxy server";
     }
   }
 }
