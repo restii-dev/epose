@@ -1,0 +1,252 @@
+<!DOCTYPE html><html lang="en"><head>
+    <meta charset="UTF-8">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Granule</title>
+    <style>html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: #0a0a0a;
+        overflow: hidden;
+        cursor: url("dot.png") 4 0, default;
+      }
+      #app {
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh; 
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
+        
+        box-sizing: border-box;
+        padding: 0;
+        gap: 0;
+      }
+      
+      #app > .col-side {
+        flex: 0 0 auto;
+        max-height: 100vh;
+        max-height: 100dvh;
+        overflow: auto;
+        display: flex;
+        align-items: stretch;
+      }
+      #app > .col-side.col-right { justify-content: flex-end; }
+      
+      #app > .col-center {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      #app > .col-center > .canvas-host {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      canvas {
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+      }
+      
+      .canvas-host canvas { touch-action: none; }
+      html, body { overscroll-behavior: none; }
+
+      
+      body.touch-mode #app > .col-side.col-left { display: none; }
+      body.touch-mode.dock-open #app > .col-side.col-left { display: flex; -webkit-overflow-scrolling: touch; }
+      body.touch-mode #app > .col-side.col-right { display: none; }
+      
+      body.touch-mode #app { padding-right: 124px; box-sizing: border-box; }
+      
+      body.touch-mode .granule-dock canvas { touch-action: pan-y; }
+      body.touch-mode .granule-dock > div { -webkit-overflow-scrolling: touch; }
+
+      
+      #granule-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        background: #0a0a0a;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 30px;
+        transition: opacity 0.55s ease;
+        pointer-events: none;
+        user-select: none;
+      }
+      
+      #granule-loader .gl-word {
+        width: min(66vw, 560px);
+        height: auto;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+      }
+      
+      #granule-loader .gl-bar {
+        width: min(260px, 58vw);
+        height: 12px;
+        box-sizing: border-box;
+        border: 1px solid #35302a;
+        background: #131110;
+        padding: 2px;
+      }
+      #granule-loader .gl-fill {
+        height: 100%;
+        width: 0%;
+        background: #8b929c; 
+        transition: none;
+      }
+      #granule-loader .gl-status {
+        font-family: ui-monospace, Consolas, monospace; 
+        font-size: 12px;
+        color: #6f665c;
+        min-height: 1em;
+      }</style>
+  <style id="granule-controls-style">
+      .granule-controls {
+        position: static; z-index: 10;
+        width: 100%; box-sizing: border-box; /* fill the fixed-width dock (js/drawer.js sets it) */
+        background: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAANklEQVR4ATSKMQ4AIAwCCZs66WJinPz/99SxFpOyHJDjmMtq6xbkPRspF4jwMIboG99QkaHzAQAA//+C5tOmAAAABklEQVQDAM1kFAvE5zCUAAAAAElFTkSuQmCC") repeat; image-rendering: pixelated;
+        color: #eef1f7;
+        font: 11px/1.4 ui-monospace, Menlo, Consolas, monospace;
+        padding: 6px 8px; border: 1px solid rgb(88,93,104);
+        user-select: none;
+      }
+      .granule-controls * { image-rendering: auto; } /* the tile dithers; the CONTROLS stay crisp */
+      body.touch-mode .granule-ctrl-btn { display: none; } /* no keyboard to rebind on a phone */
+      .granule-sec-head {
+        display: block; width: 100%; box-sizing: border-box; text-align: left; cursor: pointer;
+        margin: 5px 0 0; padding: 4px 6px;
+        background: linear-gradient(rgb(37,39,48), rgb(20,21,26)); color: #9aa0ad;
+        border: 1px solid rgb(60,64,74); clip-path: polygon(3px 0, calc(100% - 3px) 0, 100% 3px, 100% calc(100% - 3px), calc(100% - 3px) 100%, 3px 100%, 0 calc(100% - 3px), 0 3px);
+        font: 10px/1.2 ui-monospace, Consolas, monospace; letter-spacing: 2px;
+      }
+      .granule-sec-head:hover { color: #ffffff; background: linear-gradient(rgb(46,48,58), rgb(24,25,31)); }
+      .granule-sec-head.open {
+        color: #ffe6c4;
+        background: linear-gradient(rgb(46,42,36), rgb(30,26,22));
+        border-bottom-color: rgb(240,158,80);
+      }
+      .granule-sec-body { padding: 3px 2px 5px; }
+      /* Middle (slider) column flexes so rows fill whatever width the dock is set to. */
+      .granule-row { display: grid; grid-template-columns: 64px minmax(60px, 1fr) 34px; align-items: center; gap: 8px; margin: 3px 0; }
+      .granule-row.has-reset { grid-template-columns: 64px minmax(60px, 1fr) 34px 14px; }
+      .granule-btnrow.has-reset { grid-template-columns: 64px auto 14px; }
+      .granule-reset {
+        width: 14px; height: 14px; padding: 0; line-height: 12px; text-align: center;
+        background: transparent; border: none; cursor: pointer; color: #9aa0ad;
+        font-size: 12px; opacity: 0.35; transition: opacity 0.1s, color 0.1s;
+      }
+      .granule-reset:hover { opacity: 1; color: #ffe6c4; }
+      .granule-toggle-row { display: flex; gap: 4px; align-items: stretch; }
+      .granule-toggle-row .granule-toggle { flex: 1; }
+      /* Control labels never wrap. The label column is a fixed grid track, so a name that outgrows it
+         used to run onto a second line and shove the row taller ("Body ambient" was the first). nowrap
+         makes that impossible; fitLabels() then picks ONE font size that fits the LONGEST label in the
+         panel, so every row still shares a size — per-label shrinking reads as jittery and was already
+         rejected once on the radial wheel. */
+      .granule-label {
+        opacity: 0.85; white-space: nowrap; font-size: var(--granule-label-px, 11px);
+        overflow: hidden; /* backstop only: fitLabels should mean nothing ever reaches this */
+      }
+      .granule-val { text-align: right; opacity: 0.7; color: #ffe6c4; }
+      .granule-controls input[type=range] {
+        width: 100%; height: 14px; -webkit-appearance: none; appearance: none;
+        background: transparent; cursor: pointer;
+      }
+      .granule-controls input[type=range]::-webkit-slider-runnable-track {
+        height: 4px; background: rgb(9,10,13); border: 1px solid rgb(60,64,74);
+      }
+      .granule-controls input[type=range]::-webkit-slider-thumb {
+        -webkit-appearance: none; appearance: none; width: 9px; height: 12px; margin-top: -5px;
+        background: linear-gradient(rgb(255,205,140), rgb(190,130,70));
+        border: 1px solid rgb(112,74,40); border-radius: 1px;
+      }
+      .granule-controls input[type=range]:hover::-webkit-slider-thumb {
+        background: linear-gradient(rgb(255,230,196), rgb(240,158,80));
+      }
+      /* Hue dial (SETTINGS → LASER): the track IS the choice, so it carries the spectrum. Stops are
+         every 60° so the gradient's midpoints land on the true secondaries. */
+      .granule-controls input.granule-hue[type=range]::-webkit-slider-runnable-track {
+        height: 6px; border: 1px solid rgb(60,64,74);
+        background: linear-gradient(to right,
+          #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+      }
+      .granule-controls input.granule-hue[type=range]::-webkit-slider-thumb {
+        margin-top: -4px; background: linear-gradient(rgb(255,255,255), rgb(190,190,196));
+        border-color: rgb(20,21,26);
+      }
+      /* Readout swatch: the hue slider shows the colour, not the number — 214° means nothing. */
+      .granule-val.granule-swatch { display: block; height: 11px; border: 1px solid rgb(60,64,74); }
+      .granule-btnrow { grid-template-columns: 64px auto; }
+      .granule-color-row { grid-template-columns: 64px minmax(60px, 1fr) 14px; }
+      .granule-color-wrap { display: flex; align-items: center; gap: 6px; }
+      .granule-blood-wheel {
+        width: 48px; height: 48px; display: block; border: 1px solid rgb(60,64,74);
+        border-radius: 50%; background: rgba(10,11,14,0.8); cursor: crosshair;
+        image-rendering: auto; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+      }
+      .granule-color-swatch {
+        display: block; width: 16px; height: 16px; border: 1px solid rgb(60,64,74);
+        border-radius: 2px; background: rgb(255,0,0); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16);
+      }
+      .granule-btns { display: flex; gap: 4px; }
+      .granule-btn { flex: 1; background: rgba(255,255,255,0.06); color: #ccc; border: 1px solid rgb(60,64,74);
+        clip-path: polygon(2px 0, calc(100% - 2px) 0, 100% 2px, 100% calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 0 calc(100% - 2px), 0 2px);
+        font: 10px ui-monospace, Consolas, monospace; padding: 2px 0; cursor: pointer; }
+      .granule-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+      .granule-btn.on { background: linear-gradient(rgb(112,74,40), rgb(84,58,34)); color: #ffe6c4; border-color: rgb(240,158,80); }
+      .granule-toggle { display: block; width: 100%; box-sizing: border-box; margin: 4px 0 2px;
+        background: rgba(255,255,255,0.06); color: #ccc; border: 1px solid rgb(60,64,74);
+        clip-path: polygon(2px 0, calc(100% - 2px) 0, 100% 2px, 100% calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 0 calc(100% - 2px), 0 2px);
+        font: 10px ui-monospace, Consolas, monospace; letter-spacing: 1px; padding: 4px 0; cursor: pointer; }
+      .granule-toggle:hover { background: rgba(255,255,255,0.12); color: #fff; }
+      .granule-toggle.on { background: linear-gradient(rgb(112,74,40), rgb(84,58,34)); color: #ffe6c4; border-color: rgb(240,158,80); }
+      .granule-divider { margin: 7px 0 3px; padding-top: 5px; border-top: 1px solid rgb(60,64,74);
+        opacity: 0.7; letter-spacing: 2px; font-size: 9px; color: #ffe6c4; }
+      .granule-hint { margin-top: 5px; opacity: 0.5; font-size: 10px; }
+      .granule-legend { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 5px; max-width: 100%; }
+      .granule-legend-chip { display: inline-flex; align-items: center; gap: 4px; opacity: 0.8; }
+      .granule-key { background: rgba(255,255,255,0.07); border: 1px solid rgb(60,64,74);
+        border-bottom-color: rgb(112,74,40); border-radius: 2px; padding: 1px 4px; min-width: 8px; text-align: center;
+        font: 9px/1.3 ui-monospace, Consolas, monospace; color: #ffe6c4; }
+      .granule-legend-act { font-size: 10px; opacity: 0.7; }
+    </style><style>
+      #app.clip > .col-left {
+        position: absolute; top: 8px; left: 8px; z-index: 20;
+        max-height: calc(100vh - 16px); overflow: auto;
+      }
+      #app.clip > .col-center > .hotbar-host { display: none; }
+    </style><link rel="preload" href="granule-wordmark.png" crossorigin="">
+<link rel="preload" href="dot.png" crossorigin=""></head>
+  <body>
+    
+    
+    <script>(function(){window['Granule']=window['Granule']||{};var a=document['getElementById']('gl-fill');var b=document['getElementById']('gl-status');var c=document['getElementById']('granule-loader');window['Granule']['loadProgress']=function(d,e){if(a)a['style']['width']=Math['max'](0x0,Math['min'](0x64,d))+'%';if(e!=null&&b)b['textContent']=e;};window['Granule']['loadDone']=function(){if(!c||c['__done'])return;c['__done']=!![];if(a)a['style']['width']='100%';c['style']['opacity']='0';setTimeout(function(){if(c['parentNode'])c['parentNode']['removeChild'](c);},0x28a);};}());</script>
+
+    <div id="app"><div class="col-side col-left"><div class="granule-dock" style="position: relative; z-index: 1; display: flex; flex-direction: column; margin: 0px; height: 100%; min-height: 0px; flex: 1 1 auto; box-shadow: rgb(60, 64, 74) 1px 0px 0px; width: 258px;"><div style="position: relative; flex: 0 0 auto; line-height: 0;"><canvas width="86" height="26" style="image-rendering: pixelated; cursor: pointer; display: inline-block; width: 258px; height: 78px;"></canvas><canvas width="172" height="52" style="position: absolute; left: 0px; top: 0px; pointer-events: none; image-rendering: pixelated; width: 258px; height: 78px;"></canvas></div><div style="position: relative; flex: 1 1 auto; overflow: hidden auto; line-height: 0;"><canvas id="granule-dock-grid" width="86" height="153" style="image-rendering: pixelated; display: inline-block; width: 258px; height: 459px;"></canvas><canvas width="86" height="123" style="image-rendering: pixelated; display: block; width: 258px; height: 369px;"></canvas><canvas width="172" height="306" style="position: absolute; left: 0px; top: 0px; pointer-events: none; image-rendering: pixelated; width: 258px; height: 459px;"></canvas><canvas width="258" height="828" style="position: absolute; left: 0px; top: 0px; pointer-events: none; width: 258px; height: 828px;"></canvas></div><div style="flex: 1 1 auto; overflow: hidden auto; display: none;"><div class="granule-controls"><div class="granule-toggle-row"><button type="button" class="granule-toggle">FPS Meter  ○</button><button type="button" class="granule-reset" title="Reset to default">↺</button></div><button type="button" class="granule-sec-head">▸ TIME</button><div class="granule-sec-body" style="display: none;"><label class="granule-row has-reset"><span class="granule-label">Speed</span><input type="range" min="0.1" max="3" step="0.05"><span class="granule-val">1.00</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><div class="granule-hint">Space to pause; ',' to slow; '.' to speed up </div></div><button type="button" class="granule-sec-head open">▾ QUALITY</button><div class="granule-sec-body"><label class="granule-row has-reset"><span class="granule-label">Resolution</span><input type="range" min="13" max="200" step="1"><span class="granule-val">80%</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Bands</span><input type="range" min="2" max="64" step="1"><span class="granule-val">30</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Body bands</span><input type="range" min="2" max="64" step="1"><span class="granule-val">30</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label></div><button type="button" class="granule-sec-head">▸ INTERFACE</button><div class="granule-sec-body" style="display: none;"><label class="granule-row has-reset"><span class="granule-label">Dock width</span><input type="range" min="140" max="440" step="2"><span class="granule-val">258</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Icon size</span><input type="range" min="0.6" max="2" step="0.05"><span class="granule-val">1.00</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Doll</span><input type="range" min="0.5" max="1.05" step="0.05"><span class="granule-val">1.00</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label></div><button type="button" class="granule-sec-head">▸ LIGHTING</button><div class="granule-sec-body" style="display: none;"><div class="granule-row granule-btnrow has-reset"><span class="granule-label">Lighting</span><span class="granule-btns"><button type="button" class="granule-btn on">Mix</button><button type="button" class="granule-btn">Even</button><button type="button" class="granule-btn">Single</button></span><button type="button" class="granule-reset" title="Reset to default">↺</button></div><div class="granule-row granule-btnrow has-reset"><span class="granule-label">Dyn shadow</span><span class="granule-btns"><button type="button" class="granule-btn">Low</button><button type="button" class="granule-btn on">Medium</button><button type="button" class="granule-btn">High</button></span><button type="button" class="granule-reset" title="Reset to default">↺</button></div><label class="granule-row has-reset"><span class="granule-label">Light</span><input type="range" min="0.2" max="2" step="0.05"><span class="granule-val">0.50</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Ambient</span><input type="range" min="0" max="1" step="0.01"><span class="granule-val">0.60</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Body ambient</span><input type="range" min="0" max="1" step="0.01"><span class="granule-val">0.60</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Body light</span><input type="range" min="0" max="24" step="0.5"><span class="granule-val">10.00</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Warmth</span><input type="range" min="-0.5" max="0.5" step="0.02"><span class="granule-val">0.10</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Haze</span><input type="range" min="0" max="0.5" step="0.01"><span class="granule-val">0.50</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Shaft H</span><input type="range" min="40" max="260" step="5"><span class="granule-val">185</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Shaft W</span><input type="range" min="0.1" max="0.9" step="0.02"><span class="granule-val">0.32</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label></div><button type="button" class="granule-sec-head">▸ BLOOD</button><div class="granule-sec-body" style="display: none;"><label class="granule-row has-reset"><span class="granule-label">Blood</span><input type="range" min="0.5" max="3" step="0.05"><span class="granule-val">1.40</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Spurt</span><input type="range" min="0" max="6" step="0.1"><span class="granule-val">2.20</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Smear</span><input type="range" min="0" max="2.5" step="0.05"><span class="granule-val">1.40</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Stream</span><input type="range" min="0" max="2.5" step="0.05"><span class="granule-val">0.00</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Pool</span><input type="range" min="0" max="1" step="0.05"><span class="granule-val">0.60</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Stain</span><input type="range" min="0" max="1" step="0.05"><span class="granule-val">0.90</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><div class="granule-color-sliders" style="margin-top: 4px;"><div class="granule-row has-reset"><span class="granule-label">Color</span><div style="flex: 1 1 0%; margin: 0px 10px; display: flex; align-items: center;"><div style="width: 100%; height: 14px; border-radius: 2px; box-shadow: rgba(255, 255, 255, 0.2) 0px 0px 0px 1px inset; background: rgb(82, 4, 4);"></div></div><button type="button" class="granule-reset" title="Reset to default">↺</button></div><div class="granule-row"><span class="granule-label">Hue</span><input type="range" min="0" max="1" step="0.01"><span style="min-width: 40px; text-align: right; font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: rgb(240, 196, 120);">0°</span></div><div class="granule-row"><span class="granule-label">Saturation</span><input type="range" min="0" max="1" step="0.01"><span style="min-width: 40px; text-align: right; font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: rgb(240, 196, 120);">95%</span></div><div class="granule-row"><span class="granule-label">Brightness</span><input type="range" min="0" max="1" step="0.01"><span style="min-width: 40px; text-align: right; font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: rgb(240, 196, 120);">32%</span></div></div><div class="granule-row granule-btnrow"><span class="granule-label">Stains</span><span class="granule-btns"><button type="button" class="granule-btn">Clear</button></span></div></div><button type="button" class="granule-sec-head">▸ FREEZE</button><div class="granule-sec-body" style="display: none;"><label class="granule-row has-reset"><span class="granule-label">Thaw rate</span><input type="range" min="0.02" max="0.6" step="0.02"><span class="granule-val">0.10</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><div class="granule-row granule-btnrow has-reset"><span class="granule-label">Permafrost</span><span class="granule-btns"><button type="button" class="granule-btn on">Off</button><button type="button" class="granule-btn">On</button></span><button type="button" class="granule-reset" title="Reset to default">↺</button></div><label class="granule-row has-reset"><span class="granule-label">Fog time</span><input type="range" min="2" max="30" step="1"><span class="granule-val">5s</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Fog chill</span><input type="range" min="2" max="30" step="1"><span class="granule-val">5s</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Shatter at</span><input type="range" min="0.8" max="8" step="0.2"><span class="granule-val">2.60</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Shards</span><input type="range" min="3" max="30" step="1"><span class="granule-val">13</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Shard life</span><input type="range" min="1" max="20" step="1"><span class="granule-val">6s</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label></div><button type="button" class="granule-sec-head">▸ EXPLOSIVE</button><div class="granule-sec-body" style="display: none;"><div class="granule-row granule-btnrow has-reset"><span class="granule-label">Sever</span><span class="granule-btns"><button type="button" class="granule-btn on">On</button><button type="button" class="granule-btn">Off</button></span><button type="button" class="granule-reset" title="Reset to default">↺</button></div><label class="granule-row has-reset"><span class="granule-label">Grenades</span><input type="range" min="1" max="20" step="1"><span class="granule-val">8</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><div class="granule-row granule-btnrow"><span class="granule-label">Rain</span><span class="granule-btns"><button type="button" class="granule-btn">Drop</button></span></div></div><button type="button" class="granule-sec-head">▸ ROPE</button><div class="granule-sec-body" style="display: none;"><label class="granule-row has-reset"><span class="granule-label">Fire spread</span><input type="range" min="0.5" max="8" step="0.25"><span class="granule-val">2.50</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><div class="granule-hint">how fast fire crawls along the rope (nodes/s)</div><div class="granule-toggle-row"><button type="button" class="granule-toggle">Burn through  ○</button><button type="button" class="granule-reset" title="Reset to default">↺</button></div><label class="granule-row has-reset"><span class="granule-label">Burn rate</span><input type="range" min="0.1" max="2" step="0.05"><span class="granule-val">0.40</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><div class="granule-hint">seconds per node to burn through (lower = faster sever)</div></div><button type="button" class="granule-sec-head">▸ HEALING</button><div class="granule-sec-body" style="display: none;"><label class="granule-row has-reset"><span class="granule-label">Mend rate</span><input type="range" min="0.25" max="1.75" step="0.05"><span class="granule-val">1.00</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Recovery</span><input type="range" min="0" max="3" step="0.05"><span class="granule-val">1.00</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><div class="granule-hint">how fast he heals (physically and visually)</div><div class="granule-toggle-row"><button type="button" class="granule-toggle">No Self-Recovery  ○</button><button type="button" class="granule-reset" title="Reset to default">↺</button></div><div class="granule-hint">he heals only through Mend, defib &amp; blood draw</div><div class="granule-row granule-btnrow has-reset"><span class="granule-label">Zombie</span><span class="granule-btns"><button type="button" class="granule-btn on">Off</button><button type="button" class="granule-btn">On</button></span><button type="button" class="granule-reset" title="Reset to default">↺</button></div><div class="granule-hint">keeps scars forever (visually)</div></div><button type="button" class="granule-sec-head">▸ SKIN</button><div class="granule-sec-body" style="display: none;"><div class="granule-row granule-btnrow"><span class="granule-label">Import</span><span class="granule-btns"><button type="button" class="granule-btn">.murr</button><input type="file" accept=".murr,.json" style="display: none;"></span></div><div class="granule-row granule-btnrow"><span class="granule-label">Skin</span><span class="granule-btns"><button type="button" class="granule-btn">Clear</button></span></div></div><button type="button" class="granule-sec-head">▸ ROOM</button><div class="granule-sec-body" style="display: none;"><label class="granule-row has-reset"><span class="granule-label">Width</span><input type="range" min="96" max="294" step="2"><span class="granule-val">294</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Ceiling</span><input type="range" min="60" max="190" step="2"><span class="granule-val">176</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Floor</span><input type="range" min="0" max="170" step="2"><span class="granule-val">170</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Chunks</span><input type="range" min="0" max="200" step="1"><span class="granule-val">24</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Launch speed</span><input type="range" min="20" max="400" step="5"><span class="granule-val">170</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label></div><button type="button" class="granule-sec-head">▸ SOUND</button><div class="granule-sec-body" style="display: none;"><label class="granule-row has-reset"><span class="granule-label">Master</span><input type="range" min="0" max="1" step="0.01"><span class="granule-val">0.85</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">SFX</span><input type="range" min="0" max="1" step="0.01"><span class="granule-val">0.90</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Music</span><input type="range" min="0" max="1" step="0.01"><span class="granule-val">1.00</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Fire</span><input type="range" min="0" max="1" step="0.01"><span class="granule-val">1.00</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Mend</span><input type="range" min="0" max="1" step="0.01"><span class="granule-val">1.00</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Zap</span><input type="range" min="0" max="1" step="0.01"><span class="granule-val">1.00</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Saw</span><input type="range" min="0" max="1" step="0.01"><span class="granule-val">1.00</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Laser</span><input type="range" min="0" max="1" step="0.01"><span class="granule-val">1.00</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><label class="granule-row has-reset"><span class="granule-label">Gore</span><input type="range" min="0" max="1" step="0.01"><span class="granule-val">1.00</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><div class="granule-row granule-btnrow has-reset"><span class="granule-label">Echo</span><span class="granule-btns"><button type="button" class="granule-btn">Off</button><button type="button" class="granule-btn on">On</button></span><button type="button" class="granule-reset" title="Reset to default">↺</button></div></div><button type="button" class="granule-sec-head">▸ CAPTURE</button><div class="granule-sec-body" style="display: none;"><label class="granule-row has-reset"><span class="granule-label">Length</span><input type="range" min="4" max="30" step="1"><span class="granule-val">10</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><div class="granule-toggle-row"><button type="button" class="granule-toggle">Instant Replay  ○</button><button type="button" class="granule-reset" title="Reset to default">↺</button></div><div class="granule-legend"><span class="granule-legend-chip"><kbd class="granule-key">Alt+R</kbd><span class="granule-legend-act">save replay</span></span><span class="granule-legend-chip"><kbd class="granule-key">P</kbd><span class="granule-legend-act">screenshot</span></span></div></div><div style="display: none;"><div class="granule-divider">CLIP MODE</div><div class="granule-row granule-btnrow has-reset"><span class="granule-label">Orient</span><span class="granule-btns"><button type="button" class="granule-btn on">Land</button><button type="button" class="granule-btn">Vert</button></span><button type="button" class="granule-reset" title="Reset to default">↺</button></div><div class="granule-row granule-btnrow has-reset"><span class="granule-label">Camera</span><span class="granule-btns"><button type="button" class="granule-btn">Static</button><button type="button" class="granule-btn on">Follow</button></span><button type="button" class="granule-reset" title="Reset to default">↺</button></div><label class="granule-row has-reset"><span class="granule-label">Zoom</span><input type="range" min="1" max="3" step="0.1"><span class="granule-val">1.00</span><button type="button" class="granule-reset" title="Reset to default">↺</button></label><div class="granule-hint">C = exit clip mode</div></div><button type="button" class="granule-sec-head granule-ctrl-btn">⌨  CONTROLS</button></div></div></div></div><div class="col-center"><div class="canvas-host" style="position: relative;"><canvas width="245" height="173" style="width: 1022px; height: 720px;"></canvas><div style="position: absolute; inset: 0px; background: rgb(0, 0, 0); opacity: 0; pointer-events: none; z-index: 20; transition: opacity 240ms ease-in;"></div></div></div><div class="col-side col-right"></div></div>
+
+    
+
+    
+    <script>window['GRANULE_FILL_VIEW']=!![];window['module']={'exports':{}};window['exports']=window['module']['exports'];</script>
+    <script src="lib/rapier.js"></script>
+    <script>window['RAPIER']=window['exports'];window['addEventListener']('error',function(a){if(/ResizeObserver loop/['test'](a['message']||''))return;var b=document['getElementById']('granule-error');if(!b){b=document['createElement']('div');b['id']='granule-error';b['style']['cssText']='position:fixed;left:0;right:0;bottom:0;z-index:99;background:#a00;'+'color:#fff;font:12px/1.4\x20monospace;padding:8px;white-space:pre-wrap;';document['body']['appendChild'](b);}b['textContent']='JS\x20ERROR:\x20'+(a['message']||a['error'])+'\x0a'+(a['error']&&a['error']['stack']||'');});</script>
+
+    
+    <script>window['Granule']=window['Granule']||{};if(location.hash)try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}</script>
+    <script src="js/audioAssets.js"></script>
+    <script src="js/logoAsset.js"></script>
+    <script src="js/bundle.js"></script><div id="granule-channel-badge" style="position: fixed; right: 8px; bottom: 6px; z-index: 25; pointer-events: none; user-select: none; color: rgba(255, 255, 255, 0.38); font: 11px / 1 Consolas, monospace; letter-spacing: 1px;">PLAYTEST 0.1.10</div><script src="js/musicAsset_t=1789268384164.js"></script>
+  
+
+<div style="position: fixed; z-index: 17; pointer-events: none; font: 11px / 1 ui-monospace, Menlo, Consolas, monospace; color: rgb(125, 255, 154); background: rgba(0, 0, 0, 0.5); padding: 2px 5px; border-radius: 3px; text-shadow: rgb(0, 0, 0) 0px 1px 2px; letter-spacing: 0.5px; display: none;">-- fps</div><div style="position: fixed; z-index: 40; display: none; pointer-events: none; padding: 5px; background: linear-gradient(rgb(30, 32, 40), rgb(9, 10, 13)); border: 1px solid rgb(88, 93, 104); border-radius: 3px; line-height: 0; box-shadow: rgba(0, 0, 0, 0.5) 0px 2px 10px;"><canvas style="display: block;"></canvas></div><canvas style="position: fixed; z-index: 15; pointer-events: none; image-rendering: auto; display: none;"></canvas><canvas width="120" height="296" style="position: fixed; z-index: 18; display: block; image-rendering: pixelated; touch-action: none; cursor: default; background: rgba(0, 0, 0, 0.2); border-radius: 18px; width: 115.09px; height: 283.889px; left: 1118.15px; top: 93.5163px;"></canvas><canvas width="122" height="122" style="position: fixed; z-index: 16; pointer-events: none; display: none; image-rendering: pixelated; opacity: 0.96;"></canvas><canvas style="position: fixed; z-index: 17; pointer-events: none; display: none;"></canvas><canvas id="granule-equip-box" width="42" height="16" style="position: fixed; z-index: 15; display: block; image-rendering: pixelated; cursor: pointer; opacity: 0.96; width: 126px; height: 48px; left: 266px; top: 670px;"></canvas><canvas width="84" height="32" style="position: fixed; z-index: 16; display: block; pointer-events: none; image-rendering: pixelated; width: 126px; height: 48px; left: 266px; top: 670px;"></canvas><canvas id="granule-reset-plate" width="13" height="13" style="position: fixed; z-index: 15; display: block; image-rendering: pixelated; cursor: pointer; opacity: 0.96; touch-action: none; user-select: none; width: 39px; height: 39px; left: 629px; top: 679px;"></canvas><canvas width="26" height="26" style="position: fixed; z-index: 16; display: block; pointer-events: none; image-rendering: pixelated; width: 39px; height: 39px; left: 629px; top: 679px;"></canvas><div style="position: fixed; left: 0px; top: 0px; z-index: 60; display: none; pointer-events: none;"><div style="position: absolute; height: 1px; background: rgba(240, 158, 80, 0.5);"></div><div style="position: absolute; width: 1px; background: rgba(240, 158, 80, 0.5);"></div><div style="position: absolute; width: 1px; background: rgba(240, 158, 80, 0.95);"></div><div style="position: absolute; font: 9px / 1 ui-monospace, Consolas, monospace; color: rgb(255, 230, 196); opacity: 0.9; letter-spacing: 0.5px; white-space: nowrap; text-shadow: rgba(0, 0, 0, 0.85) 0px 1px 2px;"></div></div><canvas id="granule-time-pause" width="13" height="13" style="position: fixed; z-index: 15; display: block; image-rendering: pixelated; cursor: pointer; opacity: 0.96; touch-action: none; user-select: none; width: 39px; height: 39px; left: 401px; top: 679px;"></canvas><canvas id="granule-time-pause-tx" width="26" height="26" style="position: fixed; z-index: 16; display: block; pointer-events: none; image-rendering: pixelated; width: 39px; height: 39px; left: 401px; top: 679px;"></canvas><canvas id="granule-time-slower" width="13" height="13" style="position: fixed; z-index: 15; display: block; image-rendering: pixelated; cursor: pointer; opacity: 0.96; touch-action: none; user-select: none; width: 39px; height: 39px; left: 449px; top: 679px;"></canvas><canvas id="granule-time-slower-tx" width="26" height="26" style="position: fixed; z-index: 16; display: block; pointer-events: none; image-rendering: pixelated; width: 39px; height: 39px; left: 449px; top: 679px;"></canvas><canvas id="granule-time-scale" width="25" height="13" style="position: fixed; z-index: 15; display: block; image-rendering: pixelated; cursor: pointer; opacity: 0.96; touch-action: none; user-select: none; width: 75px; height: 39px; left: 497px; top: 679px;"></canvas><canvas id="granule-time-scale-tx" width="50" height="26" style="position: fixed; z-index: 16; display: block; pointer-events: none; image-rendering: pixelated; width: 75px; height: 39px; left: 497px; top: 679px;"></canvas><canvas id="granule-time-faster" width="13" height="13" style="position: fixed; z-index: 15; display: block; image-rendering: pixelated; cursor: pointer; opacity: 0.96; touch-action: none; user-select: none; width: 39px; height: 39px; left: 581px; top: 679px;"></canvas><canvas id="granule-time-faster-tx" width="26" height="26" style="position: fixed; z-index: 16; display: block; pointer-events: none; image-rendering: pixelated; width: 39px; height: 39px; left: 581px; top: 679px;"></canvas><div style="position: fixed; inset: 0px; z-index: 40; background: rgba(6, 7, 11, 0.72); display: none;"></div><canvas style="position: fixed; z-index: 41; image-rendering: pixelated; display: none; left: 50%; top: 50%; transform: translate(-50%, -50%); box-shadow: rgba(0, 0, 0, 0.5) 0px 8px 40px;"></canvas><canvas style="position: fixed; z-index: 42; display: none; left: 50%; top: 50%; transform: translate(-50%, -50%);"></canvas><textarea readonly="" style="position: fixed; left: 10px; bottom: 10px; z-index: 30; width: 60vw; height: 38vh; display: none; background: rgb(11, 11, 11); color: rgb(153, 255, 153); font: 10px / 1.3 ui-monospace, Consolas, monospace; border: 1px solid rgb(34, 170, 34); border-radius: 4px; padding: 6px; white-space: pre;"></textarea><video playsinline="" autoplay="" style="position: fixed; left: -99999px; top: 0px; width: 2px; height: 2px; opacity: 0; pointer-events: none;"></video><div style="position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 60; pointer-events: none; background: linear-gradient(rgb(37, 39, 48), rgb(20, 21, 26)); color: rgb(255, 230, 196); border: 1px solid rgb(240, 158, 80); padding: 6px 14px; letter-spacing: 2px; opacity: 0; transition: opacity 0.25s; font: 11px / 1 ui-monospace, Consolas, monospace; clip-path: polygon(3px 0px, calc(100% - 3px) 0px, 100% 3px, 100% calc(100% - 3px), calc(100% - 3px) 100%, 3px 100%, 0px calc(100% - 3px), 0px 3px);"></div><textarea readonly="" style="position: fixed; right: 10px; bottom: 10px; z-index: 31; width: 46vw; height: 80vh; display: none; background: rgb(11, 11, 11); color: rgb(153, 204, 255); font: 10px / 1.3 ui-monospace, Consolas, monospace; border: 1px solid rgb(51, 102, 204); border-radius: 4px; padding: 6px; white-space: pre; overflow: auto;"></textarea><textarea readonly="" style="position: fixed; left: 10px; bottom: 10px; z-index: 31; width: 46vw; height: 80vh; display: none; background: rgb(11, 11, 11); color: rgb(119, 255, 221); font: 10px / 1.3 ui-monospace, Consolas, monospace; border: 1px solid rgb(34, 170, 136); border-radius: 4px; padding: 6px; white-space: pre; overflow: auto;"></textarea><div style="position: fixed; left: 10px; top: 10px; z-index: 32; display: none; background: rgb(68, 0, 0); color: rgb(255, 102, 102); font: bold 12px ui-monospace, Consolas, monospace; padding: 3px 8px; border: 1px solid rgb(255, 51, 51); border-radius: 4px;">● REC stab</div></body></html>
