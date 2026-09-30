@@ -27,7 +27,8 @@ const SW_URL = BASE + "/sw.js";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {
-  duckduckgo: { id: "duckduckgo", name: "DuckDuckGo", prefix: "https://duckduckgo.com/?q=" },
+  // HTML endpoint — full SPA often blanks through the proxy
+  duckduckgo: { id: "duckduckgo", name: "DuckDuckGo", prefix: "https://html.duckduckgo.com/html/?q=" },
   google: { id: "google", name: "Google", prefix: "https://www.google.com/search?q=" },
   bing: { id: "bing", name: "Bing", prefix: "https://www.bing.com/search?pglt=299&q=" },
   brave: { id: "brave", name: "Brave", prefix: "https://search.brave.com/search?q=" }
@@ -2806,19 +2807,13 @@ function forceHomeTab() {
     home.isGames = false;
   }
 
-  // Exactly one home + real pages + admin + games
+  // Exactly one home + real pages + admin (do not keep Games across refresh)
   tabs = [home]
     .concat(withUrl.filter((t) => t.id !== home.id))
-    .concat(adminTabs.filter((t) => t.id !== home.id))
-    .concat(gamesTabs.filter((t) => t.id !== home.id));
-  // Prefer restoring games tab after refresh
-  let restoreGames = false;
-  try { restoreGames = sessionStorage.getItem("veil_active_special") === "games"; } catch (e) {}
-  if (restoreGames && gamesTabs.length) {
-    activeTabId = gamesTabs[0].id;
-  } else {
-    activeTabId = home.id;
-  }
+    .concat(adminTabs.filter((t) => t.id !== home.id));
+  // Always land on home after refresh — never auto-open Games
+  try { sessionStorage.removeItem("veil_active_special"); } catch (e) {}
+  activeTabId = home.id;
   home.lastActive = Date.now();
 
   const viewport = document.getElementById("viewport");
@@ -2856,11 +2851,6 @@ function forceHomeTab() {
       p.style.display = "none";
     }
   });
-  try {
-    if (sessionStorage.getItem("veil_active_special") === "games") {
-      setTimeout(function () { try { openGamesPage(); } catch (e) {} }, 0);
-    }
-  } catch (e) {}
   return home;
 }
 
