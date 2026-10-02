@@ -557,6 +557,135 @@ function openInVeilTab(rawUrl) {
 }
 
 /** Trap target=_blank / window.open so sites stay inside Veil tabs */
+function titleIsJustHost(title, url) {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+    const t = String(title || "").trim().toLowerCase().replace(/^www\./, "");
+    return !!t && t === host;
+  } catch {
+    return false;
+  }
+}
+
+function readFrameTitle(el) {
+  try {
+    return String((el && el.contentDocument && el.contentDocument.title) || "").replace(/\s+/g, " ").trim();
+  } catch {
+    return "";
+  }
+}
+
+function syncStoredTitle(page) {
+  if (!page || !page.url || !page.title || page.title === "Loading") return;
+  let changed = false;
+  const hit = visitHistory.find((x) => x.url === page.url);
+  if (hit && hit.title !== page.title) {
+    hit.title = page.title;
+    changed = true;
+  }
+  const bm = bookmarks.find((b) => b.url === page.url);
+  if (bm && (bm.title === "Loading" || titleIsJustHost(bm.title, page.url) || bm.title === page.url)) {
+    bm.title = page.title;
+    changed = true;
+  }
+  if (changed) save();
+}
+
+function applyRealPageTitle(page, el, allowHost) {
+  const title = readFrameTitle(el);
+  if (!title || title === "Loading") return false;
+  if (!allowHost && titleIsJustHost(title, page.url)) return false;
+  if (page.title === title) return true;
+  page.title = title.slice(0, 180);
+  syncStoredTitle(page);
+  renderTabs();
+  return true;
+}
+
+function watchFrameTitle(page, el) {
+  if (!el || el.__veilTitleWatch) return;
+  el.__veilTitleWatch = true;
+  const pull = () => {
+    if (!el.isConnected) return;
+    const allowHost = !!(page._titleWait && Date.now() - page._titleWait > 6000);
+    applyRealPageTitle(page, el, allowHost);
+  };
+  const arm = () => {
+    try {
+      if (el.__veilTitleObs) {
+        el.__veilTitleObs.disconnect();
+        el.__veilTitleObs = null;
+      }
+    } catch {}
+    pull();
+    try {
+      const doc = el.contentDocument;
+      if (!doc || el.__veilTitleObs) return;
+      const obs = new MutationObserver(pull);
+      if (doc.head) obs.observe(doc.head, { childList: true, subtree: true, characterData: true });
+      const titleEl = doc.querySelector("title");
+      if (titleEl) obs.observe(titleEl, { childList: true, characterData: true, subtree: true });
+      el.__veilTitleObs = obs;
+    } catch {}
+  };
+  el.addEventListener("load", arm);
+  const timer = setInterval(() => {
+    if (!el.isConnected) {
+      clearInterval(timer);
+      return;
+    }
+    pull();
+  }, 700);
+}
+
+function showPageLoader(page) {
+  const wrap = document.querySelector('.page[data-page-id="' + page.id + '"]');
+  if (!wrap) return;
+  let el = wrap.querySelector(":scope > .page-loader");
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "page-loader";
+    el.innerHTML =
+      '<div class="page-loader-card">' +
+      '<div class="page-loader-spin" aria-hidden="true"></div>' +
+      '<div class="page-loader-prompt">Loading</div>' +
+      '<button type="button" class="page-loader-skip">Skip</button>' +
+      "</div>";
+    el.querySelector(".page-loader-skip").addEventListener("click", () => {
+      el.hidden = true;
+    });
+    wrap.appendChild(el);
+  }
+  const gen = (page._loadGen || 0) + 1;
+  page._loadGen = gen;
+  page._titleWait = Date.now();
+  el.dataset.gen = String(gen);
+  el.hidden = false;
+}
+
+function finishPageLoader(page) {
+  const wrap = page && document.querySelector('.page[data-page-id="' + page.id + '"]');
+  if (!wrap) return;
+  const el = wrap.querySelector(":scope > .page-loader");
+  if (!el) return;
+  if (String(page._loadGen || "") !== el.dataset.gen) return;
+  let doc = null;
+  try {
+    const frame = page.engineFrame && (page.engineFrame.element || page.engineFrame.frame || page.engineFrame);
+    doc = frame && frame.contentDocument;
+  } catch {}
+  if (doc && doc.readyState && doc.readyState !== "complete") {
+    if (!doc.__veilReadyWait) {
+      doc.__veilReadyWait = true;
+      doc.addEventListener("readystatechange", () => {
+        if (doc.readyState === "complete") finishPageLoader(page);
+      });
+    }
+    return;
+  }
+  el.hidden = true;
+}
+
 function trapFrameExternalOpens(page, el) {
   if (!el) return;
   const inject = () => {
@@ -608,8 +737,9 @@ function bindFrameEvents(page, frameObj) {
     u = unwrapProxyUrl(u) || u;
     page.url = u;
     page.newTab = false;
-    try { page.title = new URL(u).hostname; } catch {}
     page.favicon = faviconFor(u);
+    applyRealPageTitle(page, el);
+    if (!page.title || titleIsJustHost(page.title, u)) page.title = "Loading";
     if (page.id === activeTabId) {
       renderTabs();
       renderToolbar();
@@ -626,6 +756,17 @@ function bindFrameEvents(page, frameObj) {
       } catch {}
     });
     trapFrameExternalOpens(page, el);
+    watchFrameTitle(page, el);
+    el.addEventListener("load", () => {
+      try {
+        if (el.__veilTitleObs) {
+          el.__veilTitleObs.disconnect();
+          el.__veilTitleObs = null;
+        }
+      } catch {}
+      finishPageLoader(page);
+      applyRealPageTitle(page, el);
+    });
   }
 }
 
@@ -672,6 +813,7 @@ async function createEngineFrame(page, wrapper) {
     await goFrame(page, page.url);
   } catch (e) {
     console.error(e);
+    finishPageLoader(page);
     wrapper.innerHTML = '<div class="engine-error"><div class="engine-error-box"><h2>Could not open this page</h2><p>' + escapeHTML(e.message) + '</p><button data-retry-engine>Retry</button></div></div>';
     const btn = wrapper.querySelector("[data-retry-engine]");
     if (btn) btn.onclick = async () => { await reconnectTransport(); wrapper.innerHTML = ""; await createEngineFrame(page, wrapper); };
@@ -690,6 +832,9 @@ async function goFrame(page, url) {
   if (!frameObj || !url) return;
   url = rewriteSearchUrl(url);
   page.url = url;
+  page.title = "Loading";
+  showPageLoader(page);
+  try { renderTabs(); } catch {}
 
   const attempt = async (target) => {
     const u = target || url;
@@ -719,6 +864,7 @@ async function goFrame(page, url) {
       console.warn("[veil] retry failed", e2);
       const status = document.getElementById("engineStatus");
       if (status) status.textContent = "Connection lost - try another proxy server";
+      finishPageLoader(page);
     }
   }
 }
@@ -1149,7 +1295,7 @@ async function navigate(raw) {
   page.newTab = false;
   page.isAdmin = false;
   page.favicon = faviconFor(value);
-  try { page.title = new URL(value).hostname; } catch { page.title = "Veil"; }
+  page.title = "Loading";
   pushVisitHistory(value, page.title);
   if (!Array.isArray(page.history)) page.history = [];
   if (page.historyIndex < page.history.length - 1) page.history = page.history.slice(0, page.historyIndex + 1);
@@ -1198,6 +1344,7 @@ async function navigate(raw) {
     }
   } catch (err) {
     console.error("navigate failed", err);
+    finishPageLoader(page);
     wrapper.innerHTML = '<div class="engine-error"><div class="engine-error-box"><h2>Could not open this page</h2><p>' + escapeHTML((err && err.message) || String(err)) + '</p><button data-retry-nav type="button">Retry</button></div></div>';
     const btn = wrapper.querySelector("[data-retry-nav]");
     if (btn) btn.onclick = () => navigate(value);
@@ -1209,6 +1356,8 @@ async function navigate(raw) {
 async function goBack() {
   const p = getActiveTab();
   if (!p || p.newTab) return;
+  showPageLoader(p);
+  p.title = "Loading";
   if (p.engineFrame && typeof p.engineFrame.back === "function") {
     try { await p.engineFrame.back(); renderChrome(); return; } catch {}
   }
@@ -1230,6 +1379,8 @@ async function goBack() {
 async function goForward() {
   const p = getActiveTab();
   if (!p || p.newTab) return;
+  showPageLoader(p);
+  p.title = "Loading";
   if (p.engineFrame && typeof p.engineFrame.forward === "function") {
     try { await p.engineFrame.forward(); renderChrome(); return; } catch {}
   }
@@ -1252,6 +1403,9 @@ function reload() {
   const p = getActiveTab();
   if (!p) return;
   if (!p.url) { goHome(); return; }
+  showPageLoader(p);
+  p.title = "Loading";
+  renderTabs();
   if (p.engineFrame && typeof p.engineFrame.reload === "function") p.engineFrame.reload();
   else goFrame(p, p.url);
 }

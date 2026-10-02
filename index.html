@@ -70,6 +70,14 @@ button,input,select{font:inherit}button{border:0;outline:0}button:focus,input:fo
 .page{position:absolute;inset:0;display:none;background:var(--bg)}
 .page.active{display:block}
 .engine-frame{width:100%;height:100%;display:block;border:0;background:#fff}
+.page-loader{position:absolute;inset:0;z-index:6;background:var(--bg);color:var(--text);display:flex;align-items:center;justify-content:center}
+.page-loader[hidden]{display:none!important}
+.page-loader-card{display:flex;flex-direction:column;align-items:center;gap:16px}
+.page-loader-spin{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--text);animation:veilSpin .8s linear infinite}
+@keyframes veilSpin{to{transform:rotate(360deg)}}
+.page-loader-prompt{font-size:18px;font-weight:650;letter-spacing:-.02em}
+.page-loader-skip{height:38px;padding:0 18px;border-radius:999px;background:var(--accent);color:var(--accentText);font-size:13px;font-weight:650;cursor:pointer}
+.page-loader-skip:hover{filter:brightness(1.08)}
 
 .newtab-page{width:100%;height:100%;overflow:hidden;background-color:var(--newtab);background-size:cover;background-position:center;position:relative;display:flex;flex-direction:column}
 .newtab-media{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;border:0}
