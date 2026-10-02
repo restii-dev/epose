@@ -27,8 +27,9 @@ const SW_URL = BASE + "/sw.js";
 const SW_SCOPE = BASE + "/";
 const MAX_TABS = 20;
 const SEARCH_ENGINES = {
-  // HTML endpoint — full SPA often blanks through the proxy
-  duckduckgo: { id: "duckduckgo", name: "DuckDuckGo", prefix: "https://html.duckduckgo.com/html/?q=" },
+  // DuckDuckGo stays in the list, but current Wisp servers fail its TLS handshake.
+  // The prefix (and rewriteSearchUrl) send the same query to Google instead.
+  duckduckgo: { id: "duckduckgo", name: "DuckDuckGo", prefix: "https://www.google.com/search?q=" },
   google: { id: "google", name: "Google", prefix: "https://www.google.com/search?q=" },
   bing: { id: "bing", name: "Bing", prefix: "https://www.bing.com/search?pglt=299&q=" },
   brave: { id: "brave", name: "Brave", prefix: "https://search.brave.com/search?q=" }
@@ -406,7 +407,7 @@ function migrateSettings() {
   if (!settings.wispId || settings.wispId === "default" || settings.wispId === "custom") {
     settings.wispId = "va1";
   }
-  if (!SEARCH_ENGINES[settings.searchEngine]) settings.searchEngine = "duckduckgo";
+  if (!SEARCH_ENGINES[settings.searchEngine]) settings.searchEngine = "google";
   if (!Array.isArray(settings.customServers)) settings.customServers = [];
   if (settings.animCount == null) settings.animCount = 18;
   if (settings.animSize == null) settings.animSize = 1;
@@ -489,20 +490,20 @@ function applyNewTabBackground() {
 function imgIcon(name) { return '<img src="' + IMG + name + '" alt="">'; }
 
 function searchPrefix() {
-  const id = (settings && settings.searchEngine) || "duckduckgo";
-  const eng = SEARCH_ENGINES[id] || SEARCH_ENGINES.duckduckgo;
+  const id = (settings && settings.searchEngine) || "google";
+  const eng = SEARCH_ENGINES[id] || SEARCH_ENGINES.google;
   return eng.prefix;
 }
 
-/** Full DuckDuckGo SPA often fails TLS / blanks through the proxy — use HTML results */
+/** Current Wisp IPs fail DuckDuckGo TLS (handshake eof / curl 35). Send the query to Google. */
 function rewriteSearchUrl(url) {
   try {
     const u = new URL(url);
     const host = u.hostname.replace(/^www\./, "");
     if (host === "duckduckgo.com" || host === "html.duckduckgo.com" || host === "lite.duckduckgo.com") {
       const q = u.searchParams.get("q") || u.searchParams.get("query") || "";
-      if (q) return "https://html.duckduckgo.com/html/?q=" + encodeURIComponent(q);
-      if (host !== "html.duckduckgo.com") return "https://html.duckduckgo.com/html/";
+      if (q) return "https://www.google.com/search?q=" + encodeURIComponent(q);
+      return "https://www.google.com/";
     }
   } catch {}
   return url;
@@ -677,20 +678,11 @@ async function createEngineFrame(page, wrapper) {
   }
 }
 
-function isDuckDuckGoUrl(url) {
-  try {
-    return /duckduckgo\.com$/i.test(new URL(url).hostname.replace(/^www\./, ""));
-  } catch {
-    return false;
-  }
-}
-
-async function ensureLibcurlTransport() {
-  if (settings.transport === "libcurl") return false;
-  settings.transport = "libcurl";
+async function flipTransport() {
+  settings.transport = settings.transport === "libcurl" ? "epoxy" : "libcurl";
   try { save(); } catch (_) {}
   await reconnectTransport();
-  return true;
+  return settings.transport;
 }
 
 async function goFrame(page, url) {
@@ -698,11 +690,6 @@ async function goFrame(page, url) {
   if (!frameObj || !url) return;
   url = rewriteSearchUrl(url);
   page.url = url;
-
-  // DuckDuckGo + Epoxy frequently hits "tls handshake eof" through current Wisp servers
-  if (isDuckDuckGoUrl(url)) {
-    try { await ensureLibcurlTransport(); } catch (e) { console.warn("[veil] libcurl switch failed", e); }
-  }
 
   const attempt = async (target) => {
     const u = target || url;
@@ -714,7 +701,7 @@ async function goFrame(page, url) {
     }
   };
   const isTransportErr = (msg) =>
-    /MuxTaskEnded|headers is not iterable|Invalid URL|Failed to fetch|network|Wisp|WebSocket|tls handshake|UnexpectedEof|Hyper client|client error \(IO/i.test(msg);
+    /MuxTaskEnded|headers is not iterable|Invalid URL|Failed to fetch|network|Wisp|WebSocket|tls handshake|UnexpectedEof|Hyper client|client error \(IO|SSL connect error|curl error 35/i.test(msg);
 
   try {
     await attempt(url);
@@ -724,23 +711,12 @@ async function goFrame(page, url) {
       console.warn(e);
       return;
     }
-    console.warn("[veil] navigation transport error, reconnecting...", msg);
+    console.warn("[veil] navigation transport error, flipping engine...", msg);
     try {
-      await ensureLibcurlTransport();
+      await flipTransport();
       await attempt(url);
     } catch (e2) {
       console.warn("[veil] retry failed", e2);
-      try {
-        if (isDuckDuckGoUrl(url)) {
-          const u = new URL(url);
-          const q = u.searchParams.get("q") || "";
-          const lite = "https://lite.duckduckgo.com/lite/" + (q ? "?q=" + encodeURIComponent(q) : "");
-          await attempt(lite);
-          page.url = lite;
-          try { renderToolbar(); } catch (_) {}
-          return;
-        }
-      } catch (_) {}
       const status = document.getElementById("engineStatus");
       if (status) status.textContent = "Connection lost - try another proxy server";
     }
@@ -814,7 +790,7 @@ function startWelcomeClock() {
 }
 
 function engineOptionsHTML() {
-  const cur = (settings && settings.searchEngine) || "duckduckgo";
+  const cur = (settings && settings.searchEngine) || "google";
   return Object.values(SEARCH_ENGINES).map((e) =>
     '<option value="' + e.id + '"' + (e.id === cur ? " selected" : "") + ">" + e.name + "</option>"
   ).join("");
@@ -2032,8 +2008,8 @@ function highlightTheme() {
     }
     const engSel = document.getElementById("searchEngineSelect");
     if (engSel) {
-      if (!SEARCH_ENGINES[settings.searchEngine]) settings.searchEngine = "duckduckgo";
-      engSel.value = settings.searchEngine || "duckduckgo";
+      if (!SEARCH_ENGINES[settings.searchEngine]) settings.searchEngine = "google";
+      engSel.value = settings.searchEngine || "google";
     }
     const style = document.getElementById("animStyle");
     if (style) style.value = settings.animStyle || "orbs";
@@ -2499,8 +2475,8 @@ if (launchNowBtn) launchNowBtn.onclick = () => openLaunchModal();
 const searchEngineSelect = document.getElementById("searchEngineSelect");
 if (searchEngineSelect) {
   searchEngineSelect.addEventListener("change", () => {
-    const v = searchEngineSelect.value || "duckduckgo";
-    settings.searchEngine = SEARCH_ENGINES[v] ? v : "duckduckgo";
+    const v = searchEngineSelect.value || "google";
+    settings.searchEngine = SEARCH_ENGINES[v] ? v : "google";
     save();
   });
 }
@@ -3138,7 +3114,7 @@ async function loadGameCatalog() {
       name: "Retrobowl",
       image: "image/games/small/retrobowl.png",
       imageLarge: "image/games/large/retrobowl.png",
-      url: "HTML/RB.html",
+      url: "assets/retrobowl/retrobowl.html",
       category: "Sports",
       description: "A retro-style football game.",
       controls: "Mouse or touch to manage your team.",
@@ -3360,8 +3336,11 @@ async function renderGamesPage(root) {
   gamesRenderRoot = root;
   await loadGameCatalog();
   await loadGamesUserData();
-  // Popular hero: every game that has a wide (large) thumbnail
-  const popList = shuffle(gamesCatalog.slice());
+  const withLarge = gamesCatalog.filter((g) => {
+    if (g.imageLarge) return true;
+    return !!(g.image && /games\/large/i.test(g.image));
+  });
+  const popList = shuffle((withLarge.length ? withLarge : gamesCatalog).slice());
 
   root.innerHTML =
     '<div class="games-hero" id="gamesHero">' +
