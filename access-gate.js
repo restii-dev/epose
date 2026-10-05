@@ -782,6 +782,47 @@
   var pendingRefresh = document.getElementById("pendingRefreshBtn");
   var pendingLogout = document.getElementById("pendingLogoutBtn");
 
+  function accountMissing(data) {
+    var reason = String((data && data.reason) || "").toLowerCase();
+    var err = String((data && data.error) || "").toLowerCase();
+    if (reason === "not_found" || reason === "unknown" || reason === "no_account") return true;
+    return /not found|no account|does not exist|unknown user|unknown email|no user/.test(err);
+  }
+
+  function openVerify(email, note) {
+    try { localStorage.setItem(PENDING_EMAIL, String(email || "").trim().toLowerCase()); } catch (e) {}
+    clearToken();
+    try { localStorage.setItem(PENDING_EMAIL, String(email || "").trim().toLowerCase()); } catch (e2) {}
+    showGate("", false);
+    showPanel("verify");
+    clearOtp();
+    setMsg(note || "We emailed you a 6-digit code. Enter it below.", false);
+  }
+
+  function markOtpInvalid() {
+    var row = document.getElementById("otpRow");
+    if (!row) return;
+    row.classList.remove("otp-bad");
+    void row.offsetWidth;
+    row.classList.add("otp-bad");
+  }
+
+  function beginEmailVerify(email, password) {
+    setMsg("Sending a 6-digit code…", false);
+    api("/api/auth/signup", { email: email, password: password }).then(function (r) {
+      var data = r.data || {};
+      if (data.ok && data.emailSent) {
+        openVerify(email);
+        return;
+      }
+      if (data.needsVerify || data.reason === "unverified") {
+        openVerify(email, "Enter the 6-digit code sent to your email.");
+        return;
+      }
+      setMsg(data.error || "Could not send a verification code", true, true);
+    });
+  }
+
   if (loginBtn) {
     loginBtn.onclick = function () {
       var email = (document.getElementById("loginEmail") || {}).value || "";
@@ -789,15 +830,20 @@
       setMsg("Signing in…", false);
       api("/api/auth/login", { email: email, password: password }).then(function (r) {
         var data = r.data || {};
-        // FLOW: existing verified → pending/app; unverified → verify code; unknown → error
-        if (data.token && data.user && data.user.emailVerified) {
+        // Existing verified account → pending, or straight in if an admin already approved it.
+        if (data.token && data.user && data.user.emailVerified && data.reason !== "unverified") {
           setToken(data.token, data.user);
+          handleAuthResult(data, data.token);
+          if (!data.ok && !data.reason && !data.user) setMsg(data.error || "Login failed", true, true);
+          return;
         }
+        // Not an existing verified user → same 6-digit email check as sign up.
         if (data.needsVerify || data.reason === "unverified") {
-          try { localStorage.setItem(PENDING_EMAIL, (email || "").trim().toLowerCase()); } catch (e) {}
-          showGate(data.error || "Enter the verification code sent to your email", false);
-          showPanel("verify");
-          clearOtp();
+          openVerify(email, data.error || "Enter the 6-digit code sent to your email.");
+          return;
+        }
+        if (accountMissing(data)) {
+          beginEmailVerify(email, password);
           return;
         }
         handleAuthResult(data, data.token);
@@ -817,14 +863,7 @@
           setMsg(data.error || "Signup failed — verification email was not sent", true, true);
           return;
         }
-        // FLOW: Sign up → Brevo code → verify screen (no session yet)
-        try { localStorage.setItem(PENDING_EMAIL, email.trim().toLowerCase()); } catch (e) {}
-        clearToken();
-        try { localStorage.setItem(PENDING_EMAIL, email.trim().toLowerCase()); } catch (e) {}
-        showGate("", false);
-        showPanel("verify");
-        clearOtp();
-        setMsg("We emailed you a 6-digit code. Enter it below.", false);
+        openVerify(email);
       });
     };
   }
@@ -843,21 +882,28 @@
       }
       setMsg("Verifying…", false);
       api("/api/auth/verify", { email: email, code: code }).then(function (r) {
-        if (!r.data.ok && !r.data.reason && !r.data.user) {
-          setMsg(r.data.error || "Invalid code", true, true);
+        var data = r.data || {};
+        var user = data.user || null;
+        var accepted = data.reason === "pending" || data.reason === "banned" ||
+          (user && (user.emailVerified || user.hasAccess)) ||
+          (data.ok && user);
+        if (!accepted) {
+          clearToken();
+          markOtpInvalid();
+          setMsg("That code is invalid.", true, false);
+          clearOtp();
           return;
         }
-        /* Correct code → marked verified → pending (or enter if already granted) */
-        if (r.data.token) setToken(r.data.token, r.data.user);
+        if (data.token) setToken(data.token, user);
         handleAuthResult(
           {
-            ok: !!(r.data.ok && r.data.user && r.data.user.hasAccess),
-            reason: r.data.reason || (r.data.user && r.data.user.hasAccess ? undefined : "pending"),
-            error: r.data.error,
-            user: r.data.user || { email: email, emailVerified: true, status: "pending", hasAccess: false },
-            token: r.data.token,
+            ok: !!(data.ok && user && user.hasAccess),
+            reason: data.reason || (user && user.hasAccess ? undefined : "pending"),
+            error: data.error,
+            user: user || { email: email, emailVerified: true, status: "pending", hasAccess: false },
+            token: data.token,
           },
-          r.data.token
+          data.token
         );
       });
     };

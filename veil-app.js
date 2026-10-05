@@ -450,7 +450,60 @@ function loadSavedData() {
   } catch (e) { console.warn("load failed", e); }
 }
 
+function cssHexToRgb(hex) {
+  let h = String(hex || "").trim().replace("#", "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const n = parseInt(h, 16);
+  if (!Number.isFinite(n) || h.length !== 6) return { r: 16, g: 16, b: 16 };
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+function rgbToHex(r, g, b) {
+  const c = (n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0");
+  return "#" + c(r) + c(g) + c(b);
+}
+function mixHex(a, b, t) {
+  const A = cssHexToRgb(a);
+  const B = cssHexToRgb(b);
+  const k = Math.max(0, Math.min(1, t));
+  return rgbToHex(A.r + (B.r - A.r) * k, A.g + (B.g - A.g) * k, A.b + (B.b - A.b) * k);
+}
+function relLuma(hex) {
+  const { r, g, b } = cssHexToRgb(hex);
+  const f = (c) => {
+    const x = c / 255;
+    return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+}
+function channelDistance(a, b) {
+  const A = cssHexToRgb(a);
+  const B = cssHexToRgb(b);
+  return Math.abs(A.r - B.r) + Math.abs(A.g - B.g) + Math.abs(A.b - B.b);
+}
+function outlineColor(base) {
+  const light = relLuma(base) > 0.5;
+  const ink = light ? "#000000" : "#ffffff";
+  let c = mixHex(base, ink, light ? 0.22 : 0.28);
+  if (channelDistance(c, base) < 32) c = mixHex(base, ink, 0.45);
+  return c;
+}
+function deriveCustomSurfaces() {
+  if (!settings || settings.theme !== "custom") return;
+  const bg = settings.bg || "#101010";
+  const panel = settings.panel || "#181818";
+  const text = settings.text || "#f2f2f2";
+  const accent = settings.accent || "#ffffff";
+  settings.bg2 = mixHex(bg, panel, 0.7);
+  settings.bg3 = mixHex(panel, text, 0.09);
+  settings.panel2 = mixHex(panel, text, 0.12);
+  settings.border = outlineColor(panel);
+  settings.muted = mixHex(text, bg, 0.46);
+  settings.newtab = bg;
+  settings.accentText = relLuma(accent) > 0.62 ? "#111111" : "#f4f4f4";
+}
+
 function applyCSSVariables() {
+  deriveCustomSurfaces();
   const root = document.documentElement;
   ["bg", "bg2", "bg3", "panel", "panel2", "border", "text", "muted", "accent", "accentText", "newtab"]
     .forEach(k => root.style.setProperty("--" + k, settings[k]));
@@ -2221,17 +2274,11 @@ function applyCustomColors() {
   const accent = (accentEl && accentEl.value) || "#ffffff";
   const text = (textEl && textEl.value) || "#f2f2f2";
   settings.bg = bg;
-  settings.bg2 = panel;
-  settings.bg3 = panel;
   settings.panel = panel;
-  settings.panel2 = panel;
-  settings.border = panel;
   settings.accent = accent;
-  settings.accentText = bg;
   settings.text = text;
-  settings.muted = text;
-  settings.newtab = bg;
   settings.theme = "custom";
+  deriveCustomSurfaces();
   applyCSSVariables();
   save();
   highlightTheme();
