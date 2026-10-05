@@ -303,7 +303,7 @@ const THEMES = {
 
 const DEFAULT_SETTINGS = {
   theme: "matte", transport: "libcurl", wispId: "default", wispCustom: "",
-  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "google", wispId: "va1", customServers: [], lockUnload: false, confirmLeave: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", transportMigratedV2: true, ...THEMES.matte
+  launchMode: "manual", backgroundUrl: "", adBlocker: true, maxLoadedTabs: 4, searchEngine: "google", wispId: "va1", customServers: [], lockUnload: false, confirmLeave: false, animEnabled: false, animStyle: "orbs", animSpeed: 1, animCount: 18, animSize: 1, animColorA: "#7aa2ff", animColorB: "#b88cff", timeFormat: "12", transportMigratedV2: true, saverMinutes: 0, saverStyle: "orbs", saverUrl: "", customOutline: "", ...THEMES.matte
 };
 const DEFAULT_PANIC = { key: "", code: "", url: "https://classroom.google.com" };
 
@@ -412,6 +412,11 @@ function migrateSettings() {
   if (settings.animCount == null) settings.animCount = 18;
   if (settings.animSize == null) settings.animSize = 1;
   if (settings.timeFormat !== "12" && settings.timeFormat !== "24") settings.timeFormat = "12";
+  if (settings.saverMinutes == null || !Number.isFinite(Number(settings.saverMinutes))) settings.saverMinutes = 0;
+  settings.saverMinutes = Number(settings.saverMinutes) || 0;
+  if (!["orbs", "stars", "constellation", "rain", "custom"].includes(settings.saverStyle)) settings.saverStyle = "orbs";
+  if (typeof settings.saverUrl !== "string") settings.saverUrl = "";
+  if (typeof settings.customOutline !== "string") settings.customOutline = "";
   // Default launch is always manual unless user explicitly keeps auto in settings UI
   if (settings.launchMode !== "auto" && settings.launchMode !== "manual") {
     settings.launchMode = "manual";
@@ -496,7 +501,7 @@ function deriveCustomSurfaces() {
   settings.bg2 = mixHex(bg, panel, 0.7);
   settings.bg3 = mixHex(panel, text, 0.09);
   settings.panel2 = mixHex(panel, text, 0.12);
-  settings.border = outlineColor(panel);
+  settings.border = (/^#[0-9a-fA-F]{6}$/.test(settings.customOutline || "")) ? settings.customOutline : outlineColor(panel);
   settings.muted = mixHex(text, bg, 0.46);
   settings.newtab = bg;
   settings.accentText = relLuma(accent) > 0.62 ? "#111111" : "#f4f4f4";
@@ -1036,7 +1041,7 @@ function homepageHTML(pageId) {
     '<div class="newtab-title">Veil</div>' +
     '<div class="newtab-sub">Browse quietly. Stay undetected.</div>' +
     '<div class="search-row">' +
-    '<div class="search-box" style="width:100%"><span class="home-search-icon"></span>' +
+    '<div class="search-box" style="width:100%">' +
     '<input class="newtab-search" data-page="' + pageId + '" placeholder="Search or enter a site..." autocomplete="off" spellcheck="false">' +
     '</div></div>' +
     '<div class="quick-links">' +
@@ -1072,6 +1077,10 @@ const SETTINGS_INFO = {
   animations: {
     title: "Home page animations",
     body: "Adds a moving background on the home page (orbs, stars, rain, and more)."
+  },
+  screensaver: {
+    title: "Screen saver",
+    body: "After Veil sits idle, a full-screen wallpaper takes over. Pick one of the live wallpapers, or your own image, GIF, WebP, or video. It stays off until you choose a time. Move the mouse or press a key to dismiss it."
   },
   cloak: {
     title: "Tab cloak",
@@ -1695,6 +1704,8 @@ function loadColorInputs() {
     if (accent) accent.value = safeColorValue(settings.accent, "#ffffff");
     const text = document.getElementById("colorText");
     if (text) text.value = safeColorValue(settings.text, "#f0f0f0");
+    const outline = document.getElementById("colorOutline");
+    if (outline) outline.value = safeColorValue(settings.customOutline || settings.border, "#2b2b2b");
     const bgUrl = document.getElementById("backgroundUrl");
     if (bgUrl) bgUrl.value = settings.backgroundUrl || "";
   } catch (e) {
@@ -1848,14 +1859,16 @@ function hexToRgb(hex) {
 function stopHomeFx(wrapper) {
   const prev = homeFxLoops.get(wrapper);
   if (prev && prev.raf) cancelAnimationFrame(prev.raf);
+  if (prev && prev.ro) prev.ro.disconnect();
   homeFxLoops.delete(wrapper);
 }
 
-function setupHomeFx(wrapper) {
+function setupHomeFx(wrapper, opts) {
+  const forced = !!(opts && opts.force);
   stopHomeFx(wrapper);
   const canvas = wrapper.querySelector("[data-home-fx]");
   if (!canvas) return;
-  if (!settings.animEnabled || !COOKIE.consent) {
+  if (!forced && (!settings.animEnabled || !COOKIE.consent)) {
     canvas.style.display = "none";
     return;
   }
@@ -1870,7 +1883,7 @@ function setupHomeFx(wrapper) {
     canvas.style.height = r.height + "px";
   };
   resize();
-  let style = settings.animStyle || "orbs";
+  let style = (opts && opts.style) || settings.animStyle || "orbs";
   if (style === "waves" || style === "pulse") style = "rain";
   const sizeMul = Math.max(0.4, Math.min(2.5, Number(settings.animSize) || 1));
   let n = Number(settings.animCount);
@@ -1929,7 +1942,7 @@ function setupHomeFx(wrapper) {
   };
 
   const draw = () => {
-    if (!settings.animEnabled) return;
+    if (!forced && !settings.animEnabled) return;
     // Base speed scale so 1x is calm (was too fast before)
     const speed = (Number(settings.animSpeed) || 1) * 0.42;
     state.t += 0.016 * speed;
@@ -2104,9 +2117,10 @@ function setupHomeFx(wrapper) {
     state.raf = requestAnimationFrame(draw);
   };
   state.raf = requestAnimationFrame(draw);
-  homeFxLoops.set(wrapper, state);
   const ro = new ResizeObserver(resize);
   ro.observe(wrapper);
+  state.ro = ro;
+  homeFxLoops.set(wrapper, state);
 }
 
 function setSwitch(el, on) {
@@ -2121,6 +2135,99 @@ function refreshHomeFxAll() {
     const tab = tabs.find((x) => x.id === id);
     if (tab && tab.newTab) setupHomeFx(pageEl);
   });
+}
+
+let saverTimer = null;
+let saverVisible = false;
+
+function renderSaverVisual() {
+  const root = document.getElementById("veilSaver");
+  if (!root) return;
+  const canvas = root.querySelector("[data-home-fx]");
+  const img = root.querySelector("img.saver-media");
+  const video = root.querySelector("video.saver-media");
+  stopHomeFx(root);
+  if (img) { img.removeAttribute("src"); img.hidden = true; }
+  if (video) { try { video.pause(); } catch (e) {} video.removeAttribute("src"); video.hidden = true; }
+  const style = settings.saverStyle || "orbs";
+  const url = (settings.saverUrl || "").trim();
+  if (style === "custom" && url) {
+    if (canvas) canvas.style.display = "none";
+    if (isVideoUrl(url) && video) {
+      video.hidden = false;
+      video.src = url;
+      video.play().catch(() => {});
+    } else if (img) {
+      img.hidden = false;
+      img.src = url;
+    }
+    return;
+  }
+  if (canvas) canvas.style.display = "block";
+  setupHomeFx(root, { force: true, style: style === "custom" ? "orbs" : style });
+}
+
+function showSaver() {
+  const mins = Number(settings.saverMinutes) || 0;
+  if (mins <= 0 || saverVisible) return;
+  if (document.body.classList.contains("gate-lock") || document.body.classList.contains("booting")) return;
+  const root = document.getElementById("veilSaver");
+  if (!root) return;
+  saverVisible = true;
+  root.hidden = false;
+  root.classList.add("on");
+  requestAnimationFrame(renderSaverVisual);
+}
+
+function hideSaver() {
+  const root = document.getElementById("veilSaver");
+  saverVisible = false;
+  if (root) {
+    root.classList.remove("on");
+    root.hidden = true;
+    stopHomeFx(root);
+    const video = root.querySelector("video.saver-media");
+    if (video) { try { video.pause(); } catch (e) {} video.removeAttribute("src"); video.hidden = true; }
+  }
+  armSaver();
+}
+
+function armSaver() {
+  if (saverTimer) clearTimeout(saverTimer);
+  saverTimer = null;
+  const mins = Number(settings.saverMinutes) || 0;
+  if (mins <= 0 || saverVisible) return;
+  if (document.body.classList.contains("gate-lock")) return;
+  saverTimer = setTimeout(showSaver, mins * 60000);
+}
+
+let saverBump = 0;
+function noteSaverActivity() {
+  if (saverVisible) { hideSaver(); return; }
+  const now = Date.now();
+  if (now - saverBump < 800) return;
+  saverBump = now;
+  armSaver();
+}
+
+function syncSaverFields() {
+  const delay = document.getElementById("saverDelay");
+  if (delay) delay.value = String(Number(settings.saverMinutes) || 0);
+  const style = document.getElementById("saverStyle");
+  if (style) style.value = settings.saverStyle || "orbs";
+  const url = document.getElementById("saverUrl");
+  if (url && document.activeElement !== url) url.value = settings.saverUrl || "";
+  const row = document.getElementById("saverUrlRow");
+  if (row) row.style.display = settings.saverStyle === "custom" ? "" : "none";
+}
+
+function applySaverUrl() {
+  const url = document.getElementById("saverUrl");
+  if (url) settings.saverUrl = url.value.trim();
+  settings.saverStyle = "custom";
+  save();
+  syncSaverFields();
+  if (saverVisible) renderSaverVisual();
 }
 
 function lockVeil() {
@@ -2242,6 +2349,7 @@ function highlightTheme() {
       asz.value = String(settings.animSize || 1);
       if (asv) asv.textContent = Number(settings.animSize || 1).toFixed(2) + "x";
     }
+    syncSaverFields();
   } catch (e) {
     console.warn("highlightTheme", e);
   }
@@ -2258,7 +2366,7 @@ function pushAdblockToSW() {
 
 function applyTheme(name) {
   if (!THEMES[name]) return;
-  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, confirmLeave: settings.confirmLeave, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, wispId: settings.wispId, timeFormat: settings.timeFormat };
+  const keep = { transport: settings.transport, wispId: settings.wispId, wispCustom: settings.wispCustom, launchMode: settings.launchMode, backgroundUrl: settings.backgroundUrl, adBlocker: settings.adBlocker, maxLoadedTabs: settings.maxLoadedTabs, searchEngine: settings.searchEngine, lockUnload: settings.lockUnload, confirmLeave: settings.confirmLeave, animEnabled: settings.animEnabled, animStyle: settings.animStyle, animSpeed: settings.animSpeed, animColorA: settings.animColorA, animColorB: settings.animColorB, animCount: settings.animCount, animSize: settings.animSize, customServers: settings.customServers, timeFormat: settings.timeFormat, saverMinutes: settings.saverMinutes, saverStyle: settings.saverStyle, saverUrl: settings.saverUrl, customOutline: settings.customOutline };
   settings = Object.assign({}, settings, THEMES[name], keep, { theme: name });
   const editor = document.getElementById("customColorCard");
   if (editor) editor.classList.remove("open", "force-open");
@@ -2269,14 +2377,17 @@ function applyCustomColors() {
   const panelEl = document.getElementById("colorPanel");
   const accentEl = document.getElementById("colorAccent");
   const textEl = document.getElementById("colorText");
+  const outlineEl = document.getElementById("colorOutline");
   const bg = (bgEl && bgEl.value) || settings.bg || "#101010";
   const panel = (panelEl && panelEl.value) || bg;
   const accent = (accentEl && accentEl.value) || "#ffffff";
   const text = (textEl && textEl.value) || "#f2f2f2";
+  const outline = (outlineEl && outlineEl.value) || "";
   settings.bg = bg;
   settings.panel = panel;
   settings.accent = accent;
   settings.text = text;
+  settings.customOutline = /^#[0-9a-fA-F]{6}$/.test(outline) ? outline : "";
   settings.theme = "custom";
   deriveCustomSurfaces();
   applyCSSVariables();
@@ -2718,6 +2829,27 @@ const animStyle = document.getElementById("animStyle");
 if (animStyle) animStyle.addEventListener("change", () => {
   settings.animStyle = animStyle.value; save(); refreshHomeFxAll();
 });
+const saverDelay = document.getElementById("saverDelay");
+if (saverDelay) saverDelay.addEventListener("change", () => {
+  const n = Number(saverDelay.value);
+  settings.saverMinutes = Number.isFinite(n) && n > 0 ? n : 0;
+  save();
+  if (!settings.saverMinutes && saverVisible) hideSaver();
+  else armSaver();
+  syncSaverFields();
+});
+const saverStyleEl = document.getElementById("saverStyle");
+if (saverStyleEl) saverStyleEl.addEventListener("change", () => {
+  settings.saverStyle = saverStyleEl.value || "orbs";
+  save();
+  syncSaverFields();
+  if (saverVisible) renderSaverVisual();
+});
+on("applySaver", applySaverUrl);
+["mousemove", "mousedown", "keydown", "touchstart", "wheel"].forEach((ev) => {
+  window.addEventListener(ev, noteSaverActivity, { passive: true, capture: true });
+});
+setInterval(() => { if (!saverTimer && !saverVisible) armSaver(); }, 5000);
 const animSpeed = document.getElementById("animSpeed");
 if (animSpeed) {
   animSpeed.addEventListener("input", () => {
@@ -3182,6 +3314,7 @@ async function bootVeilApp() {
   renderChrome();
   startWelcomeClock();
   try { startLivePings(); } catch (e) {}
+  try { armSaver(); } catch (e) {}
   // Engine loads on first navigation (saves memory)
   // initEngine().then(() => pushAdblockToSW()).catch(() => {});
   setTimeout(syncAboutBlankChrome, 100);
@@ -3206,7 +3339,11 @@ async function bootVeilApp() {
       animColorA: settings.animColorA,
       animColorB: settings.animColorB,
       customServers: settings.customServers,
-      timeFormat: settings.timeFormat
+      timeFormat: settings.timeFormat,
+      saverMinutes: settings.saverMinutes,
+      saverStyle: settings.saverStyle,
+      saverUrl: settings.saverUrl,
+      customOutline: settings.customOutline
     });
   } else {
     settings.theme = "matte";

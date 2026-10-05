@@ -59,9 +59,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
 .tool-btn:hover,.menu-btn:hover,.address-bookmark:hover{background:var(--panel2);color:var(--text)}
 .tool-btn:disabled{opacity:.28;cursor:default}
 .icon{width:17px;height:17px;display:block;background:currentColor;-webkit-mask:var(--i) center / contain no-repeat;mask:var(--i) center / contain no-repeat}
-.address-wrap{flex:1;min-width:0;height:34px;display:flex;align-items:center;border-radius:17px;background:var(--bg2);border:1px solid var(--border);padding:0 6px 0 12px}
+.address-wrap{flex:1;min-width:0;height:34px;display:flex;align-items:center;border-radius:17px;background:var(--bg2);border:1px solid var(--border);padding:0 6px 0 14px}
 .address-wrap:focus-within{border-color:var(--accent);background:var(--bg3)}
-.address-icon{width:15px;height:15px;margin-right:8px;flex:0 0 15px;background:var(--muted);-webkit-mask:url("image/search.svg") center / contain no-repeat;mask:url("image/search.svg") center / contain no-repeat}
 #address{flex:1;min-width:0;border:0;background:transparent;color:var(--text);font-size:13px}
 #address::placeholder{color:#666}
 .address-bookmark{width:28px;height:28px;border-radius:50%}
@@ -114,8 +113,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
 .newtab-sub{font-size:13px;color:var(--muted);margin-bottom:22px;letter-spacing:.04em}
 .search-row{width:min(560px,100%);display:flex;align-items:stretch;gap:8px}
 .engine-select{height:50px;flex:0 0 auto;min-width:108px;border-radius:14px;border:1px solid rgba(255,255,255,.1);background:rgba(20,20,20,.85);color:var(--text);padding:0 12px;font-size:13px;cursor:pointer}
-.search-box{flex:1;min-width:0;height:50px;border-radius:14px;background:rgba(255,255,255,.94);border:1px solid rgba(0,0,0,.06);box-shadow:0 8px 32px rgba(0,0,0,.25);display:flex;align-items:center;padding:0 16px;gap:10px}
-.search-box .home-search-icon{width:18px;height:18px;flex:0 0 18px;background:#888;-webkit-mask:url("image/search.svg") center / contain no-repeat;mask:url("image/search.svg") center / contain no-repeat}
+.search-box{flex:1;min-width:0;height:50px;border-radius:14px;background:rgba(255,255,255,.94);border:1px solid rgba(0,0,0,.06);box-shadow:0 8px 32px rgba(0,0,0,.25);display:flex;align-items:center;padding:0 16px}
 .search-box input{flex:1;border:0;background:transparent;color:#111;font-size:14px}
 .search-box input::placeholder{color:#999}
 .quick-links{display:flex;justify-content:center;flex-wrap:wrap;gap:14px;margin-top:32px}
@@ -274,6 +272,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{ou
 .anim-opts{opacity:.45;pointer-events:none;transition:opacity .2s ease}
 .anim-opts.enabled{opacity:1;pointer-events:auto}
 .home-fx{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+#veilSaver{position:fixed;inset:0;z-index:90000;display:none;background:#050505}
+#veilSaver.on{display:block}
+#veilSaver [data-home-fx],#veilSaver .saver-media{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border:0;pointer-events:none}
 
 .transport-row,.cloak-grid{display:flex;flex-wrap:wrap;gap:8px}
 .transport-btn,.cloak-preset{flex:1;min-width:90px;height:36px;border-radius:9px;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer;font-size:12px}
@@ -805,7 +806,6 @@ body.boot-reveal #browser{
         <button class="tool-btn" id="homeBtn" title="Home"><span class="icon" style="--i:url('image/home.svg')"></span></button>
       </div>
       <div class="address-wrap">
-        <span class="address-icon"></span>
         <input id="address" type="text" autocomplete="off" spellcheck="false" placeholder="Search or enter address">
         <button class="address-bookmark" id="bookmarkBtn" title="Bookmark"><span class="icon" style="--i:url('image/bookmarks.svg')"></span></button>
       </div>
@@ -816,6 +816,11 @@ body.boot-reveal #browser{
     </div>
   </header>
   <main class="viewport" id="viewport"></main>
+</div>
+<div id="veilSaver" hidden>
+  <canvas data-home-fx></canvas>
+  <img class="saver-media" alt="" hidden>
+  <video class="saver-media" muted loop playsinline hidden></video>
 </div>
 
 <div class="menu" id="mainMenu">
@@ -860,6 +865,7 @@ body.boot-reveal #browser{
         <div class="input-row"><label class="input-label">Panel</label><input class="color-input" type="color" id="colorPanel" value="#181818"></div>
         <div class="input-row"><label class="input-label">Accent</label><input class="color-input" type="color" id="colorAccent" value="#ffffff"></div>
         <div class="input-row"><label class="input-label">Text</label><input class="color-input" type="color" id="colorText" value="#f2f2f2"></div>
+        <div class="input-row"><label class="input-label">Outline</label><input class="color-input" type="color" id="colorOutline" value="#2b2b2b"></div>
         <button class="primary-btn" id="applyColors" type="button">Apply colors</button>
       </div>
     </section>
@@ -895,6 +901,33 @@ body.boot-reveal #browser{
         <div class="range-row"><span class="input-label" style="width:90px;flex:0 0 90px;font-size:12px;color:var(--muted)">Size</span><input type="range" id="animSize" min="0.4" max="2.5" step="0.05" value="1"><span class="range-val" id="animSizeVal">1.00x</span></div>
         <div class="input-row"><label class="input-label">Color A</label><input class="color-input" type="color" id="animColorA" value="#7aa2ff"></div>
         <div class="input-row"><label class="input-label">Color B</label><input class="color-input" type="color" id="animColorB" value="#b88cff"></div>
+      </div>
+    </section>
+    <section class="setting-section">
+      <div class="setting-title">Screen saver <button type="button" class="info-btn" data-info="screensaver" title="About this option" aria-label="About Screen saver"><img src="image/info.svg" alt=""></button></div>
+      <div class="input-row"><label class="input-label">Show after</label>
+        <select class="text-input" id="saverDelay">
+          <option value="0">Disabled</option>
+          <option value="1">1 minute</option>
+          <option value="5">5 minutes</option>
+          <option value="10">10 minutes</option>
+          <option value="15">15 minutes</option>
+          <option value="30">30 minutes</option>
+          <option value="60">1 hour</option>
+        </select>
+      </div>
+      <div class="input-row"><label class="input-label">Wallpaper</label>
+        <select class="text-input" id="saverStyle">
+          <option value="orbs">Floating orbs</option>
+          <option value="stars">Twinkling stars</option>
+          <option value="constellation">Constellation</option>
+          <option value="rain">Rain & storms</option>
+          <option value="custom">Custom URL</option>
+        </select>
+      </div>
+      <div id="saverUrlRow">
+        <div class="input-row"><input class="text-input" id="saverUrl" placeholder="Image, GIF, WebP, or video URL"></div>
+        <button class="primary-btn" id="applySaver" type="button">Apply screen saver</button>
       </div>
     </section>
 
